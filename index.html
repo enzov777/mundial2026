@@ -21,10 +21,12 @@
         .tab-active { border-bottom: 3px solid #fbbf24; color: #fbbf24; }
         .hidden-section { display: none; }
         .visible-section { display: block; }
-        .flag-img { width: 40px; height: 28px; border-radius: 4px; object-fit: cover; box-shadow: 0 2px 4px rgba(0,0,0,0.3); }
+        .flag-box { width: 44px; height: 30px; border-radius: 4px; display: flex; align-items: center; justify-content: center; font-size: 0.65rem; font-weight: 800; color: white; text-shadow: 0 1px 2px rgba(0,0,0,0.5); box-shadow: 0 2px 6px rgba(0,0,0,0.3); overflow: hidden; position: relative; }
+        .flag-box img { width: 100%; height: 100%; object-fit: cover; }
+        .flag-box .flag-fallback { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 0.6rem; }
         .admin-input { background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15); border-radius: 6px; padding: 4px 8px; color: white; font-size: 0.85rem; width: 120px; }
         .admin-input:focus { outline: none; border-color: #fbbf24; }
-        .btn-admin { padding: 4px 12px; border-radius: 6px; font-size: 0.75rem; font-weight: 600; cursor: pointer; transition: all 0.2s; }
+        .btn-admin { padding: 4px 12px; border-radius: 6px; font-size: 0.75rem; font-weight: 600; cursor: pointer; transition: all 0.2s; border: none; }
         .btn-save { background: #22c55e; color: white; }
         .btn-save:hover { background: #16a34a; }
         .btn-edit { background: #3b82f6; color: white; }
@@ -47,7 +49,7 @@ let currentPlayer = null;
 let matches = [];
 let bets = [];
 let players = [];
-let matchFilter = 'today'; // 'today' | 'all'
+let matchFilter = 'today';
 
 const ADMIN_CODE = 'MUNDIAL2026';
 
@@ -59,10 +61,6 @@ const formatDate = (dateStr) => {
     const d = new Date(dateStr);
     return d.toLocaleString('es-ES', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
 };
-const formatDateShort = (dateStr) => {
-    const d = new Date(dateStr);
-    return d.toLocaleDateString('es-ES', { day: '2-digit', month: 'short' });
-};
 const isMatchOpen = (match) => {
     return new Date(match.match_date) > new Date() && match.status === 'scheduled';
 };
@@ -72,17 +70,14 @@ const isMatchToday = (match) => {
     const now = new Date();
     return d.getDate() === now.getDate() && d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
 };
-const isMatchUpcoming = (match) => {
-    return new Date(match.match_date) > new Date();
-};
 
 // ============================================
-// BANDERAS REALES CON flagcdn.com
+// BANDERAS - Mapeo completo espanol + ingles
 // ============================================
 const countryCodes = {
     'Argentina': 'ar', 'Brasil': 'br', 'Brazil': 'br', 'Alemania': 'de', 'Germany': 'de',
-    'Espana': 'es', 'Spain': 'es', 'Francia': 'fr', 'France': 'fr', 'Inglaterra': 'gb',
-    'England': 'gb', 'Portugal': 'pt', 'Italia': 'it', 'Italy': 'it', 'Paises Bajos': 'nl',
+    'Espana': 'es', 'Spain': 'es', 'Francia': 'fr', 'France': 'fr', 'Inglaterra': 'gb-eng',
+    'England': 'gb-eng', 'Portugal': 'pt', 'Italia': 'it', 'Italy': 'it', 'Paises Bajos': 'nl',
     'Netherlands': 'nl', 'Belgica': 'be', 'Belgium': 'be', 'Uruguay': 'uy', 'Croacia': 'hr',
     'Croatia': 'hr', 'Mexico': 'mx', 'Estados Unidos': 'us', 'United States': 'us', 'USA': 'us',
     'Canada': 'ca', 'Japon': 'jp', 'Japan': 'jp', 'Corea del Sur': 'kr', 'Korea Republic': 'kr',
@@ -99,7 +94,7 @@ const countryCodes = {
     'Eslovenia': 'si', 'Slovenia': 'si', 'Finlandia': 'fi', 'Finland': 'fi', 'Irlanda': 'ie',
     'Ireland': 'ie', 'Escocia': 'gb-sct', 'Scotland': 'gb-sct', 'Nigeria': 'ng', 'Ghana': 'gh',
     'Camerun': 'cm', 'Cameroon': 'cm', 'Costa de Marfil': 'ci', 'Ivory Coast': 'ci',
-    'Cote d'Ivoire': 'ci', 'Egipto': 'eg', 'Egypt': 'eg', 'Argelia': 'dz', 'Algeria': 'dz',
+    'Cote d\'Ivoire': 'ci', 'Egipto': 'eg', 'Egypt': 'eg', 'Argelia': 'dz', 'Algeria': 'dz',
     'Sudafrica': 'za', 'South Africa': 'za', 'Nueva Zelanda': 'nz', 'New Zealand': 'nz',
     'Panama': 'pa', 'Honduras': 'hn', 'Jamaica': 'jm', 'Trinidad y Tobago': 'tt',
     'Trinidad and Tobago': 'tt', 'Haiti': 'ht', 'Guatemala': 'gt', 'El Salvador': 'sv',
@@ -140,18 +135,39 @@ const countryCodes = {
     'Mali': 'ml', 'Burkina Faso': 'bf', 'Niger': 'ne', 'Chad': 'td',
     'Republica Centroafricana': 'cf', 'Central African Republic': 'cf', 'Guinea': 'gn',
     'Guinea-Bissau': 'gw', 'Sierra Leona': 'sl', 'Sierra Leone': 'sl', 'Liberia': 'lr',
-    'Togo': 'tg', 'Benin': 'bj', 'Curacao': 'cw', 'Jordan': 'jo', 'Iraq': 'iq',
-    'Cape Verde': 'cv', 'Cabo Verde': 'cv'
+    'Togo': 'tg', 'Benin': 'bj', 'Curacao': 'cw', 'Jordan': 'jo', 'Jordania': 'jo',
+    'Iraq': 'iq', 'Irak': 'iq', 'Cape Verde': 'cv', 'Cabo Verde': 'cv',
+    'Surinam': 'sr', 'Suriname': 'sr', 'Guyana': 'gy', 'Guayana Francesa': 'gf',
+    'French Guiana': 'gf', 'Belice': 'bz', 'Belize': 'bz', 'Barbados': 'bb',
+    'Santa Lucia': 'lc', 'Saint Lucia': 'lc', 'San Vicente y Granadinas': 'vc',
+    'Saint Vincent and the Grenadines': 'vc', 'Granada': 'gd', 'Grenada': 'gd',
+    'San Cristobal y Nieves': 'kn', 'Saint Kitts and Nevis': 'kn',
+    'Antigua y Barbuda': 'ag', 'Antigua and Barbuda': 'ag', 'Dominica': 'dm',
+    'Montserrat': 'ms', 'Anguila': 'ai', 'Anguilla': 'ai',
+    'Islas Virgenes Britanicas': 'vg', 'British Virgin Islands': 'vg',
+    'Islas Virgenes Americanas': 'vi', 'United States Virgin Islands': 'vi',
+    'Islas Caiman': 'ky', 'Cayman Islands': 'ky',
+    'Islas Turcas y Caicos': 'tc', 'Turks and Caicos Islands': 'tc',
+    'Bahamas': 'bs', 'Bermudas': 'bm', 'Bermuda': 'bm',
+    'Svalbard': 'sj', 'Islas Georgias del Sur': 'gs', 'South Georgia': 'gs',
+    'Islas Sandwich del Sur': 'sh', 'Saint Helena': 'sh',
+    'Islas Malvinas': 'fk', 'Falkland Islands': 'fk', 'Gibraltar': 'gi',
+    'Islas Feroe': 'fo', 'Faroe Islands': 'fo', 'Islas Aland': 'ax', 'Aland Islands': 'ax',
+    'Jersey': 'je', 'Guernsey': 'gg', 'Isla de Man': 'im', 'Isle of Man': 'im',
+    'San Marino': 'sm', 'Vaticano': 'va', 'Monaco': 'mc', 'Andorra': 'ad',
+    'Liechtenstein': 'li', 'Malta': 'mt', 'Chipre': 'cy', 'Cyprus': 'cy',
+    'Luxemburgo': 'lu', 'Luxembourg': 'lu'
 };
 
-const getFlag = (team) => {
+const getFlagHTML = (team) => {
     const code = countryCodes[team] || 'xx';
-    return `https://flagcdn.com/w80/${code}.png`;
-};
-
-const getFlagImg = (team) => {
-    const code = countryCodes[team] || 'xx';
-    return `<img src="https://flagcdn.com/w80/${code}.png" class="flag-img" alt="${team}" onerror="this.style.display='none'">`;
+    const fallback = team.substring(0, 2).toUpperCase();
+    return `<div class="flag-box" style="background: linear-gradient(135deg, #1e3a5f, #0f172a);">
+        <img src="https://flagcdn.com/w80/${code}.png" alt="${team}" 
+            onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';" 
+            loading="lazy">
+        <span class="flag-fallback" style="display:none;">${fallback}</span>
+    </div>`;
 };
 
 const calculatePoints = (bet, match) => {
@@ -258,7 +274,6 @@ const showToast = (msg, type = 'info') => {
 <!-- SECCION: APUESTAS -->
 <!-- ============================================ -->
 <section id="section-apuestas" class="hidden-section max-w-4xl mx-auto px-4 mt-6 pb-20">
-    <!-- Filtros -->
     <div class="flex justify-center gap-3 mb-6">
         <button onclick="setFilter('today')" id="filter-today" class="filter-btn active">Hoy / Proximos</button>
         <button onclick="setFilter('all')" id="filter-all" class="filter-btn">Todos los Partidos</button>
@@ -505,9 +520,6 @@ function subscribeToChanges() {
         .subscribe();
 }
 
-// ============================================
-// FILTROS
-// ============================================
 function setFilter(filter) {
     matchFilter = filter;
     $('filter-today').classList.toggle('active', filter === 'today');
@@ -515,9 +527,6 @@ function setFilter(filter) {
     renderMatches();
 }
 
-// ============================================
-// RENDER: PARTIDOS / APUESTAS
-// ============================================
 function renderMatches() {
     const container = $('matches-container');
     if (!matches.length) {
@@ -525,12 +534,9 @@ function renderMatches() {
         return;
     }
 
-    // Filtrar partidos segun seleccion
     let filteredMatches = matches;
     if (matchFilter === 'today') {
         const now = new Date();
-        // Mostrar partidos de hoy, manana y proximos que esten abiertos
-        // Tambien mostrar partidos de fechas pasadas que no tengan apuesta del usuario
         filteredMatches = matches.filter(m => {
             const matchDate = new Date(m.match_date);
             const isOpen = isMatchOpen(m);
@@ -539,7 +545,7 @@ function renderMatches() {
         });
 
         if (filteredMatches.length === 0) {
-            container.innerHTML = '<div class="text-center text-gray-500 py-12">No hay partidos abiertos para apostar en este momento. Volvé mas tarde o mirá "Todos los Partidos".</div>';
+            container.innerHTML = '<div class="text-center text-gray-500 py-12">No hay partidos abiertos para apostar en este momento. Volve mas tarde o mira "Todos los Partidos".</div>';
             $('save-bets-btn').style.display = 'none';
             return;
         }
@@ -549,8 +555,8 @@ function renderMatches() {
         const open = isMatchOpen(match);
         const finished = isMatchFinished(match);
         const myBet = bets.find(b => b.player_id === currentPlayer.id && b.match_id === match.id);
-        const homeFlag = getFlagImg(match.home_team);
-        const awayFlag = getFlagImg(match.away_team);
+        const homeFlag = getFlagHTML(match.home_team);
+        const awayFlag = getFlagHTML(match.away_team);
         const countdown = getCountdown(match.match_date);
 
         let resultDisplay = '';
@@ -765,9 +771,6 @@ function renderQR() {
     });
 }
 
-// ============================================
-// ADMIN: PANEL MEJORADO
-// ============================================
 function renderAdminPanel() {
     const container = $('admin-matches-container');
     if (!matches.length) {
@@ -777,8 +780,8 @@ function renderAdminPanel() {
 
     container.innerHTML = matches.map(match => {
         const finished = isMatchFinished(match);
-        const homeFlag = getFlagImg(match.home_team);
-        const awayFlag = getFlagImg(match.away_team);
+        const homeFlag = getFlagHTML(match.home_team);
+        const awayFlag = getFlagHTML(match.away_team);
         return `
         <div class="flex flex-col md:flex-row items-start md:items-center gap-3 bg-white/5 rounded-lg p-3" id="admin-row-${match.id}">
             <div class="flex-1 min-w-0">
