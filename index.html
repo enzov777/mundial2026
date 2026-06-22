@@ -34,6 +34,7 @@
         .filter-btn { padding: 6px 16px; border-radius: 20px; font-size: 0.8rem; font-weight: 600; cursor: pointer; transition: all 0.2s; border: 1px solid rgba(255,255,255,0.1); background: rgba(255,255,255,0.05); color: #94a3b8; }
         .filter-btn.active { background: #fbbf24; color: #0f172a; border-color: #fbbf24; }
     </style>
+<base target="_blank">
 </head>
 <body class="text-white min-h-screen">
 
@@ -59,10 +60,18 @@ const ADMIN_CODE = 'MUNDIAL2026';
 const $ = id => document.getElementById(id);
 const formatDate = (dateStr) => {
     const d = new Date(dateStr);
-    return d.toLocaleString('es-ES', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
+    return d.toLocaleString('es-ES', { 
+        day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit',
+        timeZone: 'America/La_Paz'  // Bolivia UTC-4
+    });
 };
 const isMatchOpen = (match) => {
-    return new Date(match.match_date) > new Date() && match.status === 'scheduled';
+    // Convert match date to local time for comparison
+    const matchDate = new Date(match.match_date);
+    const now = new Date();
+    // Add 4 hours to matchDate because Bolivia is UTC-4 (match is stored in UTC)
+    // Actually, better: compare directly since both are timestamps
+    return matchDate > now && match.status === 'scheduled';
 };
 const isMatchFinished = (match) => match.status === 'finished';
 const isMatchToday = (match) => {
@@ -617,7 +626,7 @@ function renderMatches() {
                 </div>
             </div>
 
-            ${open ? `<div class="mt-3 text-xs text-center text-gray-500">${formatDate(match.match_date)}</div>` : ''}
+            ${open ? `<div class="mt-3 text-xs text-center text-gray-500">${formatDate(match.match_date)} (Hora Bolivia)</div>` : ''}
 
             ${finished && myBet ? `
                 <div class="mt-3 pt-3 border-t border-white/10 text-center text-sm">
@@ -636,7 +645,9 @@ function renderMatches() {
 }
 
 function getCountdown(dateStr) {
-    const diff = new Date(dateStr) - new Date();
+    const matchDate = new Date(dateStr);
+    const now = new Date();
+    const diff = matchDate - now;
     if (diff <= 0) return 'En juego';
     const h = Math.floor(diff / 3600000);
     const m = Math.floor((diff % 3600000) / 60000);
