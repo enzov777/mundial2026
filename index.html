@@ -1,0 +1,843 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quiniela Mundial 2026</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.39.0/dist/umd/supabase.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; background: #0f172a; }
+        .glass { background: rgba(255,255,255,0.05); backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,0.1); }
+        .gradient-text { background: linear-gradient(135deg, #fbbf24, #f59e0b); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        .match-card { transition: all 0.3s ease; }
+        .match-card:hover { transform: translateY(-2px); }
+        .input-score { -moz-appearance: textfield; }
+        .input-score::-webkit-outer-spin-button, .input-score::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+        .flag { font-size: 1.5rem; }
+        .pulse { animation: pulse 2s infinite; }
+        @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.5; } }
+        .tab-active { border-bottom: 3px solid #fbbf24; color: #fbbf24; }
+        .gold { background: linear-gradient(135deg, #ffd700, #ffb700); }
+        .silver { background: linear-gradient(135deg, #c0c0c0, #a0a0a0); }
+        .bronze { background: linear-gradient(135deg, #cd7f32, #b87333); }
+        .hidden-section { display: none; }
+        .visible-section { display: block; }
+        #qrcode img { margin: 0 auto; border-radius: 8px; }
+    </style>
+<base target="_blank">
+</head>
+<body class="text-white min-h-screen">
+
+<!-- CONFIGURACION SUPABASE -->
+<script>
+// ============================================
+// REEMPLAZA ESTOS VALORES CON LOS TUYOS DE SUPABASE
+// ============================================
+const SUPABASE_URL = 'https://dwcnwxrcwuicwxbtqpxs.supabase.co/rest/v1/';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImR3Y253eHJjd3VpY3d4YnRxcHhzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODIxNDk4NDcsImV4cCI6MjA5NzcyNTg0N30.Xwa-18sv9YsodNG1AJeItmf3NdwiHanCE9m9Mka4dSE';
+// ============================================
+
+const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+// Estado global
+let currentPlayer = null;
+let matches = [];
+let bets = [];
+let players = [];
+let leaderboard = [];
+
+const ADMIN_CODE = 'MUNDIAL2026'; // Código para acceso admin
+
+// ============================================
+// UTILIDADES
+// ============================================
+const $ = id => document.getElementById(id);
+const formatDate = (dateStr) => {
+    const d = new Date(dateStr);
+    return d.toLocaleString('es-ES', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
+};
+const isMatchOpen = (match) => {
+    return new Date(match.match_date) > new Date() && match.status === 'scheduled';
+};
+const isMatchFinished = (match) => match.status === 'finished';
+const getFlag = (team) => {
+    const flags = {
+        'Argentina': '🇦🇷', 'Brasil': '🇧🇷', 'Alemania': '🇩🇪', 'España': '🇪🇸',
+        'Francia': '🇫🇷', 'Inglaterra': '🏴󠁧󠁢󠁥󠁮󠁧󠁿', 'Portugal': '🇵🇹', 'Italia': '🇮🇹',
+        'Paises Bajos': '🇳🇱', 'Belgica': '🇧🇪', 'Uruguay': '🇺🇾', 'Croacia': '🇭🇷',
+        'Mexico': '🇲🇽', 'Estados Unidos': '🇺🇸', 'Canada': '🇨🇦', 'Japon': '🇯🇵',
+        'Corea del Sur': '🇰🇷', 'Australia': '🇦🇺', 'Senegal': '🇸🇳', 'Marruecos': '🇲🇦',
+        'Suiza': '🇨🇭', 'Polonia': '🇵🇱', 'Dinamarca': '🇩🇰', 'Colombia': '🇨🇴',
+        'Chile': '🇨🇱', 'Ecuador': '🇪🇨', 'Peru': '🇵🇪', 'Paraguay': '🇵🇾',
+        'Bolivia': '🇧🇴', 'Venezuela': '🇻🇪', 'Qatar': '🇶🇦', 'Arabia Saudita': '🇸🇦',
+        'Iran': '🇮🇷', 'Tunez': '🇹🇳', 'Gales': '🏴󠁧󠁢󠁷󠁬󠁳󠁿', 'Costa Rica': '🇨🇷',
+        'Serbia': '🇷🇸', 'Grecia': '🇬🇷', 'Suecia': '🇸🇪', 'Noruega': '🇳🇴',
+        'Ucrania': '🇺🇦', 'Turquia': '🇹🇷', 'Austria': '🇦🇹', 'Republica Checa': '🇨🇿',
+        'Hungria': '🇭🇺', 'Rumania': '🇷🇴', 'Eslovaquia': '🇸🇰', 'Eslovenia': '🇸🇮',
+        'Finlandia': '🇫🇮', 'Irlanda': '🇮🇪', 'Escocia': '🏴󠁧󠁢󠁳󠁣󠁴󠁿', 'Nigeria': '🇳🇬',
+        'Ghana': '🇬🇭', 'Camerun': '🇨🇲', 'Costa de Marfil': '🇨🇮', 'Egipto': '🇪🇬',
+        'Argelia': '🇩🇿', 'Sudafrica': '🇿🇦', 'Nueva Zelanda': '🇳🇿', 'Panama': '🇵🇦',
+        'Honduras': '🇭🇳', 'Jamaica': '🇯🇲', 'Trinidad y Tobago': '🇹🇹', 'Haiti': '🇭🇹',
+        'Guatemala': '🇬🇹', 'El Salvador': '🇸🇻', 'Nicaragua': '🇳🇮', 'Cuba': '🇨🇺',
+        'Republica Dominicana': '🇩🇴', 'Puerto Rico': '🇵🇷', 'Islandia': '🇮🇸',
+        'Bosnia': '🇧🇦', 'Macedonia': '🇲🇰', 'Albania': '🇦🇱', 'Montenegro': '🇲🇪',
+        'Kosovo': '🇽🇰', 'Moldavia': '🇲🇩', 'Bielorrusia': '🇧🇾', 'Lituania': '🇱🇹',
+        'Letonia': '🇱🇻', 'Estonia': '🇪🇪', 'Georgia': '🇬🇪', 'Armenia': '🇦🇲',
+        'Azerbaiyan': '🇦🇿', 'Kazajistan': '🇰🇿', 'Uzbekistan': '🇺🇿', 'Turkmenistan': '🇹🇲',
+        'Kirguistan': '🇰🇬', 'Tayikistan': '🇹🇯', 'Afganistan': '🇦🇫', 'Pakistan': '🇵🇰',
+        'India': '🇮🇳', 'Bangladesh': '🇧🇩', 'Sri Lanka': '🇱🇰', 'Nepal': '🇳🇵',
+        'Butan': '🇧🇹', 'Maldivas': '🇲🇻', 'Tailandia': '🇹🇭', 'Vietnam': '🇻🇳',
+        'Camboya': '🇰🇭', 'Laos': '🇱🇦', 'Myanmar': '🇲🇲', 'Malasia': '🇲🇾',
+        'Singapur': '🇸🇬', 'Indonesia': '🇮🇩', 'Filipinas': '🇵🇭', 'Brunei': '🇧🇳',
+        'Timor Oriental': '🇹🇱', 'Papua Nueva Guinea': '🇵🇬', 'Fiyi': '🇫🇯',
+        'Samoa': '🇼🇸', 'Tonga': '🇹🇴', 'Vanuatu': '🇻🇺', 'Islas Salomon': '🇸🇧',
+        'Kiribati': '🇰🇮', 'Tuvalu': '🇹🇻', 'Nauru': '🇳🇷', 'Palau': '🇵🇼',
+        'Islas Marshall': '🇲🇭', 'Micronesia': '🇫🇲', 'Guam': '🇬🇺', 'Samoa Americana': '🇦🇸',
+        'Islas Cook': '🇨🇰', 'Niue': '🇳🇺', 'Tokelau': '🇹🇰', 'Wallis y Futuna': '🇼🇫',
+        'Polinesia Francesa': '🇵🇫', 'Nueva Caledonia': '🇳🇨', 'Islas Pitcairn': '🇵🇳',
+        'Islas Norfolk': '🇳🇫', 'Islas Christmas': '🇨🇽', 'Islas Cocos': '🇨🇨',
+        'Islas Heard y McDonald': '🇭🇲', 'Antartida': '🇦🇶', 'Bouvet': '🇧🇻',
+        'Svalbard': '🇸🇯', 'Jan Mayen': '🇯🇲', 'Islas Georgias del Sur': '🇬🇸',
+        'Islas Sandwich del Sur': '🇸🇭', 'Islas Malvinas': '🇫🇰', 'Gibraltar': '🇬🇮',
+        'Islas Feroe': '🇫🇴', 'Islas Aland': '🇦🇽', 'Islas Channel': '🇬🇬',
+        'Jersey': '🇯🇪', 'Guernsey': '🇬🇬', 'Isla de Man': '🇮🇲', 'San Marino': '🇸🇲',
+        'Vaticano': '🇻🇦', 'Monaco': '🇲🇨', 'Andorra': '🇦🇩', 'Liechtenstein': '🇱🇮',
+        'Malta': '🇲🇹', 'Chipre': '🇨🇾', 'Luxemburgo': '🇱🇺', 'Surinam': '🇸🇷',
+        'Guyana': '🇬🇾', 'Guayana Francesa': '🇬🇫', 'Belice': '🇧🇿', 'Barbados': '🇧🇧',
+        'Santa Lucia': '🇱🇨', 'San Vicente y Granadinas': '🇻🇨', 'Granada': '🇬🇩',
+        'San Cristobal y Nieves': '🇰🇳', 'Antigua y Barbuda': '🇦🇬', 'Dominica': '🇩🇲',
+        'Montserrat': '🇲🇸', 'Anguila': '🇦🇮', 'Islas Virgenes Britanicas': '🇻🇬',
+        'Islas Virgenes Americanas': '🇻🇮', 'Islas Caiman': '🇰🇾', 'Islas Turcas y Caicos': '🇹🇨',
+        'Bahamas': '🇧🇸', 'Bermudas': '🇧🇲', 'Groenlandia': '🇬🇱', 'Islas Malvinas': '🇫🇰',
+        'Sudan': '🇸🇩', 'Sudafrica': '🇿🇦', 'Madagascar': '🇲🇬', 'Mauricio': '🇲🇺',
+        'Seychelles': '🇸🇨', 'Comoras': '🇰🇲', 'Mayotte': '🇾🇹', 'Reunion': '🇷🇪',
+        'Santo Tome y Principe': '🇸🇹', 'Guinea Ecuatorial': '🇬🇶', 'Gabon': '🇬🇦',
+        'Congo': '🇨🇬', 'Congo RDC': '🇨🇩', 'Ruanda': '🇷🇼', 'Burundi': '🇧🇮',
+        'Uganda': '🇺🇬', 'Kenia': '🇰🇪', 'Tanzania': '🇹🇿', 'Zambia': '🇿🇲',
+        'Zimbabue': '🇿🇼', 'Botsuana': '🇧🇼', 'Namibia': '🇳🇦', 'Angola': '🇦🇴',
+        'Mozambique': '🇲🇿', 'Malawi': '🇲🇼', 'Lesoto': '🇱🇸', 'Suazilandia': '🇸🇿',
+        'Eswatini': '🇸🇿', 'Mauritania': '🇲🇷', 'Mali': '🇲🇱', 'Burkina Faso': '🇧🇫',
+        'Niger': '🇳🇪', 'Chad': '🇹🇩', 'Republica Centroafricana': '🇨🇫', 'Camerun': '🇨🇲',
+        'Guinea': '🇬🇳', 'Guinea-Bissau': '🇬🇼', 'Sierra Leona': '🇸🇱', 'Liberia': '🇱🇷',
+        'Costa de Marfil': '🇨🇮', 'Ghana': '🇬🇭', 'Togo': '🇹🇬', 'Benin': '🇧🇯',
+        'Nigeria': '🇳🇬', 'Santo Tome': '🇸🇹', 'Guinea Ecuatorial': '🇬🇶', 'Gabon': '🇬🇦',
+        'Congo': '🇨🇬', 'Congo RDC': '🇨🇩', 'Ruanda': '🇷🇼', 'Burundi': '🇧🇮',
+        'Uganda': '🇺🇬', 'Kenia': '🇰🇪', 'Tanzania': '🇹🇿', 'Zambia': '🇿🇲',
+        'Zimbabue': '🇿🇼', 'Botsuana': '🇧🇼', 'Namibia': '🇳🇦', 'Angola': '🇦🇴',
+        'Mozambique': '🇲🇿', 'Malawi': '🇲🇼', 'Lesoto': '🇱🇸', 'Eswatini': '🇸🇿',
+        'Sudafrica': '🇿🇦', 'Madagascar': '🇲🇬', 'Mauricio': '🇲🇺', 'Seychelles': '🇸🇨',
+        'Comoras': '🇰🇲', 'Mayotte': '🇾🇹', 'Reunion': '🇷🇪', 'Santo Tome': '🇸🇹',
+        'Guinea Ecuatorial': '🇬🇶', 'Gabon': '🇬🇦', 'Congo': '🇨🇬', 'Congo RDC': '🇨🇩',
+        'Ruanda': '🇷🇼', 'Burundi': '🇧🇮', 'Uganda': '🇺🇬', 'Kenia': '🇰🇪',
+        'Tanzania': '🇹🇿', 'Zambia': '🇿🇲', 'Zimbabue': '🇿🇼', 'Botsuana': '🇧🇼',
+        'Namibia': '🇳🇦', 'Angola': '🇦🇴', 'Mozambique': '🇲🇿', 'Malawi': '🇲🇼',
+        'Lesoto': '🇱🇸', 'Eswatini': '🇸🇿', 'Sudafrica': '🇿🇦', 'Madagascar': '🇲🇬',
+        'Mauricio': '🇲🇺', 'Seychelles': '🇸🇨', 'Comoras': '🇰🇲', 'Mayotte': '🇾🇹',
+        'Reunion': '🇷🇪', 'Santo Tome': '🇸🇹', 'Guinea Ecuatorial': '🇬🇶', 'Gabon': '🇬🇦',
+        'Congo': '🇨🇬', 'Congo RDC': '🇨🇩', 'Ruanda': '🇷🇼', 'Burundi': '🇧🇮',
+        'Uganda': '🇺🇬', 'Kenia': '🇰🇪', 'Tanzania': '🇹🇿', 'Zambia': '🇿🇲',
+        'Zimbabue': '🇿🇼', 'Botsuana': '🇧🇼', 'Namibia': '🇳🇦', 'Angola': '🇦🇴',
+        'Mozambique': '🇲🇿', 'Malawi': '🇲🇼', 'Lesoto': '🇱🇸', 'Eswatini': '🇸🇿'
+    };
+    return flags[team] || '🏳️';
+};
+const calculatePoints = (bet, match) => {
+    if (!isMatchFinished(match)) return 0;
+    const bp = bet.home_prediction, ba = bet.away_prediction;
+    const rp = match.home_score, ra = match.away_score;
+    if (bp === rp && ba === ra) return 5; // Exacto
+    const betDiff = bp - ba;
+    const realDiff = rp - ra;
+    if (betDiff === realDiff && betDiff !== 0) return 3; // Diferencia de goles correcta
+    if (Math.sign(betDiff) === Math.sign(realDiff)) return 2; // Ganador correcto
+    if (betDiff === 0 && realDiff === 0) return 2; // Empate correcto (no exacto)
+    return 0;
+};
+const showToast = (msg, type = 'info') => {
+    const toast = document.createElement('div');
+    toast.className = `fixed bottom-4 right-4 px-6 py-3 rounded-lg shadow-lg z-50 ${type === 'error' ? 'bg-red-600' : type === 'success' ? 'bg-green-600' : 'bg-blue-600'}`;
+    toast.textContent = msg;
+    document.body.appendChild(toast);
+    setTimeout(() => toast.remove(), 3000);
+};
+</script>
+
+<!-- ============================================ -->
+<!-- HEADER -->
+<!-- ============================================ -->
+<header class="glass sticky top-0 z-40 border-b border-white/10">
+    <div class="max-w-4xl mx-auto px-4 py-4 flex items-center justify-between">
+        <div class="flex items-center gap-3">
+            <div class="text-3xl">🏆</div>
+            <div>
+                <h1 class="text-xl font-black gradient-text">QUINIELA MUNDIAL 2026</h1>
+                <p class="text-xs text-gray-400">Predice, compite, gana</p>
+            </div>
+        </div>
+        <div id="player-badge" class="hidden items-center gap-2 glass px-3 py-1 rounded-full">
+            <span id="player-name-display" class="text-sm font-semibold text-yellow-400"></span>
+            <button onclick="logout()" class="text-xs text-gray-400 hover:text-white">Salir</button>
+        </div>
+    </div>
+</header>
+
+<!-- ============================================ -->
+<!-- NAVEGACION -->
+<!-- ============================================ -->
+<nav id="main-nav" class="hidden max-w-4xl mx-auto px-4 mt-6">
+    <div class="flex gap-6 border-b border-white/10 overflow-x-auto">
+        <button onclick="showSection('apuestas')" id="tab-apuestas" class="tab-active pb-3 text-sm font-semibold whitespace-nowrap">Mis Apuestas</button>
+        <button onclick="showSection('posiciones')" id="tab-posiciones" class="pb-3 text-sm font-semibold text-gray-400 hover:text-white whitespace-nowrap">Posiciones</button>
+        <button onclick="showSection('qr')" id="tab-qr" class="pb-3 text-sm font-semibold text-gray-400 hover:text-white whitespace-nowrap">Mi QR</button>
+        <button onclick="showSection('admin')" id="tab-admin" class="hidden pb-3 text-sm font-semibold text-gray-400 hover:text-white whitespace-nowrap">⚙️ Admin</button>
+    </div>
+</nav>
+
+<!-- ============================================ -->
+<!-- SECCION: LOGIN / REGISTRO -->
+<!-- ============================================ -->
+<section id="section-login" class="max-w-md mx-auto px-4 mt-12">
+    <div class="glass rounded-2xl p-8 text-center">
+        <div class="text-6xl mb-4">⚽</div>
+        <h2 class="text-2xl font-bold mb-2">¡Bienvenido!</h2>
+        <p class="text-gray-400 mb-6 text-sm">Registrate o ingresá para participar en la quiniela</p>
+
+        <div class="space-y-4 text-left">
+            <div>
+                <label class="text-xs text-gray-400 uppercase font-semibold">Nombre</label>
+                <input type="text" id="reg-name" placeholder="Tu nombre o apodo" 
+                    class="w-full mt-1 bg-white/5 border border-white/10 rounded-lg px-4 py-3 focus:outline-none focus:border-yellow-500 transition">
+            </div>
+            <div>
+                <label class="text-xs text-gray-400 uppercase font-semibold">PIN (4 dígitos)</label>
+                <input type="password" id="reg-pin" maxlength="4" placeholder="1234" 
+                    class="w-full mt-1 bg-white/5 border border-white/10 rounded-lg px-4 py-3 focus:outline-none focus:border-yellow-500 transition text-center tracking-widest">
+                <p class="text-xs text-gray-500 mt-1">Servirá para editar tus pronósticos</p>
+            </div>
+            <button onclick="registerOrLogin()" 
+                class="w-full bg-gradient-to-r from-yellow-500 to-amber-600 text-black font-bold py-3 rounded-lg hover:from-yellow-400 hover:to-amber-500 transition">
+                Entrar al Juego
+            </button>
+        </div>
+
+        <div class="mt-6 pt-6 border-t border-white/10">
+            <p class="text-xs text-gray-500 mb-2">¿Sos el administrador?</p>
+            <button onclick="showAdminLogin()" class="text-xs text-yellow-500 hover:text-yellow-400 underline">Acceso Admin</button>
+        </div>
+    </div>
+</section>
+
+<!-- Admin Login Modal -->
+<div id="admin-login-modal" class="hidden fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4">
+    <div class="glass rounded-2xl p-6 max-w-sm w-full">
+        <h3 class="text-lg font-bold mb-4">Acceso Administrador</h3>
+        <input type="password" id="admin-code-input" placeholder="Código admin" 
+            class="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-3 mb-4 focus:outline-none focus:border-yellow-500">
+        <div class="flex gap-2">
+            <button onclick="closeAdminLogin()" class="flex-1 py-2 rounded-lg border border-white/20 hover:bg-white/5">Cancelar</button>
+            <button onclick="verifyAdmin()" class="flex-1 py-2 rounded-lg bg-yellow-500 text-black font-bold hover:bg-yellow-400">Entrar</button>
+        </div>
+    </div>
+</div>
+
+<!-- ============================================ -->
+<!-- SECCION: APUESTAS -->
+<!-- ============================================ -->
+<section id="section-apuestas" class="hidden-section max-w-4xl mx-auto px-4 mt-6 pb-20">
+    <div id="matches-container" class="space-y-4">
+        <!-- Partidos se cargan dinámicamente -->
+    </div>
+    <div class="mt-6 text-center">
+        <button onclick="saveAllBets()" id="save-bets-btn"
+            class="bg-gradient-to-r from-green-500 to-emerald-600 text-white font-bold px-8 py-3 rounded-lg hover:from-green-400 hover:to-emerald-500 transition shadow-lg">
+            💾 Guardar Mis Pronósticos
+        </button>
+    </div>
+</section>
+
+<!-- ============================================ -->
+<!-- SECCION: POSICIONES -->
+<!-- ============================================ -->
+<section id="section-posiciones" class="hidden-section max-w-4xl mx-auto px-4 mt-6 pb-20">
+    <div class="glass rounded-2xl p-6">
+        <h2 class="text-xl font-bold mb-4 flex items-center gap-2">🏆 Tabla de Posiciones</h2>
+        <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+                <thead>
+                    <tr class="text-gray-400 border-b border-white/10">
+                        <th class="text-left py-3 px-2">#</th>
+                        <th class="text-left py-3 px-2">Jugador</th>
+                        <th class="text-center py-3 px-2">Apuestas</th>
+                        <th class="text-center py-3 px-2">Exactos</th>
+                        <th class="text-center py-3 px-2">Puntos</th>
+                    </tr>
+                </thead>
+                <tbody id="leaderboard-body">
+                    <!-- Se carga dinámicamente -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="glass rounded-2xl p-6 mt-4">
+        <h3 class="text-lg font-bold mb-3">📋 Sistema de Puntaje</h3>
+        <div class="grid grid-cols-2 gap-3 text-sm">
+            <div class="flex items-center gap-2"><span class="text-xl">🎯</span> <span>Resultado exacto: <b class="text-yellow-400">5 pts</b></span></div>
+            <div class="flex items-center gap-2"><span class="text-xl">📊</span> <span>Diferencia de goles: <b class="text-yellow-400">3 pts</b></span></div>
+            <div class="flex items-center gap-2"><span class="text-xl">✅</span> <span>Ganador correcto: <b class="text-yellow-400">2 pts</b></span></div>
+            <div class="flex items-center gap-2"><span class="text-xl">🤝</span> <span>Empate correcto: <b class="text-yellow-400">2 pts</b></span></div>
+        </div>
+    </div>
+</section>
+
+<!-- ============================================ -->
+<!-- SECCION: QR PERSONAL -->
+<!-- ============================================ -->
+<section id="section-qr" class="hidden-section max-w-md mx-auto px-4 mt-6 pb-20 text-center">
+    <div class="glass rounded-2xl p-8">
+        <h2 class="text-xl font-bold mb-2">Tu QR Personal</h2>
+        <p class="text-gray-400 text-sm mb-6">Escanealo para ver tus pronósticos</p>
+        <div id="qrcode" class="bg-white p-4 rounded-xl inline-block"></div>
+        <p id="qr-url" class="text-xs text-gray-500 mt-4 break-all"></p>
+        <div class="mt-6 text-left space-y-2 text-sm">
+            <p><strong>Nombre:</strong> <span id="qr-player-name"></span></p>
+            <p><strong>Puntos:</strong> <span id="qr-player-points" class="text-yellow-400 font-bold"></span></p>
+        </div>
+    </div>
+</section>
+
+<!-- ============================================ -->
+<!-- SECCION: ADMIN -->
+<!-- ============================================ -->
+<section id="section-admin" class="hidden-section max-w-4xl mx-auto px-4 mt-6 pb-20">
+    <div class="glass rounded-2xl p-6 mb-6">
+        <h2 class="text-xl font-bold mb-4">⚙️ Panel de Administración</h2>
+        <p class="text-sm text-gray-400 mb-4">Cargá los resultados reales de los partidos finalizados</p>
+
+        <div id="admin-matches-container" class="space-y-3">
+            <!-- Partidos para editar resultados -->
+        </div>
+    </div>
+
+    <div class="glass rounded-2xl p-6">
+        <h3 class="text-lg font-bold mb-4">➕ Agregar Partido</h3>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <input type="text" id="new-home" placeholder="Equipo Local" class="bg-white/5 border border-white/10 rounded-lg px-4 py-2 focus:outline-none focus:border-yellow-500">
+            <input type="text" id="new-away" placeholder="Equipo Visitante" class="bg-white/5 border border-white/10 rounded-lg px-4 py-2 focus:outline-none focus:border-yellow-500">
+            <input type="datetime-local" id="new-date" class="bg-white/5 border border-white/10 rounded-lg px-4 py-2 focus:outline-none focus:border-yellow-500 text-white">
+        </div>
+        <button onclick="addMatch()" class="mt-3 w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-2 rounded-lg transition">Agregar Partido</button>
+    </div>
+</section>
+
+<!-- ============================================ -->
+<!-- JAVASCRIPT PRINCIPAL -->
+<!-- ============================================ -->
+<script>
+// ============================================
+// INICIALIZACION
+// ============================================
+document.addEventListener('DOMContentLoaded', async () => {
+    // Revisar si hay jugador guardado
+    const saved = localStorage.getItem('quiniela_player');
+    if (saved) {
+        currentPlayer = JSON.parse(saved);
+        await initApp();
+    }
+
+    // Revisar si hay parametro de jugador en URL (desde QR)
+    const urlParams = new URLSearchParams(window.location.search);
+    const playerId = urlParams.get('jugador');
+    if (playerId && !currentPlayer) {
+        await loadPlayerFromId(playerId);
+    }
+});
+
+async function initApp() {
+    $('section-login').classList.add('hidden-section');
+    $('section-login').classList.remove('visible-section');
+    $('main-nav').classList.remove('hidden');
+    $('player-badge').classList.remove('hidden');
+    $('player-badge').classList.add('flex');
+    $('player-name-display').textContent = currentPlayer.name;
+
+    await Promise.all([loadMatches(), loadPlayers(), loadBets()]);
+    renderMatches();
+    renderLeaderboard();
+    renderQR();
+
+    // Si es admin, mostrar tab
+    if (currentPlayer.isAdmin) {
+        $('tab-admin').classList.remove('hidden');
+        renderAdminPanel();
+    }
+
+    showSection('apuestas');
+
+    // Suscribirse a cambios en tiempo real
+    subscribeToChanges();
+}
+
+// ============================================
+// AUTH
+// ============================================
+async function registerOrLogin() {
+    const name = $('reg-name').value.trim();
+    const pin = $('reg-pin').value.trim();
+
+    if (!name || pin.length !== 4 || !/^\d{4}$/.test(pin)) {
+        showToast('Ingresá un nombre y un PIN de 4 dígitos', 'error');
+        return;
+    }
+
+    // Buscar si existe
+    const { data: existing } = await supabase
+        .from('players')
+        .select('*')
+        .eq('name', name)
+        .single();
+
+    if (existing) {
+        // Login
+        if (existing.pin !== pin) {
+            showToast('PIN incorrecto', 'error');
+            return;
+        }
+        currentPlayer = existing;
+    } else {
+        // Registro
+        const { data: newPlayer, error } = await supabase
+            .from('players')
+            .insert({ name, pin })
+            .select()
+            .single();
+
+        if (error) {
+            showToast('Error al registrar: ' + error.message, 'error');
+            return;
+        }
+        currentPlayer = newPlayer;
+        showToast('¡Registro exitoso!', 'success');
+    }
+
+    localStorage.setItem('quiniela_player', JSON.stringify(currentPlayer));
+    await initApp();
+}
+
+async function loadPlayerFromId(id) {
+    const { data } = await supabase.from('players').select('*').eq('id', id).single();
+    if (data) {
+        currentPlayer = data;
+        localStorage.setItem('quiniela_player', JSON.stringify(currentPlayer));
+        await initApp();
+    }
+}
+
+function logout() {
+    currentPlayer = null;
+    localStorage.removeItem('quiniela_player');
+    location.reload();
+}
+
+function showAdminLogin() {
+    $('admin-login-modal').classList.remove('hidden');
+}
+function closeAdminLogin() {
+    $('admin-login-modal').classList.add('hidden');
+}
+async function verifyAdmin() {
+    const code = $('admin-code-input').value;
+    if (code === ADMIN_CODE) {
+        currentPlayer = { name: 'Admin', isAdmin: true, id: 'admin' };
+        localStorage.setItem('quiniela_player', JSON.stringify(currentPlayer));
+        closeAdminLogin();
+        await initApp();
+    } else {
+        showToast('Código incorrecto', 'error');
+    }
+}
+
+// ============================================
+// NAVEGACION
+// ============================================
+function showSection(section) {
+    ['apuestas', 'posiciones', 'qr', 'admin'].forEach(s => {
+        $(`section-${s}`).classList.add('hidden-section');
+        $(`section-${s}`).classList.remove('visible-section');
+        $(`tab-${s}`)?.classList.remove('tab-active');
+        $(`tab-${s}`)?.classList.add('text-gray-400');
+    });
+    $(`section-${section}`).classList.remove('hidden-section');
+    $(`section-${section}`).classList.add('visible-section');
+    $(`tab-${section}`)?.classList.add('tab-active');
+    $(`tab-${section}`)?.classList.remove('text-gray-400');
+
+    if (section === 'posiciones') renderLeaderboard();
+    if (section === 'qr') renderQR();
+    if (section === 'admin') renderAdminPanel();
+}
+
+// ============================================
+// DATOS
+// ============================================
+async function loadMatches() {
+    const { data } = await supabase.from('matches').select('*').order('match_date');
+    matches = data || [];
+}
+async function loadPlayers() {
+    const { data } = await supabase.from('players').select('*');
+    players = data || [];
+}
+async function loadBets() {
+    const { data } = await supabase.from('bets').select('*');
+    bets = data || [];
+}
+
+function subscribeToChanges() {
+    supabase.channel('quiniela')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'matches' }, async () => {
+            await loadMatches();
+            renderMatches();
+            renderLeaderboard();
+            if (currentPlayer?.isAdmin) renderAdminPanel();
+        })
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'bets' }, async () => {
+            await loadBets();
+            renderLeaderboard();
+        })
+        .subscribe();
+}
+
+// ============================================
+// RENDER: PARTIDOS / APUESTAS
+// ============================================
+function renderMatches() {
+    const container = $('matches-container');
+    if (!matches.length) {
+        container.innerHTML = '<div class="text-center text-gray-500 py-12">No hay partidos cargados aún</div>';
+        return;
+    }
+
+    const now = new Date();
+    container.innerHTML = matches.map(match => {
+        const open = isMatchOpen(match);
+        const finished = isMatchFinished(match);
+        const myBet = bets.find(b => b.player_id === currentPlayer.id && b.match_id === match.id);
+        const homeFlag = getFlag(match.home_team);
+        const awayFlag = getFlag(match.away_team);
+        const countdown = getCountdown(match.match_date);
+
+        let resultDisplay = '';
+        if (finished) {
+            resultDisplay = `<div class="text-center px-4 py-1 bg-green-500/20 rounded-lg border border-green-500/30">
+                <span class="text-green-400 font-bold text-lg">${match.home_score} - ${match.away_score}</span>
+            </div>`;
+        } else if (!open) {
+            resultDisplay = `<div class="text-center px-4 py-1 bg-red-500/20 rounded-lg border border-red-500/30">
+                <span class="text-red-400 text-xs font-bold">CERRADO</span>
+            </div>`;
+        }
+
+        let pointsBadge = '';
+        if (finished && myBet) {
+            const pts = calculatePoints(myBet, match);
+            if (pts > 0) {
+                pointsBadge = `<span class="absolute -top-2 -right-2 bg-yellow-500 text-black text-xs font-bold px-2 py-1 rounded-full">+${pts}</span>`;
+            }
+        }
+
+        return `
+        <div class="match-card glass rounded-xl p-4 relative ${finished ? 'opacity-80' : ''}">
+            ${pointsBadge}
+            <div class="flex items-center justify-between mb-3">
+                <span class="text-xs text-gray-400 font-mono">${match.round || 'Fase de Grupos'}</span>
+                <span class="text-xs ${open ? 'text-yellow-400 pulse' : 'text-gray-500'}">
+                    ${open ? '⏱️ ' + countdown : finished ? '✅ Finalizado' : '🔒 Cerrado'}
+                </span>
+            </div>
+
+            <div class="flex items-center justify-between gap-2">
+                <div class="flex-1 text-center">
+                    <div class="text-3xl mb-1">${homeFlag}</div>
+                    <div class="text-sm font-semibold">${match.home_team}</div>
+                </div>
+
+                <div class="flex items-center gap-2">
+                    ${open ? `
+                        <input type="number" min="0" max="20" 
+                            data-match="${match.id}" data-side="home"
+                            value="${myBet ? myBet.home_prediction : ''}"
+                            class="input-score w-14 h-12 text-center text-xl font-bold bg-white/10 border border-white/20 rounded-lg focus:border-yellow-500 focus:outline-none"
+                            placeholder="-">
+                        <span class="text-gray-500 font-bold">:</span>
+                        <input type="number" min="0" max="20"
+                            data-match="${match.id}" data-side="away"
+                            value="${myBet ? myBet.away_prediction : ''}"
+                            class="input-score w-14 h-12 text-center text-xl font-bold bg-white/10 border border-white/20 rounded-lg focus:border-yellow-500 focus:outline-none"
+                            placeholder="-">
+                    ` : resultDisplay}
+                </div>
+
+                <div class="flex-1 text-center">
+                    <div class="text-3xl mb-1">${awayFlag}</div>
+                    <div class="text-sm font-semibold">${match.away_team}</div>
+                </div>
+            </div>
+
+            ${open ? `<div class="mt-3 text-xs text-center text-gray-500">${formatDate(match.match_date)}</div>` : ''}
+
+            ${finished && myBet ? `
+                <div class="mt-3 pt-3 border-t border-white/10 text-center text-sm">
+                    <span class="text-gray-400">Tu pronóstico: </span>
+                    <span class="font-bold ${pts > 0 ? 'text-green-400' : 'text-red-400'}">
+                        ${myBet.home_prediction} - ${myBet.away_prediction}
+                    </span>
+                </div>
+            ` : ''}
+        </div>
+        `;
+    }).join('');
+
+    // Actualizar estado del botón de guardar
+    const hasOpenMatches = matches.some(isMatchOpen);
+    $('save-bets-btn').style.display = hasOpenMatches ? 'inline-block' : 'none';
+}
+
+function getCountdown(dateStr) {
+    const diff = new Date(dateStr) - new Date();
+    if (diff <= 0) return 'En juego';
+    const h = Math.floor(diff / 3600000);
+    const m = Math.floor((diff % 3600000) / 60000);
+    if (h > 24) return `${Math.floor(h/24)}d ${h%24}h`;
+    return `${h}h ${m}m`;
+}
+
+// ============================================
+// GUARDAR APUESTAS
+// ============================================
+async function saveAllBets() {
+    const inputs = document.querySelectorAll('[data-match]');
+    const betsMap = {};
+
+    inputs.forEach(input => {
+        const matchId = input.dataset.match;
+        const side = input.dataset.side;
+        const val = parseInt(input.value);
+
+        if (!isNaN(val) && val >= 0) {
+            if (!betsMap[matchId]) betsMap[matchId] = {};
+            betsMap[matchId][side] = val;
+        }
+    });
+
+    const promises = [];
+    for (const [matchId, scores] of Object.entries(betsMap)) {
+        if (scores.home === undefined || scores.away === undefined) continue;
+
+        const match = matches.find(m => m.id === matchId);
+        if (!match || !isMatchOpen(match)) continue;
+
+        const existing = bets.find(b => b.player_id === currentPlayer.id && b.match_id === matchId);
+
+        if (existing) {
+            promises.push(
+                supabase.from('bets').update({
+                    home_prediction: scores.home,
+                    away_prediction: scores.away
+                }).eq('id', existing.id)
+            );
+        } else {
+            promises.push(
+                supabase.from('bets').insert({
+                    player_id: currentPlayer.id,
+                    match_id: matchId,
+                    home_prediction: scores.home,
+                    away_prediction: scores.away
+                })
+            );
+        }
+    }
+
+    if (promises.length === 0) {
+        showToast('Completá al menos un pronóstico', 'error');
+        return;
+    }
+
+    await Promise.all(promises);
+    await loadBets();
+    renderMatches();
+    renderLeaderboard();
+    showToast(`¡${promises.length} pronóstico(s) guardado(s)!`, 'success');
+}
+
+// ============================================
+// RENDER: POSICIONES
+// ============================================
+function renderLeaderboard() {
+    const stats = players.map(player => {
+        const playerBets = bets.filter(b => b.player_id === player.id);
+        let totalPoints = 0;
+        let exactos = 0;
+        let totalBets = playerBets.length;
+
+        playerBets.forEach(bet => {
+            const match = matches.find(m => m.id === bet.match_id);
+            if (match && isMatchFinished(match)) {
+                const pts = calculatePoints(bet, match);
+                totalPoints += pts;
+                if (pts === 5) exactos++;
+            }
+        });
+
+        return { ...player, totalPoints, exactos, totalBets };
+    }).sort((a, b) => b.totalPoints - a.totalPoints);
+
+    const tbody = $('leaderboard-body');
+    if (!stats.length) {
+        tbody.innerHTML = '<tr><td colspan="5" class="text-center py-8 text-gray-500">Aún no hay jugadores</td></tr>';
+        return;
+    }
+
+    tbody.innerHTML = stats.map((p, i) => {
+        let medal = '';
+        if (i === 0) medal = '🥇';
+        else if (i === 1) medal = '🥈';
+        else if (i === 2) medal = '🥉';
+        else medal = `<span class="text-gray-500">${i + 1}</span>`;
+
+        const isMe = p.id === currentPlayer?.id;
+
+        return `
+        <tr class="border-b border-white/5 ${isMe ? 'bg-yellow-500/10' : ''} hover:bg-white/5 transition">
+            <td class="py-3 px-2 font-bold">${medal}</td>
+            <td class="py-3 px-2 font-semibold ${isMe ? 'text-yellow-400' : ''}">${p.name}</td>
+            <td class="py-3 px-2 text-center text-gray-400">${p.totalBets}</td>
+            <td class="py-3 px-2 text-center text-yellow-400 font-bold">${p.exactos}</td>
+            <td class="py-3 px-2 text-center font-bold text-lg">${p.totalPoints}</td>
+        </tr>
+        `;
+    }).join('');
+}
+
+// ============================================
+// RENDER: QR
+// ============================================
+function renderQR() {
+    if (!currentPlayer || currentPlayer.id === 'admin') return;
+
+    const url = `${window.location.origin}${window.location.pathname}?jugador=${currentPlayer.id}`;
+    $('qr-url').textContent = url;
+    $('qr-player-name').textContent = currentPlayer.name;
+
+    const playerStats = players.find(p => p.id === currentPlayer.id);
+    const playerBets = bets.filter(b => b.player_id === currentPlayer.id);
+    let pts = 0;
+    playerBets.forEach(bet => {
+        const match = matches.find(m => m.id === bet.match_id);
+        if (match && isMatchFinished(match)) pts += calculatePoints(bet, match);
+    });
+    $('qr-player-points').textContent = pts;
+
+    $('qrcode').innerHTML = '';
+    new QRCode($('qrcode'), {
+        text: url,
+        width: 200,
+        height: 200,
+        colorDark: '#0f172a',
+        colorLight: '#ffffff',
+        correctLevel: QRCode.CorrectLevel.M
+    });
+}
+
+// ============================================
+// ADMIN: PANEL
+// ============================================
+function renderAdminPanel() {
+    const container = $('admin-matches-container');
+    if (!matches.length) {
+        container.innerHTML = '<div class="text-gray-500 text-center py-4">No hay partidos</div>';
+        return;
+    }
+
+    container.innerHTML = matches.map(match => {
+        const finished = isMatchFinished(match);
+        return `
+        <div class="flex items-center gap-3 bg-white/5 rounded-lg p-3">
+            <div class="flex-1">
+                <div class="text-sm font-semibold">${match.home_team} vs ${match.away_team}</div>
+                <div class="text-xs text-gray-500">${formatDate(match.match_date)}</div>
+            </div>
+            <div class="flex items-center gap-2">
+                <input type="number" id="res-${match.id}-home" value="${match.home_score ?? ''}" 
+                    class="w-12 text-center bg-white/10 border border-white/20 rounded px-2 py-1 text-sm"
+                    placeholder="L">
+                <span class="text-gray-500">-</span>
+                <input type="number" id="res-${match.id}-away" value="${match.away_score ?? ''}"
+                    class="w-12 text-center bg-white/10 border border-white/20 rounded px-2 py-1 text-sm"
+                    placeholder="V">
+            </div>
+            <button onclick="updateResult('${match.id}')" 
+                class="px-3 py-1 ${finished ? 'bg-green-600' : 'bg-blue-600'} hover:opacity-80 rounded text-xs font-bold transition">
+                ${finished ? 'Actualizar' : 'Guardar'}
+            </button>
+        </div>
+        `;
+    }).join('');
+}
+
+async function updateResult(matchId) {
+    const home = parseInt($(`res-${matchId}-home`).value);
+    const away = parseInt($(`res-${matchId}-away`).value);
+
+    if (isNaN(home) || isNaN(away)) {
+        showToast('Completá ambos resultados', 'error');
+        return;
+    }
+
+    await supabase.from('matches').update({
+        home_score: home,
+        away_score: away,
+        status: 'finished'
+    }).eq('id', matchId);
+
+    showToast('Resultado guardado', 'success');
+    await loadMatches();
+    renderMatches();
+    renderLeaderboard();
+    renderAdminPanel();
+}
+
+async function addMatch() {
+    const home = $('new-home').value.trim();
+    const away = $('new-away').value.trim();
+    const date = $('new-date').value;
+
+    if (!home || !away || !date) {
+        showToast('Completá todos los campos', 'error');
+        return;
+    }
+
+    await supabase.from('matches').insert({
+        home_team: home,
+        away_team: away,
+        match_date: new Date(date).toISOString(),
+        status: 'scheduled',
+        round: 'Fase de Grupos'
+    });
+
+    $('new-home').value = '';
+    $('new-away').value = '';
+    $('new-date').value = '';
+
+    showToast('Partido agregado', 'success');
+    await loadMatches();
+    renderMatches();
+    renderAdminPanel();
+}
+</script>
+
+</body>
+</html>
