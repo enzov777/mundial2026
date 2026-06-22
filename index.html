@@ -16,42 +16,40 @@
         .match-card:hover { transform: translateY(-2px); }
         .input-score { -moz-appearance: textfield; }
         .input-score::-webkit-outer-spin-button, .input-score::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
-        .flag { font-size: 1.5rem; }
         .pulse { animation: pulse 2s infinite; }
         @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.5; } }
         .tab-active { border-bottom: 3px solid #fbbf24; color: #fbbf24; }
-        .gold { background: linear-gradient(135deg, #ffd700, #ffb700); }
-        .silver { background: linear-gradient(135deg, #c0c0c0, #a0a0a0); }
-        .bronze { background: linear-gradient(135deg, #cd7f32, #b87333); }
         .hidden-section { display: none; }
         .visible-section { display: block; }
-        #qrcode img { margin: 0 auto; border-radius: 8px; }
+        .flag-img { width: 40px; height: 28px; border-radius: 4px; object-fit: cover; box-shadow: 0 2px 4px rgba(0,0,0,0.3); }
+        .admin-input { background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15); border-radius: 6px; padding: 4px 8px; color: white; font-size: 0.85rem; width: 120px; }
+        .admin-input:focus { outline: none; border-color: #fbbf24; }
+        .btn-admin { padding: 4px 12px; border-radius: 6px; font-size: 0.75rem; font-weight: 600; cursor: pointer; transition: all 0.2s; }
+        .btn-save { background: #22c55e; color: white; }
+        .btn-save:hover { background: #16a34a; }
+        .btn-edit { background: #3b82f6; color: white; }
+        .btn-edit:hover { background: #2563eb; }
+        .filter-btn { padding: 6px 16px; border-radius: 20px; font-size: 0.8rem; font-weight: 600; cursor: pointer; transition: all 0.2s; border: 1px solid rgba(255,255,255,0.1); background: rgba(255,255,255,0.05); color: #94a3b8; }
+        .filter-btn.active { background: #fbbf24; color: #0f172a; border-color: #fbbf24; }
     </style>
 </head>
 <body class="text-white min-h-screen">
 
-<!-- ============================================ -->
-<!-- CONFIGURACION SUPABASE -->
-<!-- ============================================ -->
 <script>
 // ============================================
-// REEMPLAZA ESTOS VALORES CON LOS TUYOS DE SUPABASE
+// CONFIGURACION SUPABASE - REEMPLAZAR
 // ============================================
-const SUPABASE_URL = 'https://dwcnwxrcwuicwxbtqpxs.supabase.co';
-const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImR3Y253eHJjd3VpY3d4YnRxcHhzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODIxNDk4NDcsImV4cCI6MjA5NzcyNTg0N30.Xwa-18sv9YsodNG1AJeItmf3NdwiHanCE9m9Mka4dSE';
-// ============================================
-
-// FIX: usamos 'sb' como variable local para no pisar el objeto global 'supabase' del CDN
+const SUPABASE_URL = 'https://tu-proyecto.supabase.co';
+const SUPABASE_KEY = 'tu-anon-public-key';
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-// Estado global
 let currentPlayer = null;
 let matches = [];
 let bets = [];
 let players = [];
-let leaderboard = [];
+let matchFilter = 'today'; // 'today' | 'all'
 
-const ADMIN_CODE = 'MUNDIAL2026'; // Código para acceso admin
+const ADMIN_CODE = 'MUNDIAL2026';
 
 // ============================================
 // UTILIDADES
@@ -61,84 +59,114 @@ const formatDate = (dateStr) => {
     const d = new Date(dateStr);
     return d.toLocaleString('es-ES', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
 };
+const formatDateShort = (dateStr) => {
+    const d = new Date(dateStr);
+    return d.toLocaleDateString('es-ES', { day: '2-digit', month: 'short' });
+};
 const isMatchOpen = (match) => {
     return new Date(match.match_date) > new Date() && match.status === 'scheduled';
 };
 const isMatchFinished = (match) => match.status === 'finished';
-const getFlag = (team) => {
-    const flags = {
-        'Argentina': '🇦🇷', 'Brasil': '🇧🇷', 'Alemania': '🇩🇪', 'España': '🇪🇸',
-        'Francia': '🇫🇷', 'Inglaterra': '🏴󠁧󠁢󠁥󠁮󠁧󠁿', 'Portugal': '🇵🇹', 'Italia': '🇮🇹',
-        'Paises Bajos': '🇳🇱', 'Belgica': '🇧🇪', 'Uruguay': '🇺🇾', 'Croacia': '🇭🇷',
-        'Mexico': '🇲🇽', 'Estados Unidos': '🇺🇸', 'Canada': '🇨🇦', 'Japon': '🇯🇵',
-        'Corea del Sur': '🇰🇷', 'Australia': '🇦🇺', 'Senegal': '🇸🇳', 'Marruecos': '🇲🇦',
-        'Suiza': '🇨🇭', 'Polonia': '🇵🇱', 'Dinamarca': '🇩🇰', 'Colombia': '🇨🇴',
-        'Chile': '🇨🇱', 'Ecuador': '🇪🇨', 'Peru': '🇵🇪', 'Paraguay': '🇵🇾',
-        'Bolivia': '🇧🇴', 'Venezuela': '🇻🇪', 'Qatar': '🇶🇦', 'Arabia Saudita': '🇸🇦',
-        'Iran': '🇮🇷', 'Tunez': '🇹🇳', 'Gales': '🏴󠁧󠁢󠁷󠁬󠁳󠁿', 'Costa Rica': '🇨🇷',
-        'Serbia': '🇷🇸', 'Grecia': '🇬🇷', 'Suecia': '🇸🇪', 'Noruega': '🇳🇴',
-        'Ucrania': '🇺🇦', 'Turquia': '🇹🇷', 'Austria': '🇦🇹', 'Republica Checa': '🇨🇿',
-        'Hungria': '🇭🇺', 'Rumania': '🇷🇴', 'Eslovaquia': '🇸🇰', 'Eslovenia': '🇸🇮',
-        'Finlandia': '🇫🇮', 'Irlanda': '🇮🇪', 'Escocia': '🏴󠁧󠁢󠁳󠁣󠁴󠁿', 'Nigeria': '🇳🇬',
-        'Ghana': '🇬🇭', 'Camerun': '🇨🇲', 'Costa de Marfil': '🇨🇮', 'Egipto': '🇪🇬',
-        'Argelia': '🇩🇿', 'Sudafrica': '🇿🇦', 'Nueva Zelanda': '🇳🇿', 'Panama': '🇵🇦',
-        'Honduras': '🇭🇳', 'Jamaica': '🇯🇲', 'Trinidad y Tobago': '🇹🇹', 'Haiti': '🇭🇹',
-        'Guatemala': '🇬🇹', 'El Salvador': '🇸🇻', 'Nicaragua': '🇳🇮', 'Cuba': '🇨🇺',
-        'Republica Dominicana': '🇩🇴', 'Puerto Rico': '🇵🇷', 'Islandia': '🇮🇸',
-        'Bosnia': '🇧🇦', 'Macedonia': '🇲🇰', 'Albania': '🇦🇱', 'Montenegro': '🇲🇪',
-        'Kosovo': '🇽🇰', 'Moldavia': '🇲🇩', 'Bielorrusia': '🇧🇾', 'Lituania': '🇱🇹',
-        'Letonia': '🇱🇻', 'Estonia': '🇪🇪', 'Georgia': '🇬🇪', 'Armenia': '🇦🇲',
-        'Azerbaiyan': '🇦🇿', 'Kazajistan': '🇰🇿', 'Uzbekistan': '🇺🇿', 'Turkmenistan': '🇹🇲',
-        'Kirguistan': '🇰🇬', 'Tayikistan': '🇹🇯', 'Afganistan': '🇦🇫', 'Pakistan': '🇵🇰',
-        'India': '🇮🇳', 'Bangladesh': '🇧🇩', 'Sri Lanka': '🇱🇰', 'Nepal': '🇳🇵',
-        'Butan': '🇧🇹', 'Maldivas': '🇲🇻', 'Tailandia': '🇹🇭', 'Vietnam': '🇻🇳',
-        'Camboya': '🇰🇭', 'Laos': '🇱🇦', 'Myanmar': '🇲🇲', 'Malasia': '🇲🇾',
-        'Singapur': '🇸🇬', 'Indonesia': '🇮🇩', 'Filipinas': '🇵🇭', 'Brunei': '🇧🇳',
-        'Timor Oriental': '🇹🇱', 'Papua Nueva Guinea': '🇵🇬', 'Fiyi': '🇫🇯',
-        'Samoa': '🇼🇸', 'Tonga': '🇹🇴', 'Vanuatu': '🇻🇺', 'Islas Salomon': '🇸🇧',
-        'Kiribati': '🇰🇮', 'Tuvalu': '🇹🇻', 'Nauru': '🇳🇷', 'Palau': '🇵🇼',
-        'Islas Marshall': '🇲🇭', 'Micronesia': '🇫🇲', 'Guam': '🇬🇺', 'Samoa Americana': '🇦🇸',
-        'Islas Cook': '🇨🇰', 'Niue': '🇳🇺', 'Tokelau': '🇹🇰', 'Wallis y Futuna': '🇼🇫',
-        'Polinesia Francesa': '🇵🇫', 'Nueva Caledonia': '🇳🇨', 'Islas Pitcairn': '🇵🇳',
-        'Islas Norfolk': '🇳🇫', 'Islas Christmas': '🇨🇽', 'Islas Cocos': '🇨🇨',
-        'Islas Heard y McDonald': '🇭🇲', 'Antartida': '🇦🇶', 'Bouvet': '🇧🇻',
-        'Svalbard': '🇸🇯', 'Jan Mayen': '🇯🇲', 'Islas Georgias del Sur': '🇬🇸',
-        'Islas Sandwich del Sur': '🇸🇭', 'Islas Malvinas': '🇫🇰', 'Gibraltar': '🇬🇮',
-        'Islas Feroe': '🇫🇴', 'Islas Aland': '🇦🇽', 'Islas Channel': '🇬🇬',
-        'Jersey': '🇯🇪', 'Guernsey': '🇬🇬', 'Isla de Man': '🇮🇲', 'San Marino': '🇸🇲',
-        'Vaticano': '🇻🇦', 'Monaco': '🇲🇨', 'Andorra': '🇦🇩', 'Liechtenstein': '🇱🇮',
-        'Malta': '🇲🇹', 'Chipre': '🇨🇾', 'Luxemburgo': '🇱🇺', 'Surinam': '🇸🇷',
-        'Guyana': '🇬🇾', 'Guayana Francesa': '🇬🇫', 'Belice': '🇧🇿', 'Barbados': '🇧🇧',
-        'Santa Lucia': '🇱🇨', 'San Vicente y Granadinas': '🇻🇨', 'Granada': '🇬🇩',
-        'San Cristobal y Nieves': '🇰🇳', 'Antigua y Barbuda': '🇦🇬', 'Dominica': '🇩🇲',
-        'Montserrat': '🇲🇸', 'Anguila': '🇦🇮', 'Islas Virgenes Britanicas': '🇻🇬',
-        'Islas Virgenes Americanas': '🇻🇮', 'Islas Caiman': '🇰🇾', 'Islas Turcas y Caicos': '🇹🇨',
-        'Bahamas': '🇧🇸', 'Bermudas': '🇧🇲', 'Groenlandia': '🇬🇱', 'Sudan': '🇸🇩',
-        'Madagascar': '🇲🇬', 'Mauricio': '🇲🇺', 'Seychelles': '🇸🇨', 'Comoras': '🇰🇲',
-        'Mayotte': '🇾🇹', 'Reunion': '🇷🇪', 'Santo Tome y Principe': '🇸🇹',
-        'Guinea Ecuatorial': '🇬🇶', 'Gabon': '🇬🇦', 'Congo': '🇨🇬', 'Congo RDC': '🇨🇩',
-        'Ruanda': '🇷🇼', 'Burundi': '🇧🇮', 'Uganda': '🇺🇬', 'Kenia': '🇰🇪',
-        'Tanzania': '🇹🇿', 'Zambia': '🇿🇲', 'Zimbabue': '🇿🇼', 'Botsuana': '🇧🇼',
-        'Namibia': '🇳🇦', 'Angola': '🇦🇴', 'Mozambique': '🇲🇿', 'Malawi': '🇲🇼',
-        'Lesoto': '🇱🇸', 'Eswatini': '🇸🇿', 'Mauritania': '🇲🇷', 'Mali': '🇲🇱',
-        'Burkina Faso': '🇧🇫', 'Niger': '🇳🇪', 'Chad': '🇹🇩', 'Republica Centroafricana': '🇨🇫',
-        'Guinea': '🇬🇳', 'Guinea-Bissau': '🇬🇼', 'Sierra Leona': '🇸🇱', 'Liberia': '🇱🇷',
-        'Togo': '🇹🇬', 'Benin': '🇧🇯'
-    };
-    return flags[team] || '🏳️';
+const isMatchToday = (match) => {
+    const d = new Date(match.match_date);
+    const now = new Date();
+    return d.getDate() === now.getDate() && d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
 };
+const isMatchUpcoming = (match) => {
+    return new Date(match.match_date) > new Date();
+};
+
+// ============================================
+// BANDERAS REALES CON flagcdn.com
+// ============================================
+const countryCodes = {
+    'Argentina': 'ar', 'Brasil': 'br', 'Brazil': 'br', 'Alemania': 'de', 'Germany': 'de',
+    'Espana': 'es', 'Spain': 'es', 'Francia': 'fr', 'France': 'fr', 'Inglaterra': 'gb',
+    'England': 'gb', 'Portugal': 'pt', 'Italia': 'it', 'Italy': 'it', 'Paises Bajos': 'nl',
+    'Netherlands': 'nl', 'Belgica': 'be', 'Belgium': 'be', 'Uruguay': 'uy', 'Croacia': 'hr',
+    'Croatia': 'hr', 'Mexico': 'mx', 'Estados Unidos': 'us', 'United States': 'us', 'USA': 'us',
+    'Canada': 'ca', 'Japon': 'jp', 'Japan': 'jp', 'Corea del Sur': 'kr', 'Korea Republic': 'kr',
+    'South Korea': 'kr', 'Australia': 'au', 'Senegal': 'sn', 'Marruecos': 'ma', 'Morocco': 'ma',
+    'Suiza': 'ch', 'Switzerland': 'ch', 'Polonia': 'pl', 'Poland': 'pl', 'Dinamarca': 'dk',
+    'Denmark': 'dk', 'Colombia': 'co', 'Chile': 'cl', 'Ecuador': 'ec', 'Peru': 'pe',
+    'Paraguay': 'py', 'Bolivia': 'bo', 'Venezuela': 've', 'Qatar': 'qa', 'Arabia Saudita': 'sa',
+    'Saudi Arabia': 'sa', 'Iran': 'ir', 'Tunez': 'tn', 'Tunisia': 'tn', 'Gales': 'gb-wls',
+    'Wales': 'gb-wls', 'Costa Rica': 'cr', 'Serbia': 'rs', 'Grecia': 'gr', 'Greece': 'gr',
+    'Suecia': 'se', 'Sweden': 'se', 'Noruega': 'no', 'Norway': 'no', 'Ucrania': 'ua',
+    'Ukraine': 'ua', 'Turquia': 'tr', 'Turkiye': 'tr', 'Turkey': 'tr', 'Austria': 'at',
+    'Republica Checa': 'cz', 'Czechia': 'cz', 'Czech Republic': 'cz', 'Hungria': 'hu',
+    'Hungary': 'hu', 'Rumania': 'ro', 'Romania': 'ro', 'Eslovaquia': 'sk', 'Slovakia': 'sk',
+    'Eslovenia': 'si', 'Slovenia': 'si', 'Finlandia': 'fi', 'Finland': 'fi', 'Irlanda': 'ie',
+    'Ireland': 'ie', 'Escocia': 'gb-sct', 'Scotland': 'gb-sct', 'Nigeria': 'ng', 'Ghana': 'gh',
+    'Camerun': 'cm', 'Cameroon': 'cm', 'Costa de Marfil': 'ci', 'Ivory Coast': 'ci',
+    'Cote d'Ivoire': 'ci', 'Egipto': 'eg', 'Egypt': 'eg', 'Argelia': 'dz', 'Algeria': 'dz',
+    'Sudafrica': 'za', 'South Africa': 'za', 'Nueva Zelanda': 'nz', 'New Zealand': 'nz',
+    'Panama': 'pa', 'Honduras': 'hn', 'Jamaica': 'jm', 'Trinidad y Tobago': 'tt',
+    'Trinidad and Tobago': 'tt', 'Haiti': 'ht', 'Guatemala': 'gt', 'El Salvador': 'sv',
+    'Nicaragua': 'ni', 'Cuba': 'cu', 'Republica Dominicana': 'do', 'Dominican Republic': 'do',
+    'Puerto Rico': 'pr', 'Islandia': 'is', 'Iceland': 'is', 'Bosnia': 'ba',
+    'Bosnia and Herzegovina': 'ba', 'Macedonia': 'mk', 'North Macedonia': 'mk',
+    'Albania': 'al', 'Montenegro': 'me', 'Kosovo': 'xk', 'Moldavia': 'md', 'Moldova': 'md',
+    'Bielorrusia': 'by', 'Belarus': 'by', 'Lituania': 'lt', 'Lithuania': 'lt',
+    'Letonia': 'lv', 'Latvia': 'lv', 'Estonia': 'ee', 'Georgia': 'ge', 'Armenia': 'am',
+    'Azerbaiyan': 'az', 'Azerbaijan': 'az', 'Kazajistan': 'kz', 'Kazakhstan': 'kz',
+    'Uzbekistan': 'uz', 'Turkmenistan': 'tm', 'Kirguistan': 'kg', 'Kyrgyzstan': 'kg',
+    'Tayikistan': 'tj', 'Tajikistan': 'tj', 'Afganistan': 'af', 'Afghanistan': 'af',
+    'Pakistan': 'pk', 'India': 'in', 'Bangladesh': 'bd', 'Sri Lanka': 'lk', 'Nepal': 'np',
+    'Butan': 'bt', 'Bhutan': 'bt', 'Maldivas': 'mv', 'Maldives': 'mv', 'Tailandia': 'th',
+    'Thailand': 'th', 'Vietnam': 'vn', 'Camboya': 'kh', 'Cambodia': 'kh', 'Laos': 'la',
+    'Myanmar': 'mm', 'Malasia': 'my', 'Malaysia': 'my', 'Singapur': 'sg', 'Singapore': 'sg',
+    'Indonesia': 'id', 'Filipinas': 'ph', 'Philippines': 'ph', 'Brunei': 'bn',
+    'Timor Oriental': 'tl', 'East Timor': 'tl', 'Papua Nueva Guinea': 'pg',
+    'Papua New Guinea': 'pg', 'Fiyi': 'fj', 'Fiji': 'fj', 'Samoa': 'ws', 'Tonga': 'to',
+    'Vanuatu': 'vu', 'Islas Salomon': 'sb', 'Solomon Islands': 'sb', 'Kiribati': 'ki',
+    'Tuvalu': 'tv', 'Nauru': 'nr', 'Palau': 'pw', 'Islas Marshall': 'mh',
+    'Marshall Islands': 'mh', 'Micronesia': 'fm', 'Guam': 'gu', 'Samoa Americana': 'as',
+    'American Samoa': 'as', 'Islas Cook': 'ck', 'Cook Islands': 'ck', 'Niue': 'nu',
+    'Tokelau': 'tk', 'Wallis y Futuna': 'wf', 'Polinesia Francesa': 'pf',
+    'French Polynesia': 'pf', 'Nueva Caledonia': 'nc', 'New Caledonia': 'nc',
+    'Islas Pitcairn': 'pn', 'Pitcairn Islands': 'pn', 'Islas Norfolk': 'nf',
+    'Norfolk Island': 'nf', 'Islas Christmas': 'cx', 'Christmas Island': 'cx',
+    'Islas Cocos': 'cc', 'Cocos Islands': 'cc', 'Antartida': 'aq', 'Antarctica': 'aq',
+    'Groenlandia': 'gl', 'Greenland': 'gl', 'Sudan': 'sd', 'Madagascar': 'mg',
+    'Mauricio': 'mu', 'Mauritius': 'mu', 'Seychelles': 'sc', 'Comoras': 'km', 'Comoros': 'km',
+    'Santo Tome y Principe': 'st', 'Sao Tome and Principe': 'st',
+    'Guinea Ecuatorial': 'gq', 'Equatorial Guinea': 'gq', 'Gabon': 'ga', 'Congo': 'cg',
+    'Congo RDC': 'cd', 'DR Congo': 'cd', 'Democratic Republic of the Congo': 'cd',
+    'Ruanda': 'rw', 'Rwanda': 'rw', 'Burundi': 'bi', 'Uganda': 'ug', 'Kenia': 'ke',
+    'Kenya': 'ke', 'Tanzania': 'tz', 'Zambia': 'zm', 'Zimbabue': 'zw', 'Zimbabwe': 'zw',
+    'Botsuana': 'bw', 'Botswana': 'bw', 'Namibia': 'na', 'Angola': 'ao', 'Mozambique': 'mz',
+    'Malawi': 'mw', 'Lesoto': 'ls', 'Lesotho': 'ls', 'Eswatini': 'sz', 'Mauritania': 'mr',
+    'Mali': 'ml', 'Burkina Faso': 'bf', 'Niger': 'ne', 'Chad': 'td',
+    'Republica Centroafricana': 'cf', 'Central African Republic': 'cf', 'Guinea': 'gn',
+    'Guinea-Bissau': 'gw', 'Sierra Leona': 'sl', 'Sierra Leone': 'sl', 'Liberia': 'lr',
+    'Togo': 'tg', 'Benin': 'bj', 'Curacao': 'cw', 'Jordan': 'jo', 'Iraq': 'iq',
+    'Cape Verde': 'cv', 'Cabo Verde': 'cv'
+};
+
+const getFlag = (team) => {
+    const code = countryCodes[team] || 'xx';
+    return `https://flagcdn.com/w80/${code}.png`;
+};
+
+const getFlagImg = (team) => {
+    const code = countryCodes[team] || 'xx';
+    return `<img src="https://flagcdn.com/w80/${code}.png" class="flag-img" alt="${team}" onerror="this.style.display='none'">`;
+};
+
 const calculatePoints = (bet, match) => {
     if (!isMatchFinished(match)) return 0;
     const bp = bet.home_prediction, ba = bet.away_prediction;
     const rp = match.home_score, ra = match.away_score;
-    if (bp === rp && ba === ra) return 5; // Exacto
+    if (bp === rp && ba === ra) return 5;
     const betDiff = bp - ba;
     const realDiff = rp - ra;
-    if (betDiff === realDiff && betDiff !== 0) return 3; // Diferencia de goles correcta
-    if (Math.sign(betDiff) === Math.sign(realDiff)) return 2; // Ganador correcto
-    if (betDiff === 0 && realDiff === 0) return 2; // Empate correcto (no exacto)
+    if (betDiff === realDiff && betDiff !== 0) return 3;
+    if (Math.sign(betDiff) === Math.sign(realDiff)) return 2;
+    if (betDiff === 0 && realDiff === 0) return 2;
     return 0;
 };
+
 const showToast = (msg, type = 'info') => {
     const toast = document.createElement('div');
     toast.className = `fixed bottom-4 right-4 px-6 py-3 rounded-lg shadow-lg z-50 ${type === 'error' ? 'bg-red-600' : type === 'success' ? 'bg-green-600' : 'bg-blue-600'}`;
@@ -154,7 +182,7 @@ const showToast = (msg, type = 'info') => {
 <header class="glass sticky top-0 z-40 border-b border-white/10">
     <div class="max-w-4xl mx-auto px-4 py-4 flex items-center justify-between">
         <div class="flex items-center gap-3">
-            <div class="text-3xl">🏆</div>
+            <div class="text-3xl">&#9917;</div>
             <div>
                 <h1 class="text-xl font-black gradient-text">QUINIELA MUNDIAL 2026</h1>
                 <p class="text-xs text-gray-400">Predice, compite, gana</p>
@@ -175,7 +203,7 @@ const showToast = (msg, type = 'info') => {
         <button onclick="showSection('apuestas')" id="tab-apuestas" class="tab-active pb-3 text-sm font-semibold whitespace-nowrap">Mis Apuestas</button>
         <button onclick="showSection('posiciones')" id="tab-posiciones" class="pb-3 text-sm font-semibold text-gray-400 hover:text-white whitespace-nowrap">Posiciones</button>
         <button onclick="showSection('qr')" id="tab-qr" class="pb-3 text-sm font-semibold text-gray-400 hover:text-white whitespace-nowrap">Mi QR</button>
-        <button onclick="showSection('admin')" id="tab-admin" class="hidden pb-3 text-sm font-semibold text-gray-400 hover:text-white whitespace-nowrap">⚙️ Admin</button>
+        <button onclick="showSection('admin')" id="tab-admin" class="hidden pb-3 text-sm font-semibold text-gray-400 hover:text-white whitespace-nowrap">&#9881; Admin</button>
     </div>
 </nav>
 
@@ -184,9 +212,9 @@ const showToast = (msg, type = 'info') => {
 <!-- ============================================ -->
 <section id="section-login" class="max-w-md mx-auto px-4 mt-12">
     <div class="glass rounded-2xl p-8 text-center">
-        <div class="text-6xl mb-4">⚽</div>
-        <h2 class="text-2xl font-bold mb-2">¡Bienvenido!</h2>
-        <p class="text-gray-400 mb-6 text-sm">Registrate o ingresá para participar en la quiniela</p>
+        <div class="text-6xl mb-4">&#9917;</div>
+        <h2 class="text-2xl font-bold mb-2">Bienvenido</h2>
+        <p class="text-gray-400 mb-6 text-sm">Registrate o ingresa para participar en la quiniela</p>
 
         <div class="space-y-4 text-left">
             <div>
@@ -195,10 +223,10 @@ const showToast = (msg, type = 'info') => {
                     class="w-full mt-1 bg-white/5 border border-white/10 rounded-lg px-4 py-3 focus:outline-none focus:border-yellow-500 transition">
             </div>
             <div>
-                <label class="text-xs text-gray-400 uppercase font-semibold">PIN (4 dígitos)</label>
+                <label class="text-xs text-gray-400 uppercase font-semibold">PIN (4 digitos)</label>
                 <input type="password" id="reg-pin" maxlength="4" placeholder="1234" 
                     class="w-full mt-1 bg-white/5 border border-white/10 rounded-lg px-4 py-3 focus:outline-none focus:border-yellow-500 transition text-center tracking-widest">
-                <p class="text-xs text-gray-500 mt-1">Servirá para editar tus pronósticos</p>
+                <p class="text-xs text-gray-500 mt-1">Servira para editar tus pronosticos</p>
             </div>
             <button onclick="registerOrLogin()" 
                 class="w-full bg-gradient-to-r from-yellow-500 to-amber-600 text-black font-bold py-3 rounded-lg hover:from-yellow-400 hover:to-amber-500 transition">
@@ -207,7 +235,7 @@ const showToast = (msg, type = 'info') => {
         </div>
 
         <div class="mt-6 pt-6 border-t border-white/10">
-            <p class="text-xs text-gray-500 mb-2">¿Sos el administrador?</p>
+            <p class="text-xs text-gray-500 mb-2">Sos el administrador?</p>
             <button onclick="showAdminLogin()" class="text-xs text-yellow-500 hover:text-yellow-400 underline">Acceso Admin</button>
         </div>
     </div>
@@ -217,7 +245,7 @@ const showToast = (msg, type = 'info') => {
 <div id="admin-login-modal" class="hidden fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4">
     <div class="glass rounded-2xl p-6 max-w-sm w-full">
         <h3 class="text-lg font-bold mb-4">Acceso Administrador</h3>
-        <input type="password" id="admin-code-input" placeholder="Código admin" 
+        <input type="password" id="admin-code-input" placeholder="Codigo admin" 
             class="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-3 mb-4 focus:outline-none focus:border-yellow-500">
         <div class="flex gap-2">
             <button onclick="closeAdminLogin()" class="flex-1 py-2 rounded-lg border border-white/20 hover:bg-white/5">Cancelar</button>
@@ -230,13 +258,18 @@ const showToast = (msg, type = 'info') => {
 <!-- SECCION: APUESTAS -->
 <!-- ============================================ -->
 <section id="section-apuestas" class="hidden-section max-w-4xl mx-auto px-4 mt-6 pb-20">
+    <!-- Filtros -->
+    <div class="flex justify-center gap-3 mb-6">
+        <button onclick="setFilter('today')" id="filter-today" class="filter-btn active">Hoy / Proximos</button>
+        <button onclick="setFilter('all')" id="filter-all" class="filter-btn">Todos los Partidos</button>
+    </div>
+
     <div id="matches-container" class="space-y-4">
-        <!-- Partidos se cargan dinámicamente -->
     </div>
     <div class="mt-6 text-center">
         <button onclick="saveAllBets()" id="save-bets-btn"
             class="bg-gradient-to-r from-green-500 to-emerald-600 text-white font-bold px-8 py-3 rounded-lg hover:from-green-400 hover:to-emerald-500 transition shadow-lg">
-            💾 Guardar Mis Pronósticos
+            Guardar Mis Pronosticos
         </button>
     </div>
 </section>
@@ -246,7 +279,7 @@ const showToast = (msg, type = 'info') => {
 <!-- ============================================ -->
 <section id="section-posiciones" class="hidden-section max-w-4xl mx-auto px-4 mt-6 pb-20">
     <div class="glass rounded-2xl p-6">
-        <h2 class="text-xl font-bold mb-4 flex items-center gap-2">🏆 Tabla de Posiciones</h2>
+        <h2 class="text-xl font-bold mb-4 flex items-center gap-2">Tabla de Posiciones</h2>
         <div class="overflow-x-auto">
             <table class="w-full text-sm">
                 <thead>
@@ -259,19 +292,18 @@ const showToast = (msg, type = 'info') => {
                     </tr>
                 </thead>
                 <tbody id="leaderboard-body">
-                    <!-- Se carga dinámicamente -->
                 </tbody>
             </table>
         </div>
     </div>
 
     <div class="glass rounded-2xl p-6 mt-4">
-        <h3 class="text-lg font-bold mb-3">📋 Sistema de Puntaje</h3>
+        <h3 class="text-lg font-bold mb-3">Sistema de Puntaje</h3>
         <div class="grid grid-cols-2 gap-3 text-sm">
-            <div class="flex items-center gap-2"><span class="text-xl">🎯</span> <span>Resultado exacto: <b class="text-yellow-400">5 pts</b></span></div>
-            <div class="flex items-center gap-2"><span class="text-xl">📊</span> <span>Diferencia de goles: <b class="text-yellow-400">3 pts</b></span></div>
-            <div class="flex items-center gap-2"><span class="text-xl">✅</span> <span>Ganador correcto: <b class="text-yellow-400">2 pts</b></span></div>
-            <div class="flex items-center gap-2"><span class="text-xl">🤝</span> <span>Empate correcto: <b class="text-yellow-400">2 pts</b></span></div>
+            <div class="flex items-center gap-2"><span>Resultado exacto: <b class="text-yellow-400">5 pts</b></span></div>
+            <div class="flex items-center gap-2"><span>Diferencia de goles: <b class="text-yellow-400">3 pts</b></span></div>
+            <div class="flex items-center gap-2"><span>Ganador correcto: <b class="text-yellow-400">2 pts</b></span></div>
+            <div class="flex items-center gap-2"><span>Empate correcto: <b class="text-yellow-400">2 pts</b></span></div>
         </div>
     </div>
 </section>
@@ -282,7 +314,7 @@ const showToast = (msg, type = 'info') => {
 <section id="section-qr" class="hidden-section max-w-md mx-auto px-4 mt-6 pb-20 text-center">
     <div class="glass rounded-2xl p-8">
         <h2 class="text-xl font-bold mb-2">Tu QR Personal</h2>
-        <p class="text-gray-400 text-sm mb-6">Escanealo para ver tus pronósticos</p>
+        <p class="text-gray-400 text-sm mb-6">Escanealo para ver tus pronosticos</p>
         <div id="qrcode" class="bg-white p-4 rounded-xl inline-block"></div>
         <p id="qr-url" class="text-xs text-gray-500 mt-4 break-all"></p>
         <div class="mt-6 text-left space-y-2 text-sm">
@@ -297,16 +329,15 @@ const showToast = (msg, type = 'info') => {
 <!-- ============================================ -->
 <section id="section-admin" class="hidden-section max-w-4xl mx-auto px-4 mt-6 pb-20">
     <div class="glass rounded-2xl p-6 mb-6">
-        <h2 class="text-xl font-bold mb-4">⚙️ Panel de Administración</h2>
-        <p class="text-sm text-gray-400 mb-4">Cargá los resultados reales de los partidos finalizados</p>
+        <h2 class="text-xl font-bold mb-4">Panel de Administracion</h2>
+        <p class="text-sm text-gray-400 mb-4">Carga resultados y edita nombres de equipos</p>
 
         <div id="admin-matches-container" class="space-y-3">
-            <!-- Partidos para editar resultados -->
         </div>
     </div>
 
     <div class="glass rounded-2xl p-6">
-        <h3 class="text-lg font-bold mb-4">➕ Agregar Partido</h3>
+        <h3 class="text-lg font-bold mb-4">Agregar Partido</h3>
         <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
             <input type="text" id="new-home" placeholder="Equipo Local" class="bg-white/5 border border-white/10 rounded-lg px-4 py-2 focus:outline-none focus:border-yellow-500">
             <input type="text" id="new-away" placeholder="Equipo Visitante" class="bg-white/5 border border-white/10 rounded-lg px-4 py-2 focus:outline-none focus:border-yellow-500">
@@ -320,18 +351,13 @@ const showToast = (msg, type = 'info') => {
 <!-- JAVASCRIPT PRINCIPAL -->
 <!-- ============================================ -->
 <script>
-// ============================================
-// INICIALIZACION
-// ============================================
 document.addEventListener('DOMContentLoaded', async () => {
-    // Revisar si hay jugador guardado
     const saved = localStorage.getItem('quiniela_player');
     if (saved) {
         currentPlayer = JSON.parse(saved);
         await initApp();
     }
 
-    // Revisar si hay parametro de jugador en URL (desde QR)
     const urlParams = new URLSearchParams(window.location.search);
     const playerId = urlParams.get('jugador');
     if (playerId && !currentPlayer) {
@@ -352,31 +378,24 @@ async function initApp() {
     renderLeaderboard();
     renderQR();
 
-    // Si es admin, mostrar tab
     if (currentPlayer.isAdmin) {
         $('tab-admin').classList.remove('hidden');
         renderAdminPanel();
     }
 
     showSection('apuestas');
-
-    // Suscribirse a cambios en tiempo real
     subscribeToChanges();
 }
 
-// ============================================
-// AUTH
-// ============================================
 async function registerOrLogin() {
     const name = $('reg-name').value.trim();
     const pin = $('reg-pin').value.trim();
 
     if (!name || pin.length !== 4 || !/^\d{4}$/.test(pin)) {
-        showToast('Ingresá un nombre y un PIN de 4 dígitos', 'error');
+        showToast('Ingresa un nombre y un PIN de 4 digitos', 'error');
         return;
     }
 
-    // Buscar si existe
     const { data: existing } = await sb
         .from('players')
         .select('*')
@@ -384,14 +403,12 @@ async function registerOrLogin() {
         .single();
 
     if (existing) {
-        // Login
         if (existing.pin !== pin) {
             showToast('PIN incorrecto', 'error');
             return;
         }
         currentPlayer = existing;
     } else {
-        // Registro
         const { data: newPlayer, error } = await sb
             .from('players')
             .insert({ name, pin })
@@ -403,7 +420,7 @@ async function registerOrLogin() {
             return;
         }
         currentPlayer = newPlayer;
-        showToast('¡Registro exitoso!', 'success');
+        showToast('Registro exitoso', 'success');
     }
 
     localStorage.setItem('quiniela_player', JSON.stringify(currentPlayer));
@@ -439,13 +456,10 @@ async function verifyAdmin() {
         closeAdminLogin();
         await initApp();
     } else {
-        showToast('Código incorrecto', 'error');
+        showToast('Codigo incorrecto', 'error');
     }
 }
 
-// ============================================
-// NAVEGACION
-// ============================================
 function showSection(section) {
     ['apuestas', 'posiciones', 'qr', 'admin'].forEach(s => {
         $(`section-${s}`).classList.add('hidden-section');
@@ -463,9 +477,6 @@ function showSection(section) {
     if (section === 'admin') renderAdminPanel();
 }
 
-// ============================================
-// DATOS
-// ============================================
 async function loadMatches() {
     const { data } = await sb.from('matches').select('*').order('match_date');
     matches = data || [];
@@ -495,22 +506,51 @@ function subscribeToChanges() {
 }
 
 // ============================================
+// FILTROS
+// ============================================
+function setFilter(filter) {
+    matchFilter = filter;
+    $('filter-today').classList.toggle('active', filter === 'today');
+    $('filter-all').classList.toggle('active', filter === 'all');
+    renderMatches();
+}
+
+// ============================================
 // RENDER: PARTIDOS / APUESTAS
 // ============================================
 function renderMatches() {
     const container = $('matches-container');
     if (!matches.length) {
-        container.innerHTML = '<div class="text-center text-gray-500 py-12">No hay partidos cargados aún</div>';
+        container.innerHTML = '<div class="text-center text-gray-500 py-12">No hay partidos cargados aun</div>';
         return;
     }
 
-    const now = new Date();
-    container.innerHTML = matches.map(match => {
+    // Filtrar partidos segun seleccion
+    let filteredMatches = matches;
+    if (matchFilter === 'today') {
+        const now = new Date();
+        // Mostrar partidos de hoy, manana y proximos que esten abiertos
+        // Tambien mostrar partidos de fechas pasadas que no tengan apuesta del usuario
+        filteredMatches = matches.filter(m => {
+            const matchDate = new Date(m.match_date);
+            const isOpen = isMatchOpen(m);
+            const isTodayOrFuture = matchDate >= new Date(now.getFullYear(), now.getMonth(), now.getDate());
+            return isOpen || (isTodayOrFuture && m.status === 'scheduled');
+        });
+
+        if (filteredMatches.length === 0) {
+            container.innerHTML = '<div class="text-center text-gray-500 py-12">No hay partidos abiertos para apostar en este momento. Volvé mas tarde o mirá "Todos los Partidos".</div>';
+            $('save-bets-btn').style.display = 'none';
+            return;
+        }
+    }
+
+    container.innerHTML = filteredMatches.map(match => {
         const open = isMatchOpen(match);
         const finished = isMatchFinished(match);
         const myBet = bets.find(b => b.player_id === currentPlayer.id && b.match_id === match.id);
-        const homeFlag = getFlag(match.home_team);
-        const awayFlag = getFlag(match.away_team);
+        const homeFlag = getFlagImg(match.home_team);
+        const awayFlag = getFlagImg(match.away_team);
         const countdown = getCountdown(match.match_date);
 
         let resultDisplay = '';
@@ -539,13 +579,13 @@ function renderMatches() {
             <div class="flex items-center justify-between mb-3">
                 <span class="text-xs text-gray-400 font-mono">${match.round || 'Fase de Grupos'}</span>
                 <span class="text-xs ${open ? 'text-yellow-400 pulse' : 'text-gray-500'}">
-                    ${open ? '⏱️ ' + countdown : finished ? '✅ Finalizado' : '🔒 Cerrado'}
+                    ${open ? 'Faltan: ' + countdown : finished ? 'Finalizado' : 'Cerrado'}
                 </span>
             </div>
 
             <div class="flex items-center justify-between gap-2">
                 <div class="flex-1 text-center">
-                    <div class="text-3xl mb-1">${homeFlag}</div>
+                    <div class="mb-1 flex justify-center">${homeFlag}</div>
                     <div class="text-sm font-semibold">${match.home_team}</div>
                 </div>
 
@@ -566,7 +606,7 @@ function renderMatches() {
                 </div>
 
                 <div class="flex-1 text-center">
-                    <div class="text-3xl mb-1">${awayFlag}</div>
+                    <div class="mb-1 flex justify-center">${awayFlag}</div>
                     <div class="text-sm font-semibold">${match.away_team}</div>
                 </div>
             </div>
@@ -575,7 +615,7 @@ function renderMatches() {
 
             ${finished && myBet ? `
                 <div class="mt-3 pt-3 border-t border-white/10 text-center text-sm">
-                    <span class="text-gray-400">Tu pronóstico: </span>
+                    <span class="text-gray-400">Tu pronostico: </span>
                     <span class="font-bold ${pts > 0 ? 'text-green-400' : 'text-red-400'}">
                         ${myBet.home_prediction} - ${myBet.away_prediction}
                     </span>
@@ -585,8 +625,7 @@ function renderMatches() {
         `;
     }).join('');
 
-    // Actualizar estado del botón de guardar
-    const hasOpenMatches = matches.some(isMatchOpen);
+    const hasOpenMatches = filteredMatches.some(isMatchOpen);
     $('save-bets-btn').style.display = hasOpenMatches ? 'inline-block' : 'none';
 }
 
@@ -599,9 +638,6 @@ function getCountdown(dateStr) {
     return `${h}h ${m}m`;
 }
 
-// ============================================
-// GUARDAR APUESTAS
-// ============================================
 async function saveAllBets() {
     const inputs = document.querySelectorAll('[data-match]');
     const betsMap = {};
@@ -646,7 +682,7 @@ async function saveAllBets() {
     }
 
     if (promises.length === 0) {
-        showToast('Completá al menos un pronóstico', 'error');
+        showToast('Completa al menos un pronostico', 'error');
         return;
     }
 
@@ -654,12 +690,9 @@ async function saveAllBets() {
     await loadBets();
     renderMatches();
     renderLeaderboard();
-    showToast(`¡${promises.length} pronóstico(s) guardado(s)!`, 'success');
+    showToast(`${promises.length} pronostico(s) guardado(s)`, 'success');
 }
 
-// ============================================
-// RENDER: POSICIONES
-// ============================================
 function renderLeaderboard() {
     const stats = players.map(player => {
         const playerBets = bets.filter(b => b.player_id === player.id);
@@ -681,16 +714,16 @@ function renderLeaderboard() {
 
     const tbody = $('leaderboard-body');
     if (!stats.length) {
-        tbody.innerHTML = '<tr><td colspan="5" class="text-center py-8 text-gray-500">Aún no hay jugadores</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="5" class="text-center py-8 text-gray-500">Aun no hay jugadores</td></tr>';
         return;
     }
 
     tbody.innerHTML = stats.map((p, i) => {
         let medal = '';
-        if (i === 0) medal = '🥇';
-        else if (i === 1) medal = '🥈';
-        else if (i === 2) medal = '🥉';
-        else medal = `<span class="text-gray-500">${i + 1}</span>`;
+        if (i === 0) medal = '1.';
+        else if (i === 1) medal = '2.';
+        else if (i === 2) medal = '3.';
+        else medal = `<span class="text-gray-500">${i + 1}.</span>`;
 
         const isMe = p.id === currentPlayer?.id;
 
@@ -706,9 +739,6 @@ function renderLeaderboard() {
     }).join('');
 }
 
-// ============================================
-// RENDER: QR
-// ============================================
 function renderQR() {
     if (!currentPlayer || currentPlayer.id === 'admin') return;
 
@@ -736,7 +766,7 @@ function renderQR() {
 }
 
 // ============================================
-// ADMIN: PANEL
+// ADMIN: PANEL MEJORADO
 // ============================================
 function renderAdminPanel() {
     const container = $('admin-matches-container');
@@ -747,11 +777,27 @@ function renderAdminPanel() {
 
     container.innerHTML = matches.map(match => {
         const finished = isMatchFinished(match);
+        const homeFlag = getFlagImg(match.home_team);
+        const awayFlag = getFlagImg(match.away_team);
         return `
-        <div class="flex items-center gap-3 bg-white/5 rounded-lg p-3">
-            <div class="flex-1">
-                <div class="text-sm font-semibold">${match.home_team} vs ${match.away_team}</div>
-                <div class="text-xs text-gray-500">${formatDate(match.match_date)}</div>
+        <div class="flex flex-col md:flex-row items-start md:items-center gap-3 bg-white/5 rounded-lg p-3" id="admin-row-${match.id}">
+            <div class="flex-1 min-w-0">
+                <div class="flex items-center gap-2 mb-1">
+                    <span class="text-xs text-gray-500">${match.round}</span>
+                    <span class="text-xs ${finished ? 'text-green-400' : 'text-yellow-400'}">${finished ? 'Finalizado' : 'Pendiente'}</span>
+                </div>
+                <div class="flex items-center gap-2 flex-wrap">
+                    <div class="flex items-center gap-2">
+                        ${homeFlag}
+                        <input type="text" id="edit-home-${match.id}" value="${match.home_team}" class="admin-input">
+                    </div>
+                    <span class="text-gray-500 font-bold">vs</span>
+                    <div class="flex items-center gap-2">
+                        ${awayFlag}
+                        <input type="text" id="edit-away-${match.id}" value="${match.away_team}" class="admin-input">
+                    </div>
+                </div>
+                <div class="text-xs text-gray-500 mt-1">${formatDate(match.match_date)}</div>
             </div>
             <div class="flex items-center gap-2">
                 <input type="number" id="res-${match.id}-home" value="${match.home_score ?? ''}" 
@@ -762,13 +808,44 @@ function renderAdminPanel() {
                     class="w-12 text-center bg-white/10 border border-white/20 rounded px-2 py-1 text-sm"
                     placeholder="V">
             </div>
-            <button onclick="updateResult('${match.id}')" 
-                class="px-3 py-1 ${finished ? 'bg-green-600' : 'bg-blue-600'} hover:opacity-80 rounded text-xs font-bold transition">
-                ${finished ? 'Actualizar' : 'Guardar'}
-            </button>
+            <div class="flex gap-2">
+                <button onclick="updateResult('${match.id}')" 
+                    class="btn-admin ${finished ? 'btn-save' : 'btn-edit'}">
+                    ${finished ? 'Actualizar' : 'Guardar'}
+                </button>
+                <button onclick="updateTeams('${match.id}')" 
+                    class="btn-admin btn-edit" title="Actualizar nombres de equipos">
+                    Editar Equipos
+                </button>
+            </div>
         </div>
         `;
     }).join('');
+}
+
+async function updateTeams(matchId) {
+    const home = $(`edit-home-${matchId}`).value.trim();
+    const away = $(`edit-away-${matchId}`).value.trim();
+
+    if (!home || !away) {
+        showToast('Los nombres no pueden estar vacios', 'error');
+        return;
+    }
+
+    const { error } = await sb.from('matches').update({
+        home_team: home,
+        away_team: away
+    }).eq('id', matchId);
+
+    if (error) {
+        showToast('Error: ' + error.message, 'error');
+        return;
+    }
+
+    showToast('Equipos actualizados', 'success');
+    await loadMatches();
+    renderMatches();
+    renderAdminPanel();
 }
 
 async function updateResult(matchId) {
@@ -776,7 +853,7 @@ async function updateResult(matchId) {
     const away = parseInt($(`res-${matchId}-away`).value);
 
     if (isNaN(home) || isNaN(away)) {
-        showToast('Completá ambos resultados', 'error');
+        showToast('Completa ambos resultados', 'error');
         return;
     }
 
@@ -799,7 +876,7 @@ async function addMatch() {
     const date = $('new-date').value;
 
     if (!home || !away || !date) {
-        showToast('Completá todos los campos', 'error');
+        showToast('Completa todos los campos', 'error');
         return;
     }
 
