@@ -234,6 +234,7 @@ const showToast = (msg, type = 'info') => {
     <div class="flex gap-6 border-b border-white/10 overflow-x-auto">
         <button onclick="showSection('apuestas')" id="tab-apuestas" class="tab-active pb-3 text-sm font-semibold whitespace-nowrap">Mis Apuestas</button>
         <button onclick="showSection('posiciones')" id="tab-posiciones" class="pb-3 text-sm font-semibold text-gray-400 hover:text-white whitespace-nowrap">Posiciones</button>
+        <button onclick="abrirReglas()" class="pb-3 text-sm font-semibold text-yellow-400 hover:text-yellow-300 whitespace-nowrap">📋 Cómo Jugar</button>
         <button onclick="showSection('qr')" id="tab-qr" class="pb-3 text-sm font-semibold text-gray-400 hover:text-white whitespace-nowrap">Mi QR</button>
         <button onclick="showSection('admin')" id="tab-admin" class="hidden pb-3 text-sm font-semibold text-gray-400 hover:text-white whitespace-nowrap">&#9881; Admin</button>
     </div>
@@ -976,6 +977,113 @@ async function addMatch() {
     renderMatches();
     renderAdminPanel();
 }
+</script>
+
+
+<!-- ============================================ -->
+<!-- MODAL: CÓMO JUGAR -->
+<!-- ============================================ -->
+<div id="modalReglas" class="fixed inset-0 bg-black/85 z-[9999] hidden overflow-y-auto">
+    <div class="min-h-screen flex items-start justify-center p-4 pt-10">
+        <div class="bg-[#1e293b] rounded-2xl w-full max-w-2xl p-6 relative text-white">
+            <button onclick="cerrarReglas()" class="absolute top-3 right-4 text-3xl text-gray-400 hover:text-white">&times;</button>
+
+            <h1 class="text-2xl font-bold text-center text-yellow-400 mb-1">🏆 CÓMO JUGAR</h1>
+            <p class="text-center text-gray-400 text-sm mb-6">Quiniela Mundial 2026 - Predice, compite, gana</p>
+
+            <div class="bg-[#0f172a] rounded-xl p-4 mb-4 border-l-4 border-yellow-500">
+                <h3 class="text-yellow-400 font-bold mb-3 text-lg">🎯 Sistema de Puntuación</h3>
+                <div class="grid grid-cols-2 gap-3">
+                    <div class="bg-[#1e293b] p-3 rounded-lg text-center">
+                        <span class="text-green-400 font-bold text-xl block">5 pts</span>
+                        <span class="text-gray-400 text-sm">Resultado exacto</span>
+                    </div>
+                    <div class="bg-[#1e293b] p-3 rounded-lg text-center">
+                        <span class="text-blue-400 font-bold text-xl block">3 pts</span>
+                        <span class="text-gray-400 text-sm">Diferencia de goles</span>
+                    </div>
+                    <div class="bg-[#1e293b] p-3 rounded-lg text-center">
+                        <span class="text-purple-400 font-bold text-xl block">2 pts</span>
+                        <span class="text-gray-400 text-sm">Ganador correcto</span>
+                    </div>
+                    <div class="bg-[#1e293b] p-3 rounded-lg text-center">
+                        <span class="text-purple-400 font-bold text-xl block">2 pts</span>
+                        <span class="text-gray-400 text-sm">Empate correcto</span>
+                    </div>
+                </div>
+                <p class="text-xs text-gray-500 mt-3 text-center">Solo se aplica la puntuación más alta por partido</p>
+            </div>
+
+            <div class="bg-[#0f172a] rounded-xl p-4 mb-4 border-l-4 border-orange-500">
+                <h3 class="text-yellow-400 font-bold mb-3 text-lg">🔥 Bonus por Racha</h3>
+                <div class="flex flex-wrap gap-2 mb-3">
+                    <span class="bg-[#1e293b] px-3 py-1 rounded-full text-sm"><span class="bg-yellow-500 text-black w-5 h-5 inline-flex items-center justify-center rounded-full text-xs font-bold mr-1">2</span>+1 pt</span>
+                    <span class="bg-[#1e293b] px-3 py-1 rounded-full text-sm"><span class="bg-yellow-500 text-black w-5 h-5 inline-flex items-center justify-center rounded-full text-xs font-bold mr-1">3</span>+2 pts</span>
+                    <span class="bg-[#1e293b] px-3 py-1 rounded-full text-sm"><span class="bg-yellow-500 text-black w-5 h-5 inline-flex items-center justify-center rounded-full text-xs font-bold mr-1">4</span>+3 pts</span>
+                    <span class="bg-[#1e293b] px-3 py-1 rounded-full text-sm"><span class="bg-yellow-500 text-black w-5 h-5 inline-flex items-center justify-center rounded-full text-xs font-bold mr-1">5</span>+5 pts</span>
+                    <span class="bg-[#1e293b] px-3 py-1 rounded-full text-sm"><span class="bg-orange-500 text-white w-5 h-5 inline-flex items-center justify-center rounded-full text-xs font-bold mr-1">6+</span>+8 pts</span>
+                </div>
+                <p class="text-red-400 text-sm">❌ La racha se rompe si fallas o no pronosticas un partido</p>
+            </div>
+
+            <div class="bg-[#0f172a] rounded-xl p-4 mb-4 border-l-4 border-blue-500">
+                <h3 class="text-yellow-400 font-bold mb-2 text-lg">🏅 Ranking y Desempates</h3>
+                <ol class="text-sm text-gray-300 space-y-1 list-decimal list-inside">
+                    <li><strong>Puntos totales</strong> (mayor a menor)</li>
+                    <li><strong>Resultados exactos</strong> (desempate)</li>
+                    <li><strong>Total de apuestas realizadas</strong> (desempate final)</li>
+                </ol>
+            </div>
+
+            <div class="bg-[#0f172a] rounded-xl p-4 mb-4 border-l-4 border-green-500">
+                <h3 class="text-yellow-400 font-bold mb-3 text-lg">⚡ Consejos</h3>
+                <div class="grid grid-cols-2 gap-3 text-sm">
+                    <div class="bg-[#1e293b] p-3 rounded-lg text-center">
+                        <div class="text-xl mb-1">🕐</div>
+                        <strong>Pronostica con tiempo</strong>
+                        <div class="text-gray-400 text-xs">Al menos 30 min antes</div>
+                    </div>
+                    <div class="bg-[#1e293b] p-3 rounded-lg text-center">
+                        <div class="text-xl mb-1">🔒</div>
+                        <strong>Una vez bloqueado</strong>
+                        <div class="text-gray-400 text-xs">No hay forma de modificar</div>
+                    </div>
+                    <div class="bg-[#1e293b] p-3 rounded-lg text-center">
+                        <div class="text-xl mb-1">📈</div>
+                        <strong>Mantén la racha</strong>
+                        <div class="text-gray-400 text-xs">Acierta partido tras partido</div>
+                    </div>
+                    <div class="bg-[#1e293b] p-3 rounded-lg text-center">
+                        <div class="text-xl mb-1">🎯</div>
+                        <strong>El exacto paga más</strong>
+                        <div class="text-gray-400 text-xs">Pero cualquier acierto suma</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="text-center pt-4 border-t border-white/10">
+                <p class="text-gray-400 text-sm mb-4">¡Buena suerte y que gane el mejor pronosticador! ⚽🔮</p>
+                <button onclick="cerrarReglas()" class="w-full bg-gradient-to-r from-green-500 to-emerald-600 text-white font-bold py-3 rounded-lg hover:from-green-400 hover:to-emerald-500 transition">¡Entendido!</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function abrirReglas() {
+    document.getElementById('modalReglas').classList.remove('hidden');
+    document.body.style.overflow = 'hidden';
+}
+function cerrarReglas() {
+    document.getElementById('modalReglas').classList.add('hidden');
+    document.body.style.overflow = '';
+}
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') cerrarReglas();
+});
+document.getElementById('modalReglas').addEventListener('click', function(e) {
+    if (e.target === this) cerrarReglas();
+});
 </script>
 
 </body>
