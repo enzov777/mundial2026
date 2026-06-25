@@ -212,9 +212,21 @@ async function loadData() {
 }
 
 // ============================================
+// VARIABLES GLOBALES PARA FILTRO
+// ============================================
+let allMatches = [];
+let allPlayers = [];
+let allBets = [];
+let selectedDate = null;
+
+// ============================================
 // RENDERIZADO
 // ============================================
 function renderMatches(matches, players, bets) {
+    allMatches = matches;
+    allPlayers = players;
+    allBets = bets;
+
     const container = document.getElementById('matchesContainer');
 
     if (!matches.length) {
@@ -236,6 +248,89 @@ function renderMatches(matches, players, bets) {
         grouped[dateKey].push(m);
     });
 
+    const sortedDates = Object.keys(grouped).sort();
+
+    // Si no hay fecha seleccionada, usar la más reciente
+    if (!selectedDate) {
+        selectedDate = sortedDates[sortedDates.length - 1];
+    }
+
+    // Renderizar filtros de fecha
+    renderDateFilters(sortedDates, grouped);
+
+    // Renderizar solo la fecha seleccionada
+    renderDateSection(selectedDate, grouped[selectedDate], players, bets);
+}
+
+function renderDateFilters(dates, grouped) {
+    const container = document.getElementById('dateFilters');
+    const months = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+
+    container.innerHTML = dates.map(date => {
+        const [year, month, day] = date.split('-');
+        const label = `${parseInt(day)} ${months[parseInt(month)-1]}`;
+        const count = grouped[date].length;
+        const isActive = date === selectedDate;
+
+        return `
+            <button onclick="selectDate('${date}')" 
+                class="px-4 py-2 rounded-xl text-sm font-semibold transition-all duration-200 border ${isActive 
+                    ? 'bg-yellow-500 text-black border-yellow-500 shadow-lg shadow-yellow-500/20' 
+                    : 'bg-gray-800/50 text-gray-400 border-white/10 hover:bg-gray-700/50 hover:text-white'}"
+                title="${count} partido${count > 1 ? 's' : ''}">
+                ${label}
+                <span class="ml-1 text-xs opacity-70">(${count})</span>
+            </button>
+        `;
+    }).join('') + `
+        <button onclick="selectDate('all')" 
+            class="px-4 py-2 rounded-xl text-sm font-semibold transition-all duration-200 border ${selectedDate === 'all' 
+                ? 'bg-yellow-500 text-black border-yellow-500 shadow-lg shadow-yellow-500/20' 
+                : 'bg-gray-800/50 text-gray-400 border-white/10 hover:bg-gray-700/50 hover:text-white'}">
+            📋 Todas
+        </button>
+    `;
+}
+
+function selectDate(date) {
+    selectedDate = date;
+    if (date === 'all') {
+        renderAllDates();
+    } else {
+        renderDateSection(date, allMatches.filter(m => m.match_date.split('T')[0] === date), allPlayers, allBets);
+    }
+    // Actualizar los botones de filtro
+    const grouped = {};
+    allMatches.forEach(m => {
+        const dateKey = m.match_date.split('T')[0];
+        if (!grouped[dateKey]) grouped[dateKey] = [];
+        grouped[dateKey].push(m);
+    });
+    renderDateFilters(Object.keys(grouped).sort(), grouped);
+}
+
+function renderAllDates() {
+    const container = document.getElementById('matchesContainer');
+    const grouped = {};
+    allMatches.forEach(m => {
+        const dateKey = m.match_date.split('T')[0];
+        if (!grouped[dateKey]) grouped[dateKey] = [];
+        grouped[dateKey].push(m);
+    });
+
+    let html = '';
+    Object.keys(grouped).sort().forEach(date => {
+        html += renderDateSectionHTML(date, grouped[date], allPlayers, allBets);
+    });
+    container.innerHTML = html;
+}
+
+function renderDateSection(date, dateMatches, players, bets) {
+    const container = document.getElementById('matchesContainer');
+    container.innerHTML = renderDateSectionHTML(date, dateMatches, players, bets);
+}
+
+function renderDateSectionHTML(date, dateMatches, players, bets) {
     const months = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
 
     const formatDateNice = (dateStr) => {
@@ -243,129 +338,123 @@ function renderMatches(matches, players, bets) {
         return `${parseInt(day)} de ${months[parseInt(month)-1]} ${year}`;
     };
 
-    let html = '';
+    let html = `
+        <div class="mb-8">
+            <div class="flex items-center gap-3 mb-5 px-2">
+                <div class="w-1 h-8 bg-yellow-500 rounded-full"></div>
+                <h2 class="text-xl font-bold text-white">📅 ${formatDateNice(date)}</h2>
+                <span class="bg-gray-700 text-gray-300 px-3 py-1 rounded-full text-xs font-semibold">${dateMatches.length} partido${dateMatches.length > 1 ? 's' : ''}</span>
+            </div>
+    `;
 
-    Object.keys(grouped).sort().forEach(date => {
-        const dateMatches = grouped[date];
-        html += `
-            <div class="mb-8">
-                <div class="flex items-center gap-3 mb-5 px-2">
-                    <div class="w-1 h-8 bg-yellow-500 rounded-full"></div>
-                    <h2 class="text-xl font-bold text-white">📅 ${formatDateNice(date)}</h2>
-                    <span class="bg-gray-700 text-gray-300 px-3 py-1 rounded-full text-xs font-semibold">${dateMatches.length} partido${dateMatches.length > 1 ? 's' : ''}</span>
-                </div>
-        `;
+    dateMatches.forEach(match => {
+        const matchBets = bets.filter(b => b.match_id === match.id);
 
-        dateMatches.forEach(match => {
-            const matchBets = bets.filter(b => b.match_id === match.id);
+        const playerResults = players.map(player => {
+            const bet = matchBets.find(b => b.player_id === player.id);
+            const initials = player.name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
 
-            const playerResults = players.map(player => {
-                const bet = matchBets.find(b => b.player_id === player.id);
-                const initials = player.name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
-
-                if (!bet) {
-                    return {
-                        name: player.name,
-                        initials: initials,
-                        predHome: '-',
-                        predAway: '-',
-                        points: 0,
-                        reason: "Sin pronóstico"
-                    };
-                }
-
-                const result = calculatePoints(
-                    bet.home_prediction,
-                    bet.away_prediction,
-                    match.home_score,
-                    match.away_score
-                );
-
+            if (!bet) {
                 return {
                     name: player.name,
                     initials: initials,
-                    predHome: bet.home_prediction,
-                    predAway: bet.away_prediction,
-                    ...result
+                    predHome: '-',
+                    predAway: '-',
+                    points: 0,
+                    reason: "Sin pronóstico"
                 };
-            }).sort((a, b) => b.points - a.points);
+            }
 
-            const maxPoints = Math.max(...playerResults.map(p => p.points));
+            const result = calculatePoints(
+                bet.home_prediction,
+                bet.away_prediction,
+                match.home_score,
+                match.away_score
+            );
 
-            const predictionsRows = playerResults.map(p => {
-                const isTop = p.points === maxPoints && p.points > 0;
-                const predDisplay = p.predHome === '-' 
-                    ? '<span class="text-gray-600">-</span>' 
-                    : `${p.predHome} - ${p.predAway}`;
+            return {
+                name: player.name,
+                initials: initials,
+                predHome: bet.home_prediction,
+                predAway: bet.away_prediction,
+                ...result
+            };
+        }).sort((a, b) => b.points - a.points);
 
-                return `
-                    <tr class="${isTop ? 'highlight-winner' : ''} border-b border-white/5 hover:bg-white/5 transition">
-                        <td class="py-3 px-4">
-                            <div class="flex items-center gap-3">
-                                <div class="w-8 h-8 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-xs font-bold text-white">${p.initials}</div>
-                                <span class="font-medium text-sm">${p.name}</span>
-                            </div>
-                        </td>
-                        <td class="py-3 px-4 text-center font-mono text-sm">${predDisplay}</td>
-                        <td class="py-3 px-4">
-                            <div class="flex items-center gap-3">
-                                <span class="px-3 py-1 rounded-lg text-sm font-bold ${getPointsClass(p.points)}">${p.points}</span>
-                                <span class="text-xs text-gray-500 hidden sm:inline">${p.reason}</span>
-                            </div>
-                        </td>
-                    </tr>
-                `;
-            }).join('');
+        const maxPoints = Math.max(...playerResults.map(p => p.points));
 
-            html += `
-                <div class="match-card glass rounded-2xl mb-5 overflow-hidden">
-                    <div class="p-5 bg-gradient-to-r from-gray-800 to-gray-900 border-b border-white/10">
-                        <div class="flex justify-between items-center mb-4">
-                            <span class="text-xs text-gray-400 font-medium uppercase tracking-wider">${match.round || 'Fase de Grupos'}</span>
-                            <span class="bg-green-500/20 text-green-400 text-xs font-bold px-3 py-1 rounded-full uppercase">Finalizado</span>
+        const predictionsRows = playerResults.map(p => {
+            const isTop = p.points === maxPoints && p.points > 0;
+            const predDisplay = p.predHome === '-' 
+                ? '<span class="text-gray-600">-</span>' 
+                : `${p.predHome} - ${p.predAway}`;
+
+            return `
+                <tr class="${isTop ? 'highlight-winner' : ''} border-b border-white/5 hover:bg-white/5 transition">
+                    <td class="py-3 px-4">
+                        <div class="flex items-center gap-3">
+                            <div class="w-8 h-8 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-xs font-bold text-white">${p.initials}</div>
+                            <span class="font-medium text-sm">${p.name}</span>
                         </div>
-                        <div class="flex items-center justify-center gap-6">
-                            <div class="text-center flex-1">
-                                <div class="flex justify-center mb-2">${getFlagHTML(match.home_team)}</div>
-                                <div class="text-sm font-semibold">${match.home_team}</div>
-                            </div>
-                            <div class="bg-gradient-to-br from-indigo-600 to-purple-700 px-6 py-3 rounded-xl text-center min-w-[100px]">
-                                <div class="text-2xl font-black text-white">${match.home_score} - ${match.away_score}</div>
-                                <div class="text-[10px] text-indigo-200 uppercase tracking-widest mt-1">Resultado</div>
-                            </div>
-                            <div class="text-center flex-1">
-                                <div class="flex justify-center mb-2">${getFlagHTML(match.away_team)}</div>
-                                <div class="text-sm font-semibold">${match.away_team}</div>
-                            </div>
+                    </td>
+                    <td class="py-3 px-4 text-center font-mono text-sm">${predDisplay}</td>
+                    <td class="py-3 px-4">
+                        <div class="flex items-center gap-3">
+                            <span class="px-3 py-1 rounded-lg text-sm font-bold ${getPointsClass(p.points)}">${p.points}</span>
+                            <span class="text-xs text-gray-500 hidden sm:inline">${p.reason}</span>
                         </div>
+                    </td>
+                </tr>
+            `;
+        }).join('');
+
+        html += `
+            <div class="match-card glass rounded-2xl mb-5 overflow-hidden">
+                <div class="p-5 bg-gradient-to-r from-gray-800 to-gray-900 border-b border-white/10">
+                    <div class="flex justify-between items-center mb-4">
+                        <span class="text-xs text-gray-400 font-medium uppercase tracking-wider">${match.round || 'Fase de Grupos'}</span>
+                        <span class="bg-green-500/20 text-green-400 text-xs font-bold px-3 py-1 rounded-full uppercase">Finalizado</span>
                     </div>
-                    <div class="p-5">
-                        <h4 class="text-yellow-400 text-sm font-bold uppercase tracking-wider mb-4 flex items-center gap-2">
-                            🎯 Pronósticos de los Jugadores
-                        </h4>
-                        <div class="overflow-x-auto">
-                            <table class="w-full">
-                                <thead>
-                                    <tr class="text-gray-500 text-xs uppercase tracking-wider border-b border-white/10">
-                                        <th class="text-left py-2 px-4">Jugador</th>
-                                        <th class="text-center py-2 px-4">Pronóstico</th>
-                                        <th class="text-left py-2 px-4">Puntos</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    ${predictionsRows}
-                                </tbody>
-                            </table>
+                    <div class="flex items-center justify-center gap-6">
+                        <div class="text-center flex-1">
+                            <div class="flex justify-center mb-2">${getFlagHTML(match.home_team)}</div>
+                            <div class="text-sm font-semibold">${match.home_team}</div>
+                        </div>
+                        <div class="bg-gradient-to-br from-indigo-600 to-purple-700 px-6 py-3 rounded-xl text-center min-w-[100px]">
+                            <div class="text-2xl font-black text-white">${match.home_score} - ${match.away_score}</div>
+                            <div class="text-[10px] text-indigo-200 uppercase tracking-widest mt-1">Resultado</div>
+                        </div>
+                        <div class="text-center flex-1">
+                            <div class="flex justify-center mb-2">${getFlagHTML(match.away_team)}</div>
+                            <div class="text-sm font-semibold">${match.away_team}</div>
                         </div>
                     </div>
                 </div>
-            `;
-        });
-
-        html += '</div>';
+                <div class="p-5">
+                    <h4 class="text-yellow-400 text-sm font-bold uppercase tracking-wider mb-4 flex items-center gap-2">
+                        🎯 Pronósticos de los Jugadores
+                    </h4>
+                    <div class="overflow-x-auto">
+                        <table class="w-full">
+                            <thead>
+                                <tr class="text-gray-500 text-xs uppercase tracking-wider border-b border-white/10">
+                                    <th class="text-left py-2 px-4">Jugador</th>
+                                    <th class="text-center py-2 px-4">Pronóstico</th>
+                                    <th class="text-left py-2 px-4">Puntos</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${predictionsRows}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        `;
     });
 
-    container.innerHTML = html;
+    html += '</div>';
+    return html;
 }
 
 // ============================================
@@ -401,7 +490,7 @@ document.addEventListener('DOMContentLoaded', loadData);
     </button>
 
     <!-- Sistema de puntuación -->
-    <div class="glass rounded-2xl p-6 mb-8">
+    <div class="glass rounded-2xl p-6 mb-4">
         <h3 class="text-yellow-400 font-bold mb-4 text-lg">📋 Sistema de Puntuación</h3>
         <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
             <div class="bg-gray-900/50 rounded-xl p-4 text-center border border-white/5">
@@ -419,6 +508,16 @@ document.addEventListener('DOMContentLoaded', loadData);
             <div class="bg-gray-900/50 rounded-xl p-4 text-center border border-white/5">
                 <span class="text-2xl font-black text-blue-400 block">2</span>
                 <span class="text-xs text-gray-400">Empate correcto</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Filtro de fechas -->
+    <div class="glass rounded-2xl p-4 mb-6">
+        <div class="flex items-center gap-3 flex-wrap">
+            <span class="text-gray-400 text-sm font-medium">📅 Filtrar por fecha:</span>
+            <div id="dateFilters" class="flex gap-2 flex-wrap">
+                <!-- Los botones de fecha se generan dinámicamente -->
             </div>
         </div>
     </div>
