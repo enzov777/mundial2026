@@ -35,17 +35,16 @@
         .filter-btn.active { background: #fbbf24; color: #0f172a; border-color: #fbbf24; }
         .payment-verified { background: rgba(34, 197, 94, 0.2); color: #4ade80; border: 1px solid rgba(34, 197, 94, 0.3); }
         .payment-pending { background: rgba(71, 85, 105, 0.2); color: #94a3b8; border: 1px solid rgba(71, 85, 105, 0.3); }
-        .payment-rejected { background: rgba(239, 68, 68, 0.2); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.3); }
         .disabled-player { opacity: 0.5; text-decoration: line-through; }
+        .fee-free { background: linear-gradient(135deg, rgba(34, 197, 94, 0.2), rgba(34, 197, 94, 0.1)); border: 1px solid rgba(34, 197, 94, 0.4); color: #4ade80; }
+        .fee-normal { background: rgba(251, 191, 36, 0.1); border: 1px solid rgba(251, 191, 36, 0.3); color: #fbbf24; }
+        .fee-high { background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.3); color: #f87171; }
     </style>
 <base target="_blank">
 </head>
 <body class="text-white min-h-screen">
 
 <script>
-// ============================================
-// CONFIGURACION SUPABASE - REEMPLAZAR
-// ============================================
 const SUPABASE_URL = 'https://dwcnwxrcwuicwxbtqpxs.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImR3Y253eHJjd3VpY3d4YnRxcHhzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODIxNDk4NDcsImV4cCI6MjA5NzcyNTg0N30.Xwa-18sv9YsodNG1AJeItmf3NdwiHanCE9m9Mka4dSE';
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -55,20 +54,18 @@ let matches = [];
 let bets = [];
 let players = [];
 let payments = [];
+let paymentFees = [];
 let matchFilter = 'today';
 
 const ADMIN_CODE = 'MUNDIAL2026';
 
-// ============================================
-// UTILIDADES
-// ============================================
 const $ = id => document.getElementById(id);
 const formatDate = (dateStr) => {
     const utcDate = new Date(dateStr);
     const boliviaMs = utcDate.getTime() - (4 * 60 * 60 * 1000);
     const boliviaDate = new Date(boliviaMs);
     const day = String(boliviaDate.getUTCDate()).padStart(2, '0');
-    const month = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'][boliviaDate.getUTCMonth()];
+    const month = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'][boliviaDate.getUTCMonth()];
     const hour = String(boliviaDate.getUTCHours()).padStart(2, '0');
     const minute = String(boliviaDate.getUTCMinutes()).padStart(2, '0');
     return `${day} ${month}, ${hour}:${minute}`;
@@ -79,98 +76,90 @@ const isMatchOpen = (match) => {
     return matchDate > now && match.status === 'scheduled';
 };
 const isMatchFinished = (match) => match.status === 'finished';
-const isMatchToday = (match) => {
-    const d = new Date(match.match_date);
-    const now = new Date();
-    return d.getDate() === now.getDate() && d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
-};
 
-// ============================================
-// BANDERAS - Mapeo completo espanol + ingles
-// ============================================
 const countryCodes = {
-    'Argentina': 'ar', 'Brasil': 'br', 'Brazil': 'br', 'Alemania': 'de', 'Germany': 'de',
-    'Espana': 'es', 'Spain': 'es', 'Francia': 'fr', 'France': 'fr', 'Inglaterra': 'gb-eng',
-    'England': 'gb-eng', 'Portugal': 'pt', 'Italia': 'it', 'Italy': 'it', 'Paises Bajos': 'nl',
-    'Netherlands': 'nl', 'Belgica': 'be', 'Belgium': 'be', 'Uruguay': 'uy', 'Croacia': 'hr',
-    'Croatia': 'hr', 'Mexico': 'mx', 'Estados Unidos': 'us', 'United States': 'us', 'USA': 'us',
-    'Canada': 'ca', 'Japon': 'jp', 'Japan': 'jp', 'Corea del Sur': 'kr', 'Korea Republic': 'kr',
-    'South Korea': 'kr', 'Australia': 'au', 'Senegal': 'sn', 'Marruecos': 'ma', 'Morocco': 'ma',
-    'Suiza': 'ch', 'Switzerland': 'ch', 'Polonia': 'pl', 'Poland': 'pl', 'Dinamarca': 'dk',
-    'Denmark': 'dk', 'Colombia': 'co', 'Chile': 'cl', 'Ecuador': 'ec', 'Peru': 'pe',
-    'Paraguay': 'py', 'Bolivia': 'bo', 'Venezuela': 've', 'Qatar': 'qa', 'Arabia Saudita': 'sa',
-    'Saudi Arabia': 'sa', 'Iran': 'ir', 'Tunez': 'tn', 'Tunisia': 'tn', 'Gales': 'gb-wls',
-    'Wales': 'gb-wls', 'Costa Rica': 'cr', 'Serbia': 'rs', 'Grecia': 'gr', 'Greece': 'gr',
-    'Suecia': 'se', 'Sweden': 'se', 'Noruega': 'no', 'Norway': 'no', 'Ucrania': 'ua',
-    'Ukraine': 'ua', 'Turquia': 'tr', 'Turkiye': 'tr', 'Turkey': 'tr', 'Austria': 'at',
-    'Republica Checa': 'cz', 'Czechia': 'cz', 'Czech Republic': 'cz', 'Hungria': 'hu',
-    'Hungary': 'hu', 'Rumania': 'ro', 'Romania': 'ro', 'Eslovaquia': 'sk', 'Slovakia': 'sk',
-    'Eslovenia': 'si', 'Slovenia': 'si', 'Finlandia': 'fi', 'Finland': 'fi', 'Irlanda': 'ie',
-    'Ireland': 'ie', 'Escocia': 'gb-sct', 'Scotland': 'gb-sct', 'Nigeria': 'ng', 'Ghana': 'gh',
-    'Camerun': 'cm', 'Cameroon': 'cm', 'Costa de Marfil': 'ci', 'Ivory Coast': 'ci',
-    "Cote d'Ivoire": 'ci', 'Egipto': 'eg', 'Egypt': 'eg', 'Argelia': 'dz', 'Algeria': 'dz',
-    'Sudafrica': 'za', 'South Africa': 'za', 'Nueva Zelanda': 'nz', 'New Zealand': 'nz',
-    'Panama': 'pa', 'Honduras': 'hn', 'Jamaica': 'jm', 'Trinidad y Tobago': 'tt',
-    'Trinidad and Tobago': 'tt', 'Haiti': 'ht', 'Guatemala': 'gt', 'El Salvador': 'sv',
-    'Nicaragua': 'ni', 'Cuba': 'cu', 'Republica Dominicana': 'do', 'Dominican Republic': 'do',
-    'Puerto Rico': 'pr', 'Islandia': 'is', 'Iceland': 'is', 'Bosnia': 'ba',
-    'Bosnia and Herzegovina': 'ba', 'Macedonia': 'mk', 'North Macedonia': 'mk',
-    'Albania': 'al', 'Montenegro': 'me', 'Kosovo': 'xk', 'Moldavia': 'md', 'Moldova': 'md',
-    'Bielorrusia': 'by', 'Belarus': 'by', 'Lituania': 'lt', 'Lithuania': 'lt',
-    'Letonia': 'lv', 'Latvia': 'lv', 'Estonia': 'ee', 'Georgia': 'ge', 'Armenia': 'am',
-    'Azerbaiyan': 'az', 'Azerbaijan': 'az', 'Kazajistan': 'kz', 'Kazakhstan': 'kz',
-    'Uzbekistan': 'uz', 'Turkmenistan': 'tm', 'Kirguistan': 'kg', 'Kyrgyzstan': 'kg',
-    'Tayikistan': 'tj', 'Tajikistan': 'tj', 'Afganistan': 'af', 'Afghanistan': 'af',
-    'Pakistan': 'pk', 'India': 'in', 'Bangladesh': 'bd', 'Sri Lanka': 'lk', 'Nepal': 'np',
-    'Butan': 'bt', 'Bhutan': 'bt', 'Maldivas': 'mv', 'Maldives': 'mv', 'Tailandia': 'th',
-    'Thailand': 'th', 'Vietnam': 'vn', 'Camboya': 'kh', 'Cambodia': 'kh', 'Laos': 'la',
-    'Myanmar': 'mm', 'Malasia': 'my', 'Malaysia': 'my', 'Singapur': 'sg', 'Singapore': 'sg',
-    'Indonesia': 'id', 'Filipinas': 'ph', 'Philippines': 'ph', 'Brunei': 'bn',
-    'Timor Oriental': 'tl', 'East Timor': 'tl', 'Papua Nueva Guinea': 'pg',
-    'Papua New Guinea': 'pg', 'Fiyi': 'fj', 'Fiji': 'fj', 'Samoa': 'ws', 'Tonga': 'to',
-    'Vanuatu': 'vu', 'Islas Salomon': 'sb', 'Solomon Islands': 'sb', 'Kiribati': 'ki',
-    'Tuvalu': 'tv', 'Nauru': 'nr', 'Palau': 'pw', 'Islas Marshall': 'mh',
-    'Marshall Islands': 'mh', 'Micronesia': 'fm', 'Guam': 'gu', 'Samoa Americana': 'as',
-    'American Samoa': 'as', 'Islas Cook': 'ck', 'Cook Islands': 'ck', 'Niue': 'nu',
-    'Tokelau': 'tk', 'Wallis y Futuna': 'wf', 'Polinesia Francesa': 'pf',
-    'French Polynesia': 'pf', 'Nueva Caledonia': 'nc', 'New Caledonia': 'nc',
-    'Islas Pitcairn': 'pn', 'Pitcairn Islands': 'pn', 'Islas Norfolk': 'nf',
-    'Norfolk Island': 'nf', 'Islas Christmas': 'cx', 'Christmas Island': 'cx',
-    'Islas Cocos': 'cc', 'Cocos Islands': 'cc', 'Antartida': 'aq', 'Antarctica': 'aq',
-    'Groenlandia': 'gl', 'Greenland': 'gl', 'Sudan': 'sd', 'Madagascar': 'mg',
-    'Mauricio': 'mu', 'Mauritius': 'mu', 'Seychelles': 'sc', 'Comoras': 'km', 'Comoros': 'km',
-    'Santo Tome y Principe': 'st', 'Sao Tome and Principe': 'st',
-    'Guinea Ecuatorial': 'gq', 'Equatorial Guinea': 'gq', 'Gabon': 'ga', 'Congo': 'cg',
-    'Congo RDC': 'cd', 'DR Congo': 'cd', 'Democratic Republic of the Congo': 'cd',
-    'Ruanda': 'rw', 'Rwanda': 'rw', 'Burundi': 'bi', 'Uganda': 'ug', 'Kenia': 'ke',
-    'Kenya': 'ke', 'Tanzania': 'tz', 'Zambia': 'zm', 'Zimbabue': 'zw', 'Zimbabwe': 'zw',
-    'Botsuana': 'bw', 'Botswana': 'bw', 'Namibia': 'na', 'Angola': 'ao', 'Mozambique': 'mz',
-    'Malawi': 'mw', 'Lesoto': 'ls', 'Lesotho': 'ls', 'Eswatini': 'sz', 'Mauritania': 'mr',
-    'Mali': 'ml', 'Burkina Faso': 'bf', 'Niger': 'ne', 'Chad': 'td',
-    'Republica Centroafricana': 'cf', 'Central African Republic': 'cf', 'Guinea': 'gn',
-    'Guinea-Bissau': 'gw', 'Sierra Leona': 'sl', 'Sierra Leone': 'sl', 'Liberia': 'lr',
-    'Togo': 'tg', 'Benin': 'bj', 'Curacao': 'cw', 'Jordan': 'jo', 'Jordania': 'jo',
-    'Iraq': 'iq', 'Irak': 'iq', 'Cape Verde': 'cv', 'Cabo Verde': 'cv',
-    'Surinam': 'sr', 'Suriname': 'sr', 'Guyana': 'gy', 'Guayana Francesa': 'gf',
-    'French Guiana': 'gf', 'Belice': 'bz', 'Belize': 'bz', 'Barbados': 'bb',
-    'Santa Lucia': 'lc', 'Saint Lucia': 'lc', 'San Vicente y Granadinas': 'vc',
-    'Saint Vincent and the Grenadines': 'vc', 'Granada': 'gd', 'Grenada': 'gd',
-    'San Cristobal y Nieves': 'kn', 'Saint Kitts and Nevis': 'kn',
-    'Antigua y Barbuda': 'ag', 'Antigua and Barbuda': 'ag', 'Dominica': 'dm',
-    'Montserrat': 'ms', 'Anguila': 'ai', 'Anguilla': 'ai',
-    'Islas Virgenes Britanicas': 'vg', 'British Virgin Islands': 'vg',
-    'Islas Virgenes Americanas': 'vi', 'United States Virgin Islands': 'vi',
-    'Islas Caiman': 'ky', 'Cayman Islands': 'ky',
-    'Islas Turcas y Caicos': 'tc', 'Turks and Caicos Islands': 'tc',
-    'Bahamas': 'bs', 'Bermudas': 'bm', 'Bermuda': 'bm',
-    'Svalbard': 'sj', 'Islas Georgias del Sur': 'gs', 'South Georgia': 'gs',
-    'Islas Sandwich del Sur': 'sh', 'Saint Helena': 'sh',
-    'Islas Malvinas': 'fk', 'Falkland Islands': 'fk', 'Gibraltar': 'gi',
-    'Islas Feroe': 'fo', 'Faroe Islands': 'fo', 'Islas Aland': 'ax', 'Aland Islands': 'ax',
-    'Jersey': 'je', 'Guernsey': 'gg', 'Isla de Man': 'im', 'Isle of Man': 'im',
-    'San Marino': 'sm', 'Vaticano': 'va', 'Monaco': 'mc', 'Andorra': 'ad',
-    'Liechtenstein': 'li', 'Malta': 'mt', 'Chipre': 'cy', 'Cyprus': 'cy',
-    'Luxemburgo': 'lu', 'Luxembourg': 'lu'
+    'Argentina':'ar','Brasil':'br','Brazil':'br','Alemania':'de','Germany':'de',
+    'Espana':'es','Spain':'es','Francia':'fr','France':'fr','Inglaterra':'gb-eng',
+    'England':'gb-eng','Portugal':'pt','Italia':'it','Italy':'it','Paises Bajos':'nl',
+    'Netherlands':'nl','Belgica':'be','Belgium':'be','Uruguay':'uy','Croacia':'hr',
+    'Croatia':'hr','Mexico':'mx','Estados Unidos':'us','United States':'us','USA':'us',
+    'Canada':'ca','Japon':'jp','Japan':'jp','Corea del Sur':'kr','Korea Republic':'kr',
+    'South Korea':'kr','Australia':'au','Senegal':'sn','Marruecos':'ma','Morocco':'ma',
+    'Suiza':'ch','Switzerland':'ch','Polonia':'pl','Poland':'pl','Dinamarca':'dk',
+    'Denmark':'dk','Colombia':'co','Chile':'cl','Ecuador':'ec','Peru':'pe',
+    'Paraguay':'py','Bolivia':'bo','Venezuela':'ve','Qatar':'qa','Arabia Saudita':'sa',
+    'Saudi Arabia':'sa','Iran':'ir','Tunez':'tn','Tunisia':'tn','Gales':'gb-wls',
+    'Wales':'gb-wls','Costa Rica':'cr','Serbia':'rs','Grecia':'gr','Greece':'gr',
+    'Suecia':'se','Sweden':'se','Noruega':'no','Norway':'no','Ucrania':'ua',
+    'Ukraine':'ua','Turquia':'tr','Turkiye':'tr','Turkey':'tr','Austria':'at',
+    'Republica Checa':'cz','Czechia':'cz','Czech Republic':'cz','Hungria':'hu',
+    'Hungary':'hu','Rumania':'ro','Romania':'ro','Eslovaquia':'sk','Slovakia':'sk',
+    'Eslovenia':'si','Slovenia':'si','Finlandia':'fi','Finland':'fi','Irlanda':'ie',
+    'Ireland':'ie','Escocia':'gb-sct','Scotland':'gb-sct','Nigeria':'ng','Ghana':'gh',
+    'Camerun':'cm','Cameroon':'cm','Costa de Marfil':'ci','Ivory Coast':'ci',
+    "Cote d'Ivoire":'ci','Egipto':'eg','Egypt':'eg','Argelia':'dz','Algeria':'dz',
+    'Sudafrica':'za','South Africa':'za','Nueva Zelanda':'nz','New Zealand':'nz',
+    'Panama':'pa','Honduras':'hn','Jamaica':'jm','Trinidad y Tobago':'tt',
+    'Trinidad and Tobago':'tt','Haiti':'ht','Guatemala':'gt','El Salvador':'sv',
+    'Nicaragua':'ni','Cuba':'cu','Republica Dominicana':'do','Dominican Republic':'do',
+    'Puerto Rico':'pr','Islandia':'is','Iceland':'is','Bosnia':'ba',
+    'Bosnia and Herzegovina':'ba','Macedonia':'mk','North Macedonia':'mk',
+    'Albania':'al','Montenegro':'me','Kosovo':'xk','Moldavia':'md','Moldova':'md',
+    'Bielorrusia':'by','Belarus':'by','Lituania':'lt','Lithuania':'lt',
+    'Letonia':'lv','Latvia':'lv','Estonia':'ee','Georgia':'ge','Armenia':'am',
+    'Azerbaiyan':'az','Azerbaijan':'az','Kazajistan':'kz','Kazakhstan':'kz',
+    'Uzbekistan':'uz','Turkmenistan':'tm','Kirguistan':'kg','Kyrgyzstan':'kg',
+    'Tayikistan':'tj','Tajikistan':'tj','Afganistan':'af','Afghanistan':'af',
+    'Pakistan':'pk','India':'in','Bangladesh':'bd','Sri Lanka':'lk','Nepal':'np',
+    'Butan':'bt','Bhutan':'bt','Maldivas':'mv','Maldives':'mv','Tailandia':'th',
+    'Thailand':'th','Vietnam':'vn','Camboya':'kh','Cambodia':'kh','Laos':'la',
+    'Myanmar':'mm','Malasia':'my','Malaysia':'my','Singapur':'sg','Singapore':'sg',
+    'Indonesia':'id','Filipinas':'ph','Philippines':'ph','Brunei':'bn',
+    'Timor Oriental':'tl','East Timor':'tl','Papua Nueva Guinea':'pg',
+    'Papua New Guinea':'pg','Fiyi':'fj','Fiji':'fj','Samoa':'ws','Tonga':'to',
+    'Vanuatu':'vu','Islas Salomon':'sb','Solomon Islands':'sb','Kiribati':'ki',
+    'Tuvalu':'tv','Nauru':'nr','Palau':'pw','Islas Marshall':'mh',
+    'Marshall Islands':'mh','Micronesia':'fm','Guam':'gu','Samoa Americana':'as',
+    'American Samoa':'as','Islas Cook':'ck','Cook Islands':'ck','Niue':'nu',
+    'Tokelau':'tk','Wallis y Futuna':'wf','Polinesia Francesa':'pf',
+    'French Polynesia':'pf','Nueva Caledonia':'nc','New Caledonia':'nc',
+    'Islas Pitcairn':'pn','Pitcairn Islands':'pn','Islas Norfolk':'nf',
+    'Norfolk Island':'nf','Islas Christmas':'cx','Christmas Island':'cx',
+    'Islas Cocos':'cc','Cocos Islands':'cc','Antartida':'aq','Antarctica':'aq',
+    'Groenlandia':'gl','Greenland':'gl','Sudan':'sd','Madagascar':'mg',
+    'Mauricio':'mu','Mauritius':'mu','Seychelles':'sc','Comoras':'km','Comoros':'km',
+    'Santo Tome y Principe':'st','Sao Tome and Principe':'st',
+    'Guinea Ecuatorial':'gq','Equatorial Guinea':'gq','Gabon':'ga','Congo':'cg',
+    'Congo RDC':'cd','DR Congo':'cd','Democratic Republic of the Congo':'cd',
+    'Ruanda':'rw','Rwanda':'rw','Burundi':'bi','Uganda':'ug','Kenia':'ke',
+    'Kenya':'ke','Tanzania':'tz','Zambia':'zm','Zimbabue':'zw','Zimbabwe':'zw',
+    'Botsuana':'bw','Botswana':'bw','Namibia':'na','Angola':'ao','Mozambique':'mz',
+    'Malawi':'mw','Lesoto':'ls','Lesotho':'ls','Eswatini':'sz','Mauritania':'mr',
+    'Mali':'ml','Burkina Faso':'bf','Niger':'ne','Chad':'td',
+    'Republica Centroafricana':'cf','Central African Republic':'cf','Guinea':'gn',
+    'Guinea-Bissau':'gw','Sierra Leona':'sl','Sierra Leone':'sl','Liberia':'lr',
+    'Togo':'tg','Benin':'bj','Curacao':'cw','Jordan':'jo','Jordania':'jo',
+    'Iraq':'iq','Irak':'iq','Cape Verde':'cv','Cabo Verde':'cv',
+    'Surinam':'sr','Suriname':'sr','Guyana':'gy','Guayana Francesa':'gf',
+    'French Guiana':'gf','Belice':'bz','Belize':'bz','Barbados':'bb',
+    'Santa Lucia':'lc','Saint Lucia':'lc','San Vicente y Granadinas':'vc',
+    'Saint Vincent and the Grenadines':'vc','Granada':'gd','Grenada':'gd',
+    'San Cristobal y Nieves':'kn','Saint Kitts and Nevis':'kn',
+    'Antigua y Barbuda':'ag','Antigua and Barbuda':'ag','Dominica':'dm',
+    'Montserrat':'ms','Anguila':'ai','Anguilla':'ai',
+    'Islas Virgenes Britanicas':'vg','British Virgin Islands':'vg',
+    'Islas Virgenes Americanas':'vi','United States Virgin Islands':'vi',
+    'Islas Caiman':'ky','Cayman Islands':'ky',
+    'Islas Turcas y Caicos':'tc','Turks and Caicos Islands':'tc',
+    'Bahamas':'bs','Bermudas':'bm','Bermuda':'bm',
+    'Svalbard':'sj','Islas Georgias del Sur':'gs','South Georgia':'gs',
+    'Islas Sandwich del Sur':'sh','Saint Helena':'sh',
+    'Islas Malvinas':'fk','Falkland Islands':'fk','Gibraltar':'gi',
+    'Islas Feroe':'fo','Faroe Islands':'fo','Islas Aland':'ax','Aland Islands':'ax',
+    'Jersey':'je','Guernsey':'gg','Isla de Man':'im','Isle of Man':'im',
+    'San Marino':'sm','Vaticano':'va','Monaco':'mc','Andorra':'ad',
+    'Liechtenstein':'li','Malta':'mt','Chipre':'cy','Cyprus':'cy',
+    'Luxemburgo':'lu','Luxembourg':'lu'
 };
 
 const getFlagHTML = (team) => {
@@ -200,30 +189,40 @@ const calculatePoints = (bet, match) => {
 const showToast = (msg, type = 'info') => {
     const toast = document.createElement('div');
     toast.className = `fixed bottom-4 right-4 px-6 py-3 rounded-lg shadow-lg z-50 ${type === 'error' ? 'bg-red-600' : type === 'success' ? 'bg-green-600' : 'bg-blue-600'}`;
-    toast.textContent = msg;
+    toast.innerHTML = msg;
     document.body.appendChild(toast);
     setTimeout(() => toast.remove(), 3000);
 };
 
-// ============================================
-// FUNCION: Verificar si jugador tiene pago validado para una fecha
-// ============================================
+function getFeeForDate(dateStr) {
+    const date = dateStr.split('T')[0];
+    const fee = paymentFees.find(f => f.match_date === date);
+    if (fee && fee.is_free) return { amount: 0, isFree: true, notes: fee.notes };
+    if (fee) return { amount: fee.amount, isFree: false, notes: fee.notes };
+    return { amount: 5.00, isFree: false, notes: 'Valor por defecto' };
+}
+
 function hasVerifiedPayment(playerId, matchDateStr) {
-    const matchDate = matchDateStr.split('T')[0];
+    const date = matchDateStr.split('T')[0];
+    const fee = getFeeForDate(matchDateStr);
+    if (fee.isFree) return true;
     const payment = payments.find(p => 
         p.player_id === playerId && 
-        p.match_date === matchDate &&
+        p.match_date === date &&
         p.status === 'paid' &&
-        p.verified_at !== null
+        p.verified_at !== null &&
+        p.verified_at !== undefined
     );
     return !!payment;
 }
 
 function getPaymentStatus(playerId, matchDateStr) {
-    const matchDate = matchDateStr.split('T')[0];
+    const date = matchDateStr.split('T')[0];
+    const fee = getFeeForDate(matchDateStr);
+    if (fee.isFree) return 'free';
     const payment = payments.find(p => 
         p.player_id === playerId && 
-        p.match_date === matchDate
+        p.match_date === date
     );
     if (!payment) return 'none';
     if (payment.status === 'paid' && payment.verified_at) return 'verified';
@@ -232,9 +231,7 @@ function getPaymentStatus(playerId, matchDateStr) {
 }
 </script>
 
-<!-- ============================================ -->
 <!-- HEADER -->
-<!-- ============================================ -->
 <header class="glass sticky top-0 z-40 border-b border-white/10">
     <div class="max-w-4xl mx-auto px-4 py-4 flex items-center justify-between">
         <div class="flex items-center gap-3">
@@ -251,48 +248,36 @@ function getPaymentStatus(playerId, matchDateStr) {
     </div>
 </header>
 
-<!-- ============================================ -->
-<!-- NAVEGACION -->
-<!-- ============================================ -->
 <nav id="main-nav" class="hidden max-w-4xl mx-auto px-4 mt-6">
     <div class="flex gap-6 border-b border-white/10 overflow-x-auto">
         <button onclick="showSection('apuestas')" id="tab-apuestas" class="tab-active pb-3 text-sm font-semibold whitespace-nowrap">Mis Apuestas</button>
         <button onclick="showSection('posiciones')" id="tab-posiciones" class="pb-3 text-sm font-semibold text-gray-400 hover:text-white whitespace-nowrap">Posiciones</button>
         <button onclick="abrirReglas()" class="pb-3 text-sm font-semibold text-yellow-400 hover:text-yellow-300 whitespace-nowrap">&#128203; Cómo Jugar</button>
         <button onclick="showSection('qr')" id="tab-qr" class="pb-3 text-sm font-semibold text-gray-400 hover:text-white whitespace-nowrap">Mi QR</button>
-        <button onclick="window.open('evaluaciones.html', '_blank')" class="pb-3 text-sm font-semibold text-yellow-400 hover:text-yellow-300 whitespace-nowrap">&#128202; Evaluaciones</button>
-        <button onclick="window.open('finanzas.html', '_blank')" class="pb-3 text-sm font-semibold text-green-400 hover:text-green-300 whitespace-nowrap">&#128176; Finanzas</button>
+        <button onclick="window.open('evaluaciones.html','_blank')" class="pb-3 text-sm font-semibold text-yellow-400 hover:text-yellow-300 whitespace-nowrap">&#128202; Evaluaciones</button>
+        <button onclick="window.open('finanzas.html','_blank')" class="pb-3 text-sm font-semibold text-green-400 hover:text-green-300 whitespace-nowrap">&#128176; Finanzas</button>
         <button onclick="showSection('admin')" id="tab-admin" class="hidden pb-3 text-sm font-semibold text-gray-400 hover:text-white whitespace-nowrap">&#9881; Admin</button>
     </div>
 </nav>
 
-<!-- ============================================ -->
-<!-- SECCION: LOGIN / REGISTRO -->
-<!-- ============================================ -->
+<!-- LOGIN -->
 <section id="section-login" class="max-w-md mx-auto px-4 mt-12">
     <div class="glass rounded-2xl p-8 text-center">
         <div class="text-6xl mb-4">&#9917;</div>
         <h2 class="text-2xl font-bold mb-2">Bienvenido</h2>
         <p class="text-gray-400 mb-6 text-sm">Registrate o ingresa para participar en la quiniela</p>
-
         <div class="space-y-4 text-left">
             <div>
                 <label class="text-xs text-gray-400 uppercase font-semibold">Nombre</label>
-                <input type="text" id="reg-name" placeholder="Tu nombre o apodo" 
-                    class="w-full mt-1 bg-white/5 border border-white/10 rounded-lg px-4 py-3 focus:outline-none focus:border-yellow-500 transition">
+                <input type="text" id="reg-name" placeholder="Tu nombre o apodo" class="w-full mt-1 bg-white/5 border border-white/10 rounded-lg px-4 py-3 focus:outline-none focus:border-yellow-500 transition">
             </div>
             <div>
                 <label class="text-xs text-gray-400 uppercase font-semibold">PIN (4 digitos)</label>
-                <input type="password" id="reg-pin" maxlength="4" placeholder="1234" 
-                    class="w-full mt-1 bg-white/5 border border-white/10 rounded-lg px-4 py-3 focus:outline-none focus:border-yellow-500 transition text-center tracking-widest">
+                <input type="password" id="reg-pin" maxlength="4" placeholder="1234" class="w-full mt-1 bg-white/5 border border-white/10 rounded-lg px-4 py-3 focus:outline-none focus:border-yellow-500 transition text-center tracking-widest">
                 <p class="text-xs text-gray-500 mt-1">Servira para editar tus pronosticos</p>
             </div>
-            <button onclick="registerOrLogin()" 
-                class="w-full bg-gradient-to-r from-yellow-500 to-amber-600 text-black font-bold py-3 rounded-lg hover:from-yellow-400 hover:to-amber-500 transition">
-                Entrar al Juego
-            </button>
+            <button onclick="registerOrLogin()" class="w-full bg-gradient-to-r from-yellow-500 to-amber-600 text-black font-bold py-3 rounded-lg hover:from-yellow-400 hover:to-amber-500 transition">Entrar al Juego</button>
         </div>
-
         <div class="mt-6 pt-6 border-t border-white/10">
             <p class="text-xs text-gray-500 mb-2">Sos el administrador?</p>
             <button onclick="showAdminLogin()" class="text-xs text-yellow-500 hover:text-yellow-400 underline">Acceso Admin</button>
@@ -300,12 +285,10 @@ function getPaymentStatus(playerId, matchDateStr) {
     </div>
 </section>
 
-<!-- Admin Login Modal -->
 <div id="admin-login-modal" class="hidden fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4">
     <div class="glass rounded-2xl p-6 max-w-sm w-full">
         <h3 class="text-lg font-bold mb-4">Acceso Administrador</h3>
-        <input type="password" id="admin-code-input" placeholder="Codigo admin" 
-            class="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-3 mb-4 focus:outline-none focus:border-yellow-500">
+        <input type="password" id="admin-code-input" placeholder="Codigo admin" class="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-3 mb-4 focus:outline-none focus:border-yellow-500">
         <div class="flex gap-2">
             <button onclick="closeAdminLogin()" class="flex-1 py-2 rounded-lg border border-white/20 hover:bg-white/5">Cancelar</button>
             <button onclick="verifyAdmin()" class="flex-1 py-2 rounded-lg bg-yellow-500 text-black font-bold hover:bg-yellow-400">Entrar</button>
@@ -313,46 +296,33 @@ function getPaymentStatus(playerId, matchDateStr) {
     </div>
 </div>
 
-<!-- ============================================ -->
-<!-- SECCION: APUESTAS -->
-<!-- ============================================ -->
+<!-- APUESTAS -->
 <section id="section-apuestas" class="hidden-section max-w-4xl mx-auto px-4 mt-6 pb-20">
     <div class="flex justify-center gap-3 mb-6">
         <button onclick="setFilter('today')" id="filter-today" class="filter-btn active">Hoy / Proximos</button>
         <button onclick="setFilter('all')" id="filter-all" class="filter-btn">Todos los Partidos</button>
     </div>
-
-    <div id="matches-container" class="space-y-4">
-    </div>
+    <div id="matches-container" class="space-y-4"></div>
 </section>
 
-<!-- ============================================ -->
-<!-- SECCION: POSICIONES -->
-<!-- ============================================ -->
+<!-- POSICIONES -->
 <section id="section-posiciones" class="hidden-section max-w-4xl mx-auto px-4 mt-6 pb-20">
     <div class="glass rounded-2xl p-6 mb-4">
         <div class="flex items-center justify-between mb-4">
             <h2 class="text-xl font-bold flex items-center gap-2">&#127942; Tabla de Posiciones</h2>
-            <span class="text-xs text-gray-400 bg-gray-800 px-3 py-1 rounded-full">Solo jugadores con pago verificado</span>
+            <span class="text-xs text-gray-400 bg-gray-800 px-3 py-1 rounded-full">Solo jugadores con pago verificado o fechas libres</span>
         </div>
         <div class="overflow-x-auto">
             <table class="w-full text-sm">
-                <thead>
-                    <tr class="text-gray-400 border-b border-white/10">
-                        <th class="text-left py-3 px-2">#</th>
-                        <th class="text-left py-3 px-2">Jugador</th>
-                        <th class="text-center py-3 px-2">Apuestas</th>
-                        <th class="text-center py-3 px-2">Exactos</th>
-                        <th class="text-center py-3 px-2">Puntos</th>
-                        <th class="text-center py-3 px-2">Estado</th>
-                    </tr>
-                </thead>
-                <tbody id="leaderboard-body">
-                </tbody>
+                <thead><tr class="text-gray-400 border-b border-white/10">
+                    <th class="text-left py-3 px-2">#</th><th class="text-left py-3 px-2">Jugador</th>
+                    <th class="text-center py-3 px-2">Apuestas</th><th class="text-center py-3 px-2">Exactos</th>
+                    <th class="text-center py-3 px-2">Puntos</th><th class="text-center py-3 px-2">Estado</th>
+                </tr></thead>
+                <tbody id="leaderboard-body"></tbody>
             </table>
         </div>
     </div>
-
     <div class="glass rounded-2xl p-6 mt-4">
         <h3 class="text-lg font-bold mb-3">Sistema de Puntaje</h3>
         <div class="grid grid-cols-2 gap-3 text-sm">
@@ -362,14 +332,12 @@ function getPaymentStatus(playerId, matchDateStr) {
             <div class="flex items-center gap-2"><span>Empate correcto: <b class="text-yellow-400">2 pts</b></span></div>
         </div>
         <div class="mt-4 p-3 bg-red-500/10 border border-red-500/20 rounded-lg">
-            <p class="text-red-400 text-xs">&#9888; Solo los jugadores con <strong>pago verificado por el administrador</strong> acumulan puntos. Los pronosticos de jugadores sin pago validado no se contabilizan.</p>
+            <p class="text-red-400 text-xs">&#9888; Solo los jugadores con <strong>pago verificado por el administrador</strong> acumulan puntos. Las fechas marcadas como "Libres" no requieren pago.</p>
         </div>
     </div>
 </section>
 
-<!-- ============================================ -->
-<!-- SECCION: QR PERSONAL -->
-<!-- ============================================ -->
+<!-- QR -->
 <section id="section-qr" class="hidden-section max-w-md mx-auto px-4 mt-6 pb-20 text-center">
     <div class="glass rounded-2xl p-8">
         <h2 class="text-xl font-bold mb-2">Tu QR Personal</h2>
@@ -383,41 +351,39 @@ function getPaymentStatus(playerId, matchDateStr) {
     </div>
 </section>
 
-<!-- ============================================ -->
-<!-- SECCION: ADMIN -->
-<!-- ============================================ -->
+<!-- ADMIN -->
 <section id="section-admin" class="hidden-section max-w-4xl mx-auto px-4 mt-6 pb-20">
     <div class="glass rounded-2xl p-6 mb-6">
         <h2 class="text-xl font-bold mb-4">Panel de Administracion</h2>
-        <p class="text-sm text-gray-400 mb-4">Carga resultados, gestiona pagos y edita equipos</p>
+        <p class="text-sm text-gray-400 mb-4">Carga resultados, gestiona pagos, alicuotas y edita equipos</p>
 
-        <!-- Gestión de Pagos -->
+        <!-- ALICUOTAS -->
+        <div class="bg-gray-900/50 rounded-xl p-4 mb-4 border border-blue-500/20">
+            <h3 class="text-blue-400 font-bold mb-3 flex items-center gap-2">&#128176; Configurar Alicuotas de Pago por Fecha</h3>
+            <p class="text-xs text-gray-400 mb-3">Define el costo por fecha. Las fechas "Libres" no requieren pago para sumar puntos.</p>
+            <div id="admin-fees-container" class="space-y-3">
+                <p class="text-gray-500 text-sm">Cargando alicuotas...</p>
+            </div>
+        </div>
+
+        <!-- PAGOS -->
         <div class="bg-gray-900/50 rounded-xl p-4 mb-4 border border-yellow-500/20">
-            <h3 class="text-yellow-400 font-bold mb-3 flex items-center gap-2">
-                &#128176; Validación de Pagos por Fecha
-            </h3>
-            <p class="text-xs text-gray-400 mb-3">Los pagos deben ser verificados para que los pronosticos sean validos.</p>
+            <h3 class="text-yellow-400 font-bold mb-3 flex items-center gap-2">&#9989; Validacion de Pagos por Fecha</h3>
+            <p class="text-xs text-gray-400 mb-3">Los pagos deben ser verificados para que los pronosticos sean validos (excepto fechas libres).</p>
             <div id="admin-payments-container" class="space-y-3">
                 <p class="text-gray-500 text-sm">Cargando pagos...</p>
             </div>
-            <button onclick="window.open('finanzas.html', '_blank')" 
-                class="mt-3 w-full bg-gradient-to-r from-green-500 to-emerald-600 text-white font-bold py-2 rounded-lg hover:from-green-400 hover:to-emerald-500 transition text-sm">
-                Ver Detalle Completo de Finanzas &#8594;
-            </button>
+            <button onclick="window.open('finanzas.html','_blank')" class="mt-3 w-full bg-gradient-to-r from-green-500 to-emerald-600 text-white font-bold py-2 rounded-lg hover:from-green-400 hover:to-emerald-500 transition text-sm">Ver Detalle Completo de Finanzas &#8594;</button>
         </div>
 
-        <div id="admin-matches-container" class="space-y-3">
-        </div>
+        <div id="admin-matches-container" class="space-y-3"></div>
     </div>
 
     <div class="glass rounded-2xl p-6 mb-6">
-        <h3 class="text-lg font-bold mb-4">&#128260; Sincronización Automática</h3>
-        <p class="text-sm text-gray-400 mb-4">Actualiza resultados automáticamente desde la API del Mundial 2026</p>
-        <button onclick="syncResults()" 
-            class="w-full bg-gradient-to-r from-green-500 to-emerald-600 text-white font-bold py-3 rounded-lg hover:from-green-400 hover:to-emerald-500 transition">
-            &#128260; Sincronizar Resultados Ahora
-        </button>
-        <p class="text-xs text-gray-500 mt-2 text-center">Se ejecuta automáticamente cada 15 minutos</p>
+        <h3 class="text-lg font-bold mb-4">&#128260; Sincronizacion Automatica</h3>
+        <p class="text-sm text-gray-400 mb-4">Actualiza resultados automaticamente desde la API del Mundial 2026</p>
+        <button onclick="syncResults()" class="w-full bg-gradient-to-r from-green-500 to-emerald-600 text-white font-bold py-3 rounded-lg hover:from-green-400 hover:to-emerald-500 transition">&#128260; Sincronizar Resultados Ahora</button>
+        <p class="text-xs text-gray-500 mt-2 text-center">Se ejecuta automaticamente cada 15 minutos</p>
     </div>
 
     <div class="glass rounded-2xl p-6">
@@ -431,821 +397,278 @@ function getPaymentStatus(playerId, matchDateStr) {
     </div>
 </section>
 
-<!-- ============================================ -->
 <!-- JAVASCRIPT PRINCIPAL -->
-<!-- ============================================ -->
 <script>
 document.addEventListener('DOMContentLoaded', async () => {
     const saved = localStorage.getItem('quiniela_player');
-    if (saved) {
-        currentPlayer = JSON.parse(saved);
-        await initApp();
-    }
-
+    if (saved) { currentPlayer = JSON.parse(saved); await initApp(); }
     const urlParams = new URLSearchParams(window.location.search);
     const playerId = urlParams.get('jugador');
-    if (playerId && !currentPlayer) {
-        await loadPlayerFromId(playerId);
-    }
+    if (playerId && !currentPlayer) await loadPlayerFromId(playerId);
 });
 
 async function initApp() {
-    $('section-login').classList.add('hidden-section');
-    $('section-login').classList.remove('visible-section');
+    $('section-login').classList.add('hidden-section'); $('section-login').classList.remove('visible-section');
     $('main-nav').classList.remove('hidden');
-    $('player-badge').classList.remove('hidden');
-    $('player-badge').classList.add('flex');
+    $('player-badge').classList.remove('hidden'); $('player-badge').classList.add('flex');
     $('player-name-display').textContent = currentPlayer.name;
-
-    await Promise.all([loadMatches(), loadPlayers(), loadBets(), loadPayments()]);
-    renderMatches();
-    renderLeaderboard();
-    renderQR();
-
-    if (currentPlayer.isAdmin) {
-        $('tab-admin').classList.remove('hidden');
-        renderAdminPanel();
-    }
-
-    showSection('apuestas');
-    subscribeToChanges();
+    await Promise.all([loadMatches(), loadPlayers(), loadBets(), loadPayments(), loadPaymentFees()]);
+    renderMatches(); renderLeaderboard(); renderQR();
+    if (currentPlayer.isAdmin) { $('tab-admin').classList.remove('hidden'); renderAdminPanel(); }
+    showSection('apuestas'); subscribeToChanges();
 }
 
 async function registerOrLogin() {
-    const name = $('reg-name').value.trim();
-    const pin = $('reg-pin').value.trim();
-
-    if (!name || pin.length !== 4 || !/^\d{4}$/.test(pin)) {
-        showToast('Ingresa un nombre y un PIN de 4 digitos', 'error');
-        return;
-    }
-
-    const { data: existing } = await sb
-        .from('players')
-        .select('*')
-        .eq('name', name)
-        .single();
-
+    const name = $('reg-name').value.trim(); const pin = $('reg-pin').value.trim();
+    if (!name || pin.length !== 4 || !/^\d{4}$/.test(pin)) { showToast('Ingresa un nombre y un PIN de 4 digitos', 'error'); return; }
+    const { data: existing } = await sb.from('players').select('*').eq('name', name).single();
     if (existing) {
-        if (existing.pin !== pin) {
-            showToast('PIN incorrecto', 'error');
-            return;
-        }
+        if (existing.pin !== pin) { showToast('PIN incorrecto', 'error'); return; }
         currentPlayer = existing;
     } else {
-        const { data: newPlayer, error } = await sb
-            .from('players')
-            .insert({ name, pin })
-            .select()
-            .single();
-
-        if (error) {
-            showToast('Error al registrar: ' + error.message, 'error');
-            return;
-        }
-        currentPlayer = newPlayer;
-        showToast('Registro exitoso', 'success');
+        const { data: newPlayer, error } = await sb.from('players').insert({ name, pin }).select().single();
+        if (error) { showToast('Error al registrar: ' + error.message, 'error'); return; }
+        currentPlayer = newPlayer; showToast('Registro exitoso', 'success');
     }
-
     localStorage.setItem('quiniela_player', JSON.stringify(currentPlayer));
     await initApp();
 }
 
 async function loadPlayerFromId(id) {
     const { data } = await sb.from('players').select('*').eq('id', id).single();
-    if (data) {
-        currentPlayer = data;
-        localStorage.setItem('quiniela_player', JSON.stringify(currentPlayer));
-        await initApp();
-    }
+    if (data) { currentPlayer = data; localStorage.setItem('quiniela_player', JSON.stringify(currentPlayer)); await initApp(); }
 }
 
-function logout() {
-    currentPlayer = null;
-    localStorage.removeItem('quiniela_player');
-    location.reload();
-}
-
-function showAdminLogin() {
-    $('admin-login-modal').classList.remove('hidden');
-}
-function closeAdminLogin() {
-    $('admin-login-modal').classList.add('hidden');
-}
+function logout() { currentPlayer = null; localStorage.removeItem('quiniela_player'); location.reload(); }
+function showAdminLogin() { $('admin-login-modal').classList.remove('hidden'); }
+function closeAdminLogin() { $('admin-login-modal').classList.add('hidden'); }
 async function verifyAdmin() {
     const code = $('admin-code-input').value;
     if (code === ADMIN_CODE) {
         currentPlayer = { name: 'Admin', isAdmin: true, id: 'admin' };
         localStorage.setItem('quiniela_player', JSON.stringify(currentPlayer));
-        closeAdminLogin();
-        await initApp();
-    } else {
-        showToast('Codigo incorrecto', 'error');
-    }
+        closeAdminLogin(); await initApp();
+    } else { showToast('Codigo incorrecto', 'error'); }
 }
 
 function showSection(section) {
-    ['apuestas', 'posiciones', 'qr', 'admin'].forEach(s => {
-        $(`section-${s}`).classList.add('hidden-section');
-        $(`section-${s}`).classList.remove('visible-section');
-        $(`tab-${s}`)?.classList.remove('tab-active');
-        $(`tab-${s}`)?.classList.add('text-gray-400');
+    ['apuestas','posiciones','qr','admin'].forEach(s => {
+        $(`section-${s}`).classList.add('hidden-section'); $(`section-${s}`).classList.remove('visible-section');
+        $(`tab-${s}`)?.classList.remove('tab-active'); $(`tab-${s}`)?.classList.add('text-gray-400');
     });
-    $(`section-${section}`).classList.remove('hidden-section');
-    $(`section-${section}`).classList.add('visible-section');
-    $(`tab-${section}`)?.classList.add('tab-active');
-    $(`tab-${section}`)?.classList.remove('text-gray-400');
-
-    if (section === 'posiciones') renderLeaderboard();
-    if (section === 'qr') renderQR();
-    if (section === 'admin') renderAdminPanel();
+    $(`section-${section}`).classList.remove('hidden-section'); $(`section-${section}`).classList.add('visible-section');
+    $(`tab-${section}`)?.classList.add('tab-active'); $(`tab-${section}`)?.classList.remove('text-gray-400');
+    if (section === 'posiciones') renderLeaderboard(); if (section === 'qr') renderQR(); if (section === 'admin') renderAdminPanel();
 }
 
-async function loadMatches() {
-    const { data } = await sb.from('matches').select('*').order('match_date');
-    matches = data || [];
-}
-async function loadPlayers() {
-    const { data } = await sb.from('players').select('*');
-    players = data || [];
-}
-async function loadBets() {
-    const { data } = await sb.from('bets').select('*');
-    bets = data || [];
-}
-async function loadPayments() {
-    const { data } = await sb.from('payments').select('*');
-    payments = data || [];
-}
+async function loadMatches() { const { data } = await sb.from('matches').select('*').order('match_date'); matches = data || []; }
+async function loadPlayers() { const { data } = await sb.from('players').select('*'); players = data || []; }
+async function loadBets() { const { data } = await sb.from('bets').select('*'); bets = data || []; }
+async function loadPayments() { const { data } = await sb.from('payments').select('*'); payments = data || []; }
+async function loadPaymentFees() { const { data } = await sb.from('payment_fees').select('*'); paymentFees = data || []; }
 
 function subscribeToChanges() {
     sb.channel('quiniela')
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'matches' }, async () => {
-            await loadMatches();
-            renderMatches();
-            renderLeaderboard();
-            if (currentPlayer?.isAdmin) renderAdminPanel();
-        })
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'bets' }, async () => {
-            await loadBets();
-            renderLeaderboard();
-        })
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'payments' }, async () => {
-            await loadPayments();
-            renderLeaderboard();
-            if (currentPlayer?.isAdmin) renderAdminPanel();
-        })
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'matches' }, async () => { await loadMatches(); renderMatches(); renderLeaderboard(); if (currentPlayer?.isAdmin) renderAdminPanel(); })
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'bets' }, async () => { await loadBets(); renderLeaderboard(); })
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'payments' }, async () => { await loadPayments(); renderLeaderboard(); if (currentPlayer?.isAdmin) renderAdminPanel(); })
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'payment_fees' }, async () => { await loadPaymentFees(); renderMatches(); renderLeaderboard(); if (currentPlayer?.isAdmin) renderAdminPanel(); })
         .subscribe();
 }
 
-function setFilter(filter) {
-    matchFilter = filter;
-    $('filter-today').classList.toggle('active', filter === 'today');
-    $('filter-all').classList.toggle('active', filter === 'all');
-    renderMatches();
-}
+function setFilter(filter) { matchFilter = filter; $('filter-today').classList.toggle('active', filter === 'today'); $('filter-all').classList.toggle('active', filter === 'all'); renderMatches(); }
 
 function renderMatches() {
     const container = $('matches-container');
-    if (!matches.length) {
-        container.innerHTML = '<div class="text-center text-gray-500 py-12">No hay partidos cargados aun</div>';
-        return;
-    }
-
+    if (!matches.length) { container.innerHTML = '<div class="text-center text-gray-500 py-12">No hay partidos cargados aun</div>'; return; }
     let filteredMatches = matches;
     if (matchFilter === 'today') {
         const now = new Date();
-        filteredMatches = matches.filter(m => {
-            const matchDate = new Date(m.match_date);
-            const isOpen = isMatchOpen(m);
-            const isTodayOrFuture = matchDate >= new Date(now.getFullYear(), now.getMonth(), now.getDate());
-            return isOpen || (isTodayOrFuture && m.status === 'scheduled');
-        });
-
-        if (filteredMatches.length === 0) {
-            container.innerHTML = '<div class="text-center text-gray-500 py-12">No hay partidos abiertos para apostar en este momento. Volve mas tarde o mira "Todos los Partidos".</div>';
-            return;
-        }
+        filteredMatches = matches.filter(m => { const matchDate = new Date(m.match_date); const isOpen = isMatchOpen(m); const isTodayOrFuture = matchDate >= new Date(now.getFullYear(), now.getMonth(), now.getDate()); return isOpen || (isTodayOrFuture && m.status === 'scheduled'); });
+        if (filteredMatches.length === 0) { container.innerHTML = '<div class="text-center text-gray-500 py-12">No hay partidos abiertos para apostar en este momento.</div>'; return; }
     }
-
     container.innerHTML = filteredMatches.map(match => {
-        const open = isMatchOpen(match);
-        const finished = isMatchFinished(match);
+        const open = isMatchOpen(match); const finished = isMatchFinished(match);
         const myBet = bets.find(b => b.player_id === currentPlayer.id && b.match_id === match.id);
-        const homeFlag = getFlagHTML(match.home_team);
-        const awayFlag = getFlagHTML(match.away_team);
-        const countdown = getCountdown(match.match_date);
-
+        const homeFlag = getFlagHTML(match.home_team); const awayFlag = getFlagHTML(match.away_team);
+        const countdown = getCountdown(match.match_date); const fee = getFeeForDate(match.match_date);
         let resultDisplay = '';
-        if (finished) {
-            resultDisplay = `<div class="text-center px-4 py-1 bg-green-500/20 rounded-lg border border-green-500/30">
-                <span class="text-green-400 font-bold text-lg">${match.home_score} - ${match.away_score}</span>
-            </div>`;
-        } else if (!open) {
-            resultDisplay = `<div class="text-center px-4 py-1 bg-red-500/20 rounded-lg border border-red-500/30">
-                <span class="text-red-400 text-xs font-bold">CERRADO</span>
-            </div>`;
-        }
-
-        let pointsBadge = '';
-        let pts = 0;
-        if (finished && myBet) {
-            const hasPayment = hasVerifiedPayment(currentPlayer.id, match.match_date);
-            if (hasPayment) {
-                pts = calculatePoints(myBet, match);
-                if (pts > 0) {
-                    pointsBadge = `<span class="absolute -top-2 -right-2 bg-yellow-500 text-black text-xs font-bold px-2 py-1 rounded-full">+${pts}</span>`;
-                }
-            } else {
-                pointsBadge = `<span class="absolute -top-2 -right-2 bg-red-500 text-white text-xs font-bold px-2 py-1 rounded-full" title="Pago no verificado">!</span>`;
-            }
-        }
-
-        return `
-        <div class="match-card glass rounded-xl p-4 relative ${finished ? 'opacity-80' : ''}" id="match-card-${match.id}">
-            ${pointsBadge}
-            <div class="flex items-center justify-between mb-3">
-                <span class="text-xs text-gray-400 font-mono">${match.round || 'Fase de Grupos'}</span>
-                <span class="text-xs ${open ? 'text-yellow-400 pulse' : 'text-gray-500'}">
-                    ${open ? 'Faltan: ' + countdown : finished ? 'Finalizado' : 'Cerrado'}
-                </span>
-            </div>
-
-            <div class="flex items-center justify-between gap-2">
-                <div class="flex-1 text-center">
-                    <div class="mb-1 flex justify-center">${homeFlag}</div>
-                    <div class="text-sm font-semibold">${match.home_team}</div>
-                </div>
-
-                <div class="flex items-center gap-2">
-                    ${open ? `
-                        <input type="number" min="0" max="20" 
-                            id="bet-${match.id}-home"
-                            data-match="${match.id}" data-side="home"
-                            value="${myBet ? myBet.home_prediction : ''}"
-                            class="input-score w-14 h-12 text-center text-xl font-bold bg-white/10 border border-white/20 rounded-lg focus:border-yellow-500 focus:outline-none"
-                            placeholder="-">
-                        <span class="text-gray-500 font-bold">:</span>
-                        <input type="number" min="0" max="20"
-                            id="bet-${match.id}-away"
-                            data-match="${match.id}" data-side="away"
-                            value="${myBet ? myBet.away_prediction : ''}"
-                            class="input-score w-14 h-12 text-center text-xl font-bold bg-white/10 border border-white/20 rounded-lg focus:border-yellow-500 focus:outline-none"
-                            placeholder="-">
-                    ` : resultDisplay}
-                </div>
-
-                <div class="flex-1 text-center">
-                    <div class="mb-1 flex justify-center">${awayFlag}</div>
-                    <div class="text-sm font-semibold">${match.away_team}</div>
-                </div>
-            </div>
-
-            ${open ? `
-                <div class="mt-3 text-xs text-center text-gray-500">${formatDate(match.match_date)} (Hora Bolivia)</div>
-                <div class="mt-2 text-center">
-                    <button onclick="saveSingleBet('${match.id}')" 
-                        class="bg-gradient-to-r from-green-500 to-emerald-600 text-white font-bold px-6 py-2 rounded-lg hover:from-green-400 hover:to-emerald-500 transition text-sm shadow-lg">
-                        ${myBet ? 'Actualizar Pronostico' : 'Guardar Pronostico'}
-                    </button>
-                </div>
-            ` : ''}
-
-            ${finished && myBet ? `
-                <div class="mt-3 pt-3 border-t border-white/10 text-center text-sm">
-                    <span class="text-gray-400">Tu pronostico: </span>
-                    <span class="font-bold ${pts > 0 ? 'text-green-400' : 'text-red-400'}">
-                        ${myBet.home_prediction} - ${myBet.away_prediction}
-                    </span>
-                    ${!hasVerifiedPayment(currentPlayer.id, match.match_date) ? `
-                        <span class="block text-xs text-red-400 mt-1">&#9888; Pago no verificado - puntos no contabilizados</span>
-                    ` : ''}
-                </div>
-            ` : ''}
-        </div>
-        `;
+        if (finished) { resultDisplay = `<div class="text-center px-4 py-1 bg-green-500/20 rounded-lg border border-green-500/30"><span class="text-green-400 font-bold text-lg">${match.home_score} - ${match.away_score}</span></div>`; }
+        else if (!open) { resultDisplay = `<div class="text-center px-4 py-1 bg-red-500/20 rounded-lg border border-red-500/30"><span class="text-red-400 text-xs font-bold">CERRADO</span></div>`; }
+        let pointsBadge = ''; let pts = 0;
+        if (finished && myBet) { const hasPayment = hasVerifiedPayment(currentPlayer.id, match.match_date); if (hasPayment) { pts = calculatePoints(myBet, match); if (pts > 0) pointsBadge = `<span class="absolute -top-2 -right-2 bg-yellow-500 text-black text-xs font-bold px-2 py-1 rounded-full">+${pts}</span>`; } else { pointsBadge = `<span class="absolute -top-2 -right-2 bg-red-500 text-white text-xs font-bold px-2 py-1 rounded-full" title="Pago no verificado">!</span>`; } }
+        let feeBadge = '';
+        if (fee.isFree) { feeBadge = `<span class="absolute -top-2 -left-2 bg-green-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">LIBRE</span>`; }
+        else if (fee.amount !== 5) { feeBadge = `<span class="absolute -top-2 -left-2 bg-orange-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">${fee.amount} Bs</span>`; }
+        return `<div class="match-card glass rounded-xl p-4 relative ${finished ? 'opacity-80' : ''}" id="match-card-${match.id}">${pointsBadge}${feeBadge}<div class="flex items-center justify-between mb-3"><span class="text-xs text-gray-400 font-mono">${match.round || 'Fase de Grupos'}</span><span class="text-xs ${open ? 'text-yellow-400 pulse' : 'text-gray-500'}">${open ? 'Faltan: ' + countdown : finished ? 'Finalizado' : 'Cerrado'}</span></div><div class="flex items-center justify-between gap-2"><div class="flex-1 text-center"><div class="mb-1 flex justify-center">${homeFlag}</div><div class="text-sm font-semibold">${match.home_team}</div></div><div class="flex items-center gap-2">${open ? `<input type="number" min="0" max="20" id="bet-${match.id}-home" data-match="${match.id}" data-side="home" value="${myBet ? myBet.home_prediction : ''}" class="input-score w-14 h-12 text-center text-xl font-bold bg-white/10 border border-white/20 rounded-lg focus:border-yellow-500 focus:outline-none" placeholder="-"><span class="text-gray-500 font-bold">:</span><input type="number" min="0" max="20" id="bet-${match.id}-away" data-match="${match.id}" data-side="away" value="${myBet ? myBet.away_prediction : ''}" class="input-score w-14 h-12 text-center text-xl font-bold bg-white/10 border border-white/20 rounded-lg focus:border-yellow-500 focus:outline-none" placeholder="-">` : resultDisplay}</div><div class="flex-1 text-center"><div class="mb-1 flex justify-center">${awayFlag}</div><div class="text-sm font-semibold">${match.away_team}</div></div></div>${open ? `<div class="mt-3 text-xs text-center text-gray-500">${formatDate(match.match_date)} (Hora Bolivia)</div><div class="mt-2 text-center"><button onclick="saveSingleBet('${match.id}')" class="bg-gradient-to-r from-green-500 to-emerald-600 text-white font-bold px-6 py-2 rounded-lg hover:from-green-400 hover:to-emerald-500 transition text-sm shadow-lg">${myBet ? 'Actualizar Pronostico' : 'Guardar Pronostico'}</button></div>` : ''}${finished && myBet ? `<div class="mt-3 pt-3 border-t border-white/10 text-center text-sm"><span class="text-gray-400">Tu pronostico: </span><span class="font-bold ${pts > 0 ? 'text-green-400' : 'text-red-400'}">${myBet.home_prediction} - ${myBet.away_prediction}</span>${!hasVerifiedPayment(currentPlayer.id, match.match_date) ? `<span class="block text-xs text-red-400 mt-1">&#9888; Pago no verificado - puntos no contabilizados</span>` : ''}</div>` : ''}</div>`;
     }).join('');
 }
 
-function getCountdown(dateStr) {
-    const matchDate = new Date(dateStr);
-    const now = new Date();
-    const diff = matchDate - now;
-    if (diff <= 0) return 'En juego';
-    const h = Math.floor(diff / 3600000);
-    const m = Math.floor((diff % 3600000) / 60000);
-    if (h > 24) return `${Math.floor(h/24)}d ${h%24}h`;
-    return `${h}h ${m}m`;
-}
+function getCountdown(dateStr) { const matchDate = new Date(dateStr); const now = new Date(); const diff = matchDate - now; if (diff <= 0) return 'En juego'; const h = Math.floor(diff / 3600000); const m = Math.floor((diff % 3600000) / 60000); if (h > 24) return `${Math.floor(h/24)}d ${h%24}h`; return `${h}h ${m}m`; }
 
 async function saveSingleBet(matchId) {
-    const homeInput = $(`bet-${matchId}-home`);
-    const awayInput = $(`bet-${matchId}-away`);
-
+    const homeInput = $(`bet-${matchId}-home`); const awayInput = $(`bet-${matchId}-away`);
     if (!homeInput || !awayInput) return;
-
-    const homeScore = parseInt(homeInput.value);
-    const awayScore = parseInt(awayInput.value);
-
-    if (isNaN(homeScore) || isNaN(awayScore) || homeScore < 0 || awayScore < 0) {
-        showToast('Completa ambos pronosticos', 'error');
-        return;
-    }
-
+    const homeScore = parseInt(homeInput.value); const awayScore = parseInt(awayInput.value);
+    if (isNaN(homeScore) || isNaN(awayScore) || homeScore < 0 || awayScore < 0) { showToast('Completa ambos pronosticos', 'error'); return; }
     const match = matches.find(m => m.id === matchId);
-    if (!match || !isMatchOpen(match)) {
-        showToast('Este partido ya no acepta apuestas', 'error');
-        return;
-    }
-
+    if (!match || !isMatchOpen(match)) { showToast('Este partido ya no acepta apuestas', 'error'); return; }
     const existing = bets.find(b => b.player_id === currentPlayer.id && b.match_id === matchId);
-
     let error;
-    if (existing) {
-        const { error: err } = await sb.from('bets').update({
-            home_prediction: homeScore,
-            away_prediction: awayScore
-        }).eq('id', existing.id);
-        error = err;
-    } else {
-        const { error: err } = await sb.from('bets').insert({
-            player_id: currentPlayer.id,
-            match_id: matchId,
-            home_prediction: homeScore,
-            away_prediction: awayScore
-        });
-        error = err;
-    }
-
-    if (error) {
-        showToast('Error: ' + error.message, 'error');
-        return;
-    }
-
-    await loadBets();
-    renderMatches();
-    renderLeaderboard();
-    showToast('Pronostico guardado', 'success');
+    if (existing) { const { error: err } = await sb.from('bets').update({ home_prediction: homeScore, away_prediction: awayScore }).eq('id', existing.id); error = err; }
+    else { const { error: err } = await sb.from('bets').insert({ player_id: currentPlayer.id, match_id: matchId, home_prediction: homeScore, away_prediction: awayScore }); error = err; }
+    if (error) { showToast('Error: ' + error.message, 'error'); return; }
+    await loadBets(); renderMatches(); renderLeaderboard(); showToast('Pronostico guardado', 'success');
 }
 
 async function saveAllBets() {
-    const inputs = document.querySelectorAll('[data-match]');
-    const betsMap = {};
-
-    inputs.forEach(input => {
-        const matchId = input.dataset.match;
-        const side = input.dataset.side;
-        const val = parseInt(input.value);
-
-        if (!isNaN(val) && val >= 0) {
-            if (!betsMap[matchId]) betsMap[matchId] = {};
-            betsMap[matchId][side] = val;
-        }
-    });
-
+    const inputs = document.querySelectorAll('[data-match]'); const betsMap = {};
+    inputs.forEach(input => { const matchId = input.dataset.match; const side = input.dataset.side; const val = parseInt(input.value); if (!isNaN(val) && val >= 0) { if (!betsMap[matchId]) betsMap[matchId] = {}; betsMap[matchId][side] = val; } });
     const promises = [];
-    for (const [matchId, scores] of Object.entries(betsMap)) {
-        if (scores.home === undefined || scores.away === undefined) continue;
-
-        const match = matches.find(m => m.id === matchId);
-        if (!match || !isMatchOpen(match)) continue;
-
-        const existing = bets.find(b => b.player_id === currentPlayer.id && b.match_id === matchId);
-
-        if (existing) {
-            promises.push(
-                sb.from('bets').update({
-                    home_prediction: scores.home,
-                    away_prediction: scores.away
-                }).eq('id', existing.id)
-            );
-        } else {
-            promises.push(
-                sb.from('bets').insert({
-                    player_id: currentPlayer.id,
-                    match_id: matchId,
-                    home_prediction: scores.home,
-                    away_prediction: scores.away
-                })
-            );
-        }
-    }
-
-    if (promises.length === 0) {
-        showToast('Completa al menos un pronostico', 'error');
-        return;
-    }
-
-    await Promise.all(promises);
-    await loadBets();
-    renderMatches();
-    renderLeaderboard();
-    showToast(`${promises.length} pronostico(s) guardado(s)`, 'success');
+    for (const [matchId, scores] of Object.entries(betsMap)) { if (scores.home === undefined || scores.away === undefined) continue; const match = matches.find(m => m.id === matchId); if (!match || !isMatchOpen(match)) continue; const existing = bets.find(b => b.player_id === currentPlayer.id && b.match_id === matchId); if (existing) { promises.push(sb.from('bets').update({ home_prediction: scores.home, away_prediction: scores.away }).eq('id', existing.id)); } else { promises.push(sb.from('bets').insert({ player_id: currentPlayer.id, match_id: matchId, home_prediction: scores.home, away_prediction: scores.away })); } }
+    if (promises.length === 0) { showToast('Completa al menos un pronostico', 'error'); return; }
+    await Promise.all(promises); await loadBets(); renderMatches(); renderLeaderboard(); showToast(`${promises.length} pronostico(s) guardado(s)`, 'success');
 }
 
 function renderLeaderboard() {
     const stats = players.map(player => {
-        const playerBets = bets.filter(b => b.player_id === player.id);
-        let totalPoints = 0;
-        let exactos = 0;
-        let totalBets = 0;
-        let validBets = 0;
-
-        playerBets.forEach(bet => {
-            const match = matches.find(m => m.id === bet.match_id);
-            if (match && isMatchFinished(match)) {
-                const hasPayment = hasVerifiedPayment(player.id, match.match_date);
-                if (hasPayment) {
-                    const pts = calculatePoints(bet, match);
-                    totalPoints += pts;
-                    if (pts === 5) exactos++;
-                    validBets++;
-                }
-                totalBets++;
-            }
-        });
-
+        const playerBets = bets.filter(b => b.player_id === player.id); let totalPoints = 0; let exactos = 0; let totalBets = 0; let validBets = 0;
+        playerBets.forEach(bet => { const match = matches.find(m => m.id === bet.match_id); if (match && isMatchFinished(match)) { const hasPayment = hasVerifiedPayment(player.id, match.match_date); if (hasPayment) { const pts = calculatePoints(bet, match); totalPoints += pts; if (pts === 5) exactos++; validBets++; } totalBets++; } });
         return { ...player, totalPoints, exactos, totalBets, validBets };
     }).sort((a, b) => b.totalPoints - a.totalPoints);
-
     const tbody = $('leaderboard-body');
-    if (!stats.length) {
-        tbody.innerHTML = '<tr><td colspan="6" class="text-center py-8 text-gray-500">Aun no hay jugadores</td></tr>';
-        return;
-    }
-
-    tbody.innerHTML = stats.map((p, i) => {
-        let medal = '';
-        if (i === 0) medal = '1.';
-        else if (i === 1) medal = '2.';
-        else if (i === 2) medal = '3.';
-        else medal = `<span class="text-gray-500">${i + 1}.</span>`;
-
-        const isMe = p.id === currentPlayer?.id;
-        const hasAnyPayment = p.validBets > 0;
-
-        return `
-        <tr class="border-b border-white/5 ${isMe ? 'bg-yellow-500/10' : ''} hover:bg-white/5 transition">
-            <td class="py-3 px-2 font-bold">${medal}</td>
-            <td class="py-3 px-2 font-semibold ${isMe ? 'text-yellow-400' : ''} ${!hasAnyPayment ? 'disabled-player' : ''}">${p.name}</td>
-            <td class="py-3 px-2 text-center text-gray-400">${p.validBets}/${p.totalBets}</td>
-            <td class="py-3 px-2 text-center text-yellow-400 font-bold">${p.exactos}</td>
-            <td class="py-3 px-2 text-center font-bold text-lg ${hasAnyPayment ? 'text-white' : 'text-gray-600'}">${p.totalPoints}</td>
-            <td class="py-3 px-2 text-center">
-                ${hasAnyPayment 
-                    ? '<span class="text-xs bg-green-500/20 text-green-400 px-2 py-1 rounded-full">&#9989; Verificado</span>' 
-                    : '<span class="text-xs bg-red-500/20 text-red-400 px-2 py-1 rounded-full">&#128683; Sin pago</span>'}
-            </td>
-        </tr>
-        `;
-    }).join('');
+    if (!stats.length) { tbody.innerHTML = '<tr><td colspan="6" class="text-center py-8 text-gray-500">Aun no hay jugadores</td></tr>'; return; }
+    tbody.innerHTML = stats.map((p, i) => { let medal = ''; if (i === 0) medal = '1.'; else if (i === 1) medal = '2.'; else if (i === 2) medal = '3.'; else medal = `<span class="text-gray-500">${i + 1}.</span>`; const isMe = p.id === currentPlayer?.id; const hasAnyPayment = p.validBets > 0; return `<tr class="border-b border-white/5 ${isMe ? 'bg-yellow-500/10' : ''} hover:bg-white/5 transition"><td class="py-3 px-2 font-bold">${medal}</td><td class="py-3 px-2 font-semibold ${isMe ? 'text-yellow-400' : ''} ${!hasAnyPayment ? 'disabled-player' : ''}">${p.name}</td><td class="py-3 px-2 text-center text-gray-400">${p.validBets}/${p.totalBets}</td><td class="py-3 px-2 text-center text-yellow-400 font-bold">${p.exactos}</td><td class="py-3 px-2 text-center font-bold text-lg ${hasAnyPayment ? 'text-white' : 'text-gray-600'}">${p.totalPoints}</td><td class="py-3 px-2 text-center">${hasAnyPayment ? '<span class="text-xs bg-green-500/20 text-green-400 px-2 py-1 rounded-full">&#9989; Verificado</span>' : '<span class="text-xs bg-red-500/20 text-red-400 px-2 py-1 rounded-full">&#128683; Sin pago</span>'}</td></tr>`; }).join('');
 }
 
 function renderQR() {
     if (!currentPlayer || currentPlayer.id === 'admin') return;
-
     const url = `${window.location.origin}${window.location.pathname}?jugador=${currentPlayer.id}`;
-    $('qr-url').textContent = url;
-    $('qr-player-name').textContent = currentPlayer.name;
-
-    const playerBets = bets.filter(b => b.player_id === currentPlayer.id);
-    let pts = 0;
-    playerBets.forEach(bet => {
-        const match = matches.find(m => m.id === bet.match_id);
-        if (match && isMatchFinished(match) && hasVerifiedPayment(currentPlayer.id, match.match_date)) {
-            pts += calculatePoints(bet, match);
-        }
-    });
+    $('qr-url').textContent = url; $('qr-player-name').textContent = currentPlayer.name;
+    const playerBets = bets.filter(b => b.player_id === currentPlayer.id); let pts = 0;
+    playerBets.forEach(bet => { const match = matches.find(m => m.id === bet.match_id); if (match && isMatchFinished(match) && hasVerifiedPayment(currentPlayer.id, match.match_date)) pts += calculatePoints(bet, match); });
     $('qr-player-points').textContent = pts;
-
-    $('qrcode').innerHTML = '';
-    new QRCode($('qrcode'), {
-        text: url,
-        width: 200,
-        height: 200,
-        colorDark: '#0f172a',
-        colorLight: '#ffffff',
-        correctLevel: QRCode.CorrectLevel.M
-    });
+    $('qrcode').innerHTML = ''; new QRCode($('qrcode'), { text: url, width: 200, height: 200, colorDark: '#0f172a', colorLight: '#ffffff', correctLevel: QRCode.CorrectLevel.M });
 }
 
+// ============================================
+// PANEL ADMIN - ALICUOTAS
+// ============================================
+async function renderAdminFees() {
+    const container = document.getElementById('admin-fees-container');
+    if (!container) return;
+    try {
+        const matchDates = [...new Set(matches.map(m => m.match_date.split('T')[0]))].sort();
+        container.innerHTML = `<div class="space-y-3">${matchDates.map(date => {
+            const fee = getFeeForDate(date);
+            const dateObj = new Date(date + 'T00:00:00');
+            const formatted = dateObj.toLocaleDateString('es-BO', { day: 'numeric', month: 'long', year: 'numeric' });
+            return `<div class="flex items-center justify-between bg-white/5 rounded-lg p-3"><div class="flex items-center gap-3"><div class="w-10 h-10 rounded-lg ${fee.isFree ? 'fee-free' : fee.amount > 5 ? 'fee-high' : 'fee-normal'} flex items-center justify-center text-lg font-bold">${fee.isFree ? '&#127381;' : fee.amount + ' Bs'}</div><div><div class="font-semibold text-sm">${formatted}</div><div class="text-xs text-gray-400">${fee.isFree ? 'Fecha libre - sin costo' : fee.amount === 5 ? 'Valor por defecto' : 'Alicuota especial'}</div></div></div><div class="flex items-center gap-2"><input type="number" id="fee-amount-${date}" value="${fee.amount}" min="0" step="0.5" class="w-20 bg-white/10 border border-white/20 rounded px-2 py-1 text-sm text-center" ${fee.isFree ? 'disabled' : ''}><label class="flex items-center gap-1 text-xs cursor-pointer"><input type="checkbox" id="fee-free-${date}" ${fee.isFree ? 'checked' : ''} onchange="toggleFeeFree('${date}')" class="accent-green-500"><span>Libre</span></label><button onclick="updateFee('${date}')" class="bg-blue-600 hover:bg-blue-500 text-white px-3 py-1 rounded text-xs font-bold transition">Guardar</button></div></div>`;
+        }).join('')}</div><div class="mt-4 pt-4 border-t border-white/10"><h4 class="text-sm font-bold text-gray-400 mb-2">Agregar/Editar Fecha Manual</h4><div class="flex gap-2"><input type="date" id="new-fee-date" class="bg-white/10 border border-white/20 rounded-lg px-3 py-2 text-sm"><input type="number" id="new-fee-amount" value="5" min="0" step="0.5" class="w-24 bg-white/10 border border-white/20 rounded-lg px-3 py-2 text-sm text-center"><label class="flex items-center gap-1 text-xs cursor-pointer bg-white/5 px-3 rounded-lg"><input type="checkbox" id="new-fee-free" class="accent-green-500"><span>Libre</span></label><button onclick="addNewFee()" class="bg-green-600 hover:bg-green-500 text-white px-4 py-2 rounded-lg text-sm font-bold transition">+ Agregar</button></div></div>`;
+    } catch (error) { container.innerHTML = `<p class="text-red-400 text-sm">Error: ${error.message}</p>`; }
+}
+
+async function updateFee(date) {
+    const amountInput = document.getElementById(`fee-amount-${date}`); const freeCheckbox = document.getElementById(`fee-free-${date}`);
+    const amount = parseFloat(amountInput?.value) || 5; const isFree = freeCheckbox?.checked || false;
+    try { await sb.from('payment_fees').upsert({ match_date: date, amount: isFree ? 0 : amount, is_free: isFree, notes: isFree ? 'Fecha libre' : `Alicuota: ${amount} Bs` }, { onConflict: 'match_date' }); await loadPaymentFees(); renderAdminFees(); renderMatches(); showToast(`Alicuota actualizada: ${date} - ${isFree ? 'LIBRE' : amount + ' Bs'}`, 'success'); }
+    catch (error) { showToast('Error: ' + error.message, 'error'); }
+}
+
+function toggleFeeFree(date) { const freeCheckbox = document.getElementById(`fee-free-${date}`); const amountInput = document.getElementById(`fee-amount-${date}`); if (amountInput) { amountInput.disabled = freeCheckbox.checked; if (freeCheckbox.checked) amountInput.value = 0; } }
+
+async function addNewFee() {
+    const dateInput = document.getElementById('new-fee-date'); const amountInput = document.getElementById('new-fee-amount'); const freeCheckbox = document.getElementById('new-fee-free');
+    if (!dateInput.value) { showToast('Selecciona una fecha', 'error'); return; }
+    const date = dateInput.value; const amount = parseFloat(amountInput.value) || 5; const isFree = freeCheckbox.checked;
+    try { await sb.from('payment_fees').upsert({ match_date: date, amount: isFree ? 0 : amount, is_free: isFree, notes: isFree ? 'Fecha libre' : `Alicuota: ${amount} Bs` }, { onConflict: 'match_date' }); dateInput.value = ''; amountInput.value = '5'; freeCheckbox.checked = false; await loadPaymentFees(); renderAdminFees(); renderMatches(); showToast('Alicuota agregada', 'success'); }
+    catch (error) { showToast('Error: ' + error.message, 'error'); }
+}
+
+// ============================================
+// PANEL ADMIN - PAGOS
+// ============================================
 async function renderAdminPayments() {
     const container = document.getElementById('admin-payments-container');
     if (!container) return;
-
     try {
         const { data: allPlayers } = await sb.from('players').select('*');
         const { data: allPayments } = await sb.from('payments').select('*');
-
-        const now = new Date();
-        const boliviaMs = now.getTime() - (4 * 60 * 60 * 1000);
-        const boliviaDate = new Date(boliviaMs);
-        const today = boliviaDate.toISOString().split('T')[0];
-
+        const now = new Date(); const boliviaMs = now.getTime() - (4 * 60 * 60 * 1000); const boliviaDate = new Date(boliviaMs); const today = boliviaDate.toISOString().split('T')[0];
+        const fee = getFeeForDate(today);
         const todayPayments = (allPayments || []).filter(p => p.match_date === today);
         const verifiedCount = todayPayments.filter(p => p.status === 'paid' && p.verified_at).length;
         const pendingCount = todayPayments.filter(p => p.status === 'paid' && !p.verified_at).length;
-
-        container.innerHTML = `
-            <div class="flex justify-between items-center mb-3">
-                <span class="text-sm text-gray-400">Fecha: ${formatDateNice(today)}</span>
-                <div class="flex gap-2">
-                    <span class="text-xs bg-green-500/20 text-green-400 px-2 py-1 rounded-full">${verifiedCount} verificados</span>
-                    <span class="text-xs bg-yellow-500/20 text-yellow-400 px-2 py-1 rounded-full">${pendingCount} pendientes</span>
-                </div>
-            </div>
-            <div class="grid grid-cols-2 md:grid-cols-4 gap-2">
-                ${(allPlayers || []).map(p => {
-                    const payment = todayPayments.find(pay => pay.player_id === p.id);
-                    const isVerified = payment?.status === 'paid' && payment?.verified_at;
-                    const isPending = payment?.status === 'paid' && !payment?.verified_at;
-                    const isNotPaid = !payment || payment.status !== 'paid';
-
-                    return `
-                        <button onclick="verifyPlayerPayment('${p.id}', '${today}')"
-                            class="p-2 rounded-lg text-xs font-medium transition-all ${isVerified 
-                                ? 'payment-verified' 
-                                : isPending 
-                                    ? 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/30'
-                                    : 'payment-pending'}"
-                            title="${isVerified ? 'Verificado por: ' + (payment.verified_by || 'Admin') : 'Click para verificar pago'}">
-                            <div class="font-bold">${p.name}</div>
-                            <div class="mt-1">${isVerified ? '&#9989; Verificado' : isPending ? '&#9200; Pendiente' : '&#128179; Sin pago'}</div>
-                        </button>
-                    `;
-                }).join('')}
-            </div>
-        `;
-    } catch (error) {
-        container.innerHTML = `<p class="text-red-400 text-sm">Error: ${error.message}</p>`;
-    }
+        const notPaidCount = (allPlayers || []).length - todayPayments.filter(p => p.status === 'paid').length;
+        container.innerHTML = `<div class="flex justify-between items-center mb-3"><span class="text-sm text-gray-400">Fecha: ${formatDateNice(today)}</span><div class="flex gap-2">${fee.isFree ? '<span class="text-xs bg-green-500/20 text-green-400 px-2 py-1 rounded-full">&#127381; FECHA LIBRE</span>' : `<span class="text-xs bg-yellow-500/20 text-yellow-400 px-2 py-1 rounded-full">${fee.amount} Bs</span>`}<span class="text-xs bg-green-500/20 text-green-400 px-2 py-1 rounded-full">${verifiedCount} verificados</span><span class="text-xs bg-yellow-500/20 text-yellow-400 px-2 py-1 rounded-full">${pendingCount} pendientes</span></div></div>${fee.isFree ? '<div class="p-3 bg-green-500/10 border border-green-500/20 rounded-lg text-center"><p class="text-green-400 text-sm">&#127381; Esta fecha es LIBRE. No se requiere pago para que los pronosticos sumen puntos.</p></div>' : `<div class="grid grid-cols-2 md:grid-cols-4 gap-2">${(allPlayers || []).map(p => { const payment = todayPayments.find(pay => pay.player_id === p.id); const isVerified = payment?.status === 'paid' && payment?.verified_at; const isPending = payment?.status === 'paid' && !payment?.verified_at; const verifiedTime = payment?.verified_at ? new Date(payment.verified_at).toLocaleString('es-BO', { hour: '2-digit', minute: '2-digit' }) : ''; return `<button onclick="verifyPlayerPayment('${p.id}', '${today}')" class="p-2 rounded-lg text-xs font-medium transition-all text-left ${isVerified ? 'verified-badge' : isPending ? 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/30' : 'no-payment-badge'}" title="${isVerified ? 'Verificado: ' + verifiedTime + '\nClick para invalidar' : isPending ? 'Pago registrado pero NO verificado\nClick para verificar' : 'Sin pago registrado\nClick para verificar pago'}"><div class="font-bold">${p.name}</div><div class="text-xs mt-1 flex items-center gap-1">${isVerified ? '&#9989; Verificado' : isPending ? '&#9200; Pendiente' : '&#128179; Sin pago'}</div>${isVerified && payment?.verified_at ? `<div class="text-[10px] opacity-70 mt-0.5">${verifiedTime}</div>` : ''}</button>`; }).join('')}</div>`}`;
+    } catch (error) { container.innerHTML = `<p class="text-red-400 text-sm">Error: ${error.message}</p>`; }
 }
 
 async function verifyPlayerPayment(playerId, date) {
     try {
-        const { data: existing } = await sb.from('payments')
-            .select('*')
-            .eq('player_id', playerId)
-            .eq('match_date', date)
-            .single();
-
+        const { data: existing } = await sb.from('payments').select('*').eq('player_id', playerId).eq('match_date', date).single();
         const player = players.find(p => p.id === playerId);
-
         if (existing && existing.status === 'paid' && existing.verified_at) {
-            // Ya está verificado - opción de invalidar
-            if (!confirm(`&#9888; ${player?.name || 'Jugador'} ya tiene pago VERIFICADO.\n\n¿Invalidar pago?\n\nEsto hará que sus pronósticos NO sumen puntos.`)) {
-                return;
-            }
-            await sb.from('payments').update({ 
-                status: 'pending',
-                verified_by: null,
-                verified_at: null
-            }).eq('id', existing.id);
-            showToast(`Pago de ${player?.name} invalidado`, 'info');
+            if (!confirm(`&#9888; ${player.name} tiene pago VERIFICADO para ${formatDateNice(date)}.\n\n¿Invalidar este pago?\n\n&#9888; ESTO HARÁ QUE SUS PRONÓSTICOS NO SUMEN PUNTOS.`)) return;
+            await sb.from('payments').update({ status: 'pending', verified_by: null, verified_at: null }).eq('id', existing.id);
+            showToast(`Pago de ${player.name} invalidado`, 'info');
         } else if (existing && existing.status === 'paid' && !existing.verified_at) {
-            // Verificar pago pendiente
-            await sb.from('payments').update({ 
-                verified_by: currentPlayer.id,
-                verified_at: new Date().toISOString()
-            }).eq('id', existing.id);
-            showToast(`&#9989; Pago de ${player?.name} verificado`, 'success');
+            await sb.from('payments').update({ verified_by: 'admin', verified_at: new Date().toISOString() }).eq('id', existing.id);
+            showToast(`&#9989; Pago de ${player.name} verificado`, 'success');
         } else if (!existing || existing.status !== 'paid') {
-            // Crear y verificar nuevo pago
-            await sb.from('payments').upsert({
-                player_id: playerId,
-                match_date: date,
-                status: 'paid',
-                amount: 5.00,
-                verified_by: currentPlayer.id,
-                verified_at: new Date().toISOString()
-            }, { onConflict: 'player_id,match_date' });
-            showToast(`&#9989; Pago de ${player?.name} registrado y verificado`, 'success');
+            await sb.from('payments').upsert({ player_id: playerId, match_date: date, status: 'paid', amount: 5.00, verified_by: 'admin', verified_at: new Date().toISOString() }, { onConflict: 'player_id,match_date' });
+            showToast(`&#9989; Pago de ${player.name} registrado y verificado`, 'success');
         }
-
-        await loadPayments();
-        renderAdminPayments();
-        renderLeaderboard();
-
-    } catch (error) {
-        showToast('Error: ' + error.message, 'error');
-    }
+        await loadPayments(); renderAdminPayments(); renderLeaderboard();
+    } catch (error) { showToast('Error: ' + error.message, 'error'); }
 }
 
-function renderAdminPanel() {
+function formatDateNice(dateStr) { const months = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre']; const [year, month, day] = dateStr.split('-'); return `${parseInt(day)} de ${months[parseInt(month)-1]} ${year}`; }
+
+function renderAdminPanel() { renderAdminFees(); renderAdminPayments(); renderAdminMatches(); }
+
+function renderAdminMatches() {
     const container = $('admin-matches-container');
-    renderAdminPayments();
-    if (!matches.length) {
-        container.innerHTML = '<div class="text-gray-500 text-center py-4">No hay partidos</div>';
-        return;
-    }
-
-    container.innerHTML = matches.map(match => {
-        const finished = isMatchFinished(match);
-        const homeFlag = getFlagHTML(match.home_team);
-        const awayFlag = getFlagHTML(match.away_team);
-        return `
-        <div class="flex flex-col md:flex-row items-start md:items-center gap-3 bg-white/5 rounded-lg p-3" id="admin-row-${match.id}">
-            <div class="flex-1 min-w-0">
-                <div class="flex items-center gap-2 mb-1">
-                    <span class="text-xs text-gray-500">${match.round}</span>
-                    <span class="text-xs ${finished ? 'text-green-400' : 'text-yellow-400'}">${finished ? 'Finalizado' : 'Pendiente'}</span>
-                </div>
-                <div class="flex items-center gap-2 flex-wrap">
-                    <div class="flex items-center gap-2">
-                        ${homeFlag}
-                        <input type="text" id="edit-home-${match.id}" value="${match.home_team}" class="admin-input">
-                    </div>
-                    <span class="text-gray-500 font-bold">vs</span>
-                    <div class="flex items-center gap-2">
-                        ${awayFlag}
-                        <input type="text" id="edit-away-${match.id}" value="${match.away_team}" class="admin-input">
-                    </div>
-                </div>
-                <div class="text-xs text-gray-500 mt-1">${formatDate(match.match_date)}</div>
-            </div>
-            <div class="flex items-center gap-2">
-                <input type="number" id="res-${match.id}-home" value="${match.home_score ?? ''}" 
-                    class="w-12 text-center bg-white/10 border border-white/20 rounded px-2 py-1 text-sm"
-                    placeholder="L">
-                <span class="text-gray-500">-</span>
-                <input type="number" id="res-${match.id}-away" value="${match.away_score ?? ''}"
-                    class="w-12 text-center bg-white/10 border border-white/20 rounded px-2 py-1 text-sm"
-                    placeholder="V">
-            </div>
-            <div class="flex gap-2">
-                <button onclick="updateResult('${match.id}')" 
-                    class="btn-admin ${finished ? 'btn-save' : 'btn-edit'}">
-                    ${finished ? 'Actualizar' : 'Guardar'}
-                </button>
-                <button onclick="updateTeams('${match.id}')" 
-                    class="btn-admin btn-edit" title="Actualizar nombres de equipos">
-                    Editar Equipos
-                </button>
-            </div>
-        </div>
-        `;
-    }).join('');
+    if (!matches.length) { container.innerHTML = '<div class="text-gray-500 text-center py-4">No hay partidos</div>'; return; }
+    container.innerHTML = matches.map(match => { const finished = isMatchFinished(match); const homeFlag = getFlagHTML(match.home_team); const awayFlag = getFlagHTML(match.away_team); return `<div class="flex flex-col md:flex-row items-start md:items-center gap-3 bg-white/5 rounded-lg p-3" id="admin-row-${match.id}"><div class="flex-1 min-w-0"><div class="flex items-center gap-2 mb-1"><span class="text-xs text-gray-500">${match.round}</span><span class="text-xs ${finished ? 'text-green-400' : 'text-yellow-400'}">${finished ? 'Finalizado' : 'Pendiente'}</span></div><div class="flex items-center gap-2 flex-wrap"><div class="flex items-center gap-2">${homeFlag}<input type="text" id="edit-home-${match.id}" value="${match.home_team}" class="admin-input"></div><span class="text-gray-500 font-bold">vs</span><div class="flex items-center gap-2">${awayFlag}<input type="text" id="edit-away-${match.id}" value="${match.away_team}" class="admin-input"></div></div><div class="text-xs text-gray-500 mt-1">${formatDate(match.match_date)}</div></div><div class="flex items-center gap-2"><input type="number" id="res-${match.id}-home" value="${match.home_score ?? ''}" class="w-12 text-center bg-white/10 border border-white/20 rounded px-2 py-1 text-sm" placeholder="L"><span class="text-gray-500">-</span><input type="number" id="res-${match.id}-away" value="${match.away_score ?? ''}" class="w-12 text-center bg-white/10 border border-white/20 rounded px-2 py-1 text-sm" placeholder="V"></div><div class="flex gap-2"><button onclick="updateResult('${match.id}')" class="btn-admin ${finished ? 'btn-save' : 'btn-edit'}">${finished ? 'Actualizar' : 'Guardar'}</button><button onclick="updateTeams('${match.id}')" class="btn-admin btn-edit" title="Actualizar nombres de equipos">Editar Equipos</button></div></div>`; }).join('');
 }
 
-async function updateTeams(matchId) {
-    const home = $(`edit-home-${matchId}`).value.trim();
-    const away = $(`edit-away-${matchId}`).value.trim();
+async function updateTeams(matchId) { const home = $(`edit-home-${matchId}`).value.trim(); const away = $(`edit-away-${matchId}`).value.trim(); if (!home || !away) { showToast('Los nombres no pueden estar vacios', 'error'); return; } const { error } = await sb.from('matches').update({ home_team: home, away_team: away }).eq('id', matchId); if (error) { showToast('Error: ' + error.message, 'error'); return; } showToast('Equipos actualizados', 'success'); await loadMatches(); renderMatches(); renderAdminPanel(); }
 
-    if (!home || !away) {
-        showToast('Los nombres no pueden estar vacios', 'error');
-        return;
-    }
+async function updateResult(matchId) { const home = parseInt($(`res-${matchId}-home`).value); const away = parseInt($(`res-${matchId}-away`).value); if (isNaN(home) || isNaN(away)) { showToast('Completa ambos resultados', 'error'); return; } await sb.from('matches').update({ home_score: home, away_score: away, status: 'finished' }).eq('id', matchId); showToast('Resultado guardado', 'success'); await loadMatches(); renderMatches(); renderLeaderboard(); renderAdminPanel(); }
 
-    const { error } = await sb.from('matches').update({
-        home_team: home,
-        away_team: away
-    }).eq('id', matchId);
+async function syncResults() { const btn = document.activeElement; const originalText = btn.innerHTML; btn.innerHTML = '&#128260; Sincronizando...'; btn.disabled = true; try { const response = await fetch(`${SUPABASE_URL}/functions/v1/update-results`, { method: 'POST', headers: { 'Authorization': 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json' } }); const data = await response.json(); if (data.updated > 0) { showToast(`&#9989; ${data.updated} partidos actualizados`, 'success'); await loadMatches(); renderMatches(); renderLeaderboard(); if (currentPlayer?.isAdmin) renderAdminPanel(); } else if (data.error) { showToast('&#10060; Error: ' + data.error, 'error'); } else { showToast('&#8505; ' + data.message, 'info'); } } catch (error) { showToast('&#10060; Error de conexion: ' + error.message, 'error'); } finally { btn.innerHTML = originalText; btn.disabled = false; } }
 
-    if (error) {
-        showToast('Error: ' + error.message, 'error');
-        return;
-    }
-
-    showToast('Equipos actualizados', 'success');
-    await loadMatches();
-    renderMatches();
-    renderAdminPanel();
-}
-
-async function updateResult(matchId) {
-    const home = parseInt($(`res-${matchId}-home`).value);
-    const away = parseInt($(`res-${matchId}-away`).value);
-
-    if (isNaN(home) || isNaN(away)) {
-        showToast('Completa ambos resultados', 'error');
-        return;
-    }
-
-    await sb.from('matches').update({
-        home_score: home,
-        away_score: away,
-        status: 'finished'
-    }).eq('id', matchId);
-
-    showToast('Resultado guardado', 'success');
-    await loadMatches();
-    renderMatches();
-    renderLeaderboard();
-    renderAdminPanel();
-}
-
-async function syncResults() {
-    const btn = document.activeElement;
-    const originalText = btn.innerHTML;
-    btn.innerHTML = '&#128260; Sincronizando...';
-    btn.disabled = true;
-
-    try {
-        const response = await fetch(`${SUPABASE_URL}/functions/v1/update-results`, {
-            method: 'POST',
-            headers: {
-                'Authorization': 'Bearer ' + SUPABASE_KEY,
-                'Content-Type': 'application/json'
-            }
-        });
-
-        const data = await response.json();
-
-        if (data.updated > 0) {
-            showToast(`&#9989; ${data.updated} partidos actualizados: ${data.matches.map(m => m.match).join(', ')}`, 'success');
-            await loadMatches();
-            renderMatches();
-            renderLeaderboard();
-            if (currentPlayer?.isAdmin) renderAdminPanel();
-        } else if (data.error) {
-            showToast('&#10060; Error: ' + data.error, 'error');
-        } else {
-            showToast('&#8505; ' + data.message, 'info');
-        }
-    } catch (error) {
-        showToast('&#10060; Error de conexión: ' + error.message, 'error');
-    } finally {
-        btn.innerHTML = originalText;
-        btn.disabled = false;
-    }
-}
-
-async function addMatch() {
-    const home = $('new-home').value.trim();
-    const away = $('new-away').value.trim();
-    const date = $('new-date').value;
-
-    if (!home || !away || !date) {
-        showToast('Completa todos los campos', 'error');
-        return;
-    }
-
-    await sb.from('matches').insert({
-        home_team: home,
-        away_team: away,
-        match_date: new Date(date).toISOString(),
-        status: 'scheduled',
-        round: 'Fase de Grupos'
-    });
-
-    $('new-home').value = '';
-    $('new-away').value = '';
-    $('new-date').value = '';
-
-    showToast('Partido agregado', 'success');
-    await loadMatches();
-    renderMatches();
-    renderAdminPanel();
-}
-
-function formatDateNice(dateStr) {
-    const months = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
-    const [year, month, day] = dateStr.split('-');
-    return `${parseInt(day)} de ${months[parseInt(month)-1]} ${year}`;
-}
+async function addMatch() { const home = $('new-home').value.trim(); const away = $('new-away').value.trim(); const date = $('new-date').value; if (!home || !away || !date) { showToast('Completa todos los campos', 'error'); return; } await sb.from('matches').insert({ home_team: home, away_team: away, match_date: new Date(date).toISOString(), status: 'scheduled', round: 'Fase de Grupos' }); $('new-home').value = ''; $('new-away').value = ''; $('new-date').value = ''; showToast('Partido agregado', 'success'); await loadMatches(); renderMatches(); renderAdminPanel(); }
 </script>
 
-<!-- ============================================ -->
 <!-- MODAL: CÓMO JUGAR -->
-<!-- ============================================ -->
 <div id="modalReglas" class="fixed inset-0 bg-black/85 z-[9999] hidden overflow-y-auto">
     <div class="min-h-screen flex items-start justify-center p-4 pt-10">
         <div class="bg-[#1e293b] rounded-2xl w-full max-w-2xl p-6 relative text-white">
             <button onclick="cerrarReglas()" class="absolute top-3 right-4 text-3xl text-gray-400 hover:text-white">&times;</button>
-
             <h1 class="text-2xl font-bold text-center text-yellow-400 mb-1">&#127942; CÓMO JUGAR</h1>
             <p class="text-center text-gray-400 text-sm mb-6">Quiniela Mundial 2026 - Predice, compite, gana</p>
 
             <div class="bg-[#0f172a] rounded-xl p-4 mb-4 border-l-4 border-yellow-500">
                 <h3 class="text-yellow-400 font-bold mb-3 text-lg">&#127919; Sistema de Puntuación</h3>
                 <div class="grid grid-cols-2 gap-3">
-                    <div class="bg-[#1e293b] p-3 rounded-lg text-center">
-                        <span class="text-green-400 font-bold text-xl block">5 pts</span>
-                        <span class="text-gray-400 text-sm">Resultado exacto</span>
-                    </div>
-                    <div class="bg-[#1e293b] p-3 rounded-lg text-center">
-                        <span class="text-blue-400 font-bold text-xl block">3 pts</span>
-                        <span class="text-gray-400 text-sm">Diferencia de goles</span>
-                    </div>
-                    <div class="bg-[#1e293b] p-3 rounded-lg text-center">
-                        <span class="text-purple-400 font-bold text-xl block">2 pts</span>
-                        <span class="text-gray-400 text-sm">Ganador correcto</span>
-                    </div>
-                    <div class="bg-[#1e293b] p-3 rounded-lg text-center">
-                        <span class="text-purple-400 font-bold text-xl block">2 pts</span>
-                        <span class="text-gray-400 text-sm">Empate correcto</span>
-                    </div>
+                    <div class="bg-[#1e293b] p-3 rounded-lg text-center"><span class="text-green-400 font-bold text-xl block">5 pts</span><span class="text-gray-400 text-sm">Resultado exacto</span></div>
+                    <div class="bg-[#1e293b] p-3 rounded-lg text-center"><span class="text-blue-400 font-bold text-xl block">3 pts</span><span class="text-gray-400 text-sm">Diferencia de goles</span></div>
+                    <div class="bg-[#1e293b] p-3 rounded-lg text-center"><span class="text-purple-400 font-bold text-xl block">2 pts</span><span class="text-gray-400 text-sm">Ganador correcto</span></div>
+                    <div class="bg-[#1e293b] p-3 rounded-lg text-center"><span class="text-purple-400 font-bold text-xl block">2 pts</span><span class="text-gray-400 text-sm">Empate correcto</span></div>
                 </div>
                 <p class="text-xs text-gray-500 mt-3 text-center">Solo se aplica la puntuación más alta por partido</p>
             </div>
 
             <div class="bg-[#0f172a] rounded-xl p-4 mb-4 border-l-4 border-red-500">
-                <h3 class="text-red-400 font-bold mb-3 text-lg">&#9888; Validación de Pagos</h3>
-                <p class="text-sm text-gray-300">Para que tus pronósticos sumen puntos, el administrador debe <strong>verificar tu pago</strong>. Sin verificación, tus aciertos no contarán en la tabla de posiciones ni para premios.</p>
+                <h3 class="text-red-400 font-bold mb-3 text-lg">&#9888; Validación de Pagos y Alícuotas</h3>
+                <p class="text-sm text-gray-300">Para que tus pronósticos sumen puntos, el administrador debe <strong>verificar tu pago</strong>. Sin verificación, tus aciertos no contarán.</p>
                 <ul class="text-sm text-gray-400 mt-2 list-disc list-inside">
-                    <li>Cada fecha tiene un costo de <strong>5 Bs</strong></li>
+                    <li>Cada fecha tiene un costo definido por el admin (ej: 5 Bs, 10 Bs)</li>
+                    <li>Algunas fechas pueden ser <strong>LIBRES</strong> (sin costo)</li>
                     <li>El admin marca tu pago como "Verificado" tras confirmar la transferencia/QR</li>
-                    <li>Solo jugadores con pago verificado aparecen en la tabla de posiciones</li>
+                    <li>Solo jugadores con pago verificado o fechas libres aparecen en la tabla</li>
                 </ul>
             </div>
 
@@ -1273,26 +696,10 @@ function formatDateNice(dateStr) {
             <div class="bg-[#0f172a] rounded-xl p-4 mb-4 border-l-4 border-green-500">
                 <h3 class="text-yellow-400 font-bold mb-3 text-lg">&#9889; Consejos</h3>
                 <div class="grid grid-cols-2 gap-3 text-sm">
-                    <div class="bg-[#1e293b] p-3 rounded-lg text-center">
-                        <div class="text-xl mb-1">&#128336;</div>
-                        <strong>Pronostica con tiempo</strong>
-                        <div class="text-gray-400 text-xs">Al menos 30 min antes</div>
-                    </div>
-                    <div class="bg-[#1e293b] p-3 rounded-lg text-center">
-                        <div class="text-xl mb-1">&#128274;</div>
-                        <strong>Una vez bloqueado</strong>
-                        <div class="text-gray-400 text-xs">No hay forma de modificar</div>
-                    </div>
-                    <div class="bg-[#1e293b] p-3 rounded-lg text-center">
-                        <div class="text-xl mb-1">&#128200;</div>
-                        <strong>Mantén la racha</strong>
-                        <div class="text-gray-400 text-xs">Acierta partido tras partido</div>
-                    </div>
-                    <div class="bg-[#1e293b] p-3 rounded-lg text-center">
-                        <div class="text-xl mb-1">&#127919;</div>
-                        <strong>El exacto paga más</strong>
-                        <div class="text-gray-400 text-xs">Pero cualquier acierto suma</div>
-                    </div>
+                    <div class="bg-[#1e293b] p-3 rounded-lg text-center"><div class="text-xl mb-1">&#128336;</div><strong>Pronostica con tiempo</strong><div class="text-gray-400 text-xs">Al menos 30 min antes</div></div>
+                    <div class="bg-[#1e293b] p-3 rounded-lg text-center"><div class="text-xl mb-1">&#128274;</div><strong>Una vez bloqueado</strong><div class="text-gray-400 text-xs">No hay forma de modificar</div></div>
+                    <div class="bg-[#1e293b] p-3 rounded-lg text-center"><div class="text-xl mb-1">&#128200;</div><strong>Mantén la racha</strong><div class="text-gray-400 text-xs">Acierta partido tras partido</div></div>
+                    <div class="bg-[#1e293b] p-3 rounded-lg text-center"><div class="text-xl mb-1">&#127919;</div><strong>El exacto paga más</strong><div class="text-gray-400 text-xs">Pero cualquier acierto suma</div></div>
                 </div>
             </div>
 
@@ -1305,20 +712,10 @@ function formatDateNice(dateStr) {
 </div>
 
 <script>
-function abrirReglas() {
-    document.getElementById('modalReglas').classList.remove('hidden');
-    document.body.style.overflow = 'hidden';
-}
-function cerrarReglas() {
-    document.getElementById('modalReglas').classList.add('hidden');
-    document.body.style.overflow = '';
-}
-document.addEventListener('keydown', function(e) {
-    if (e.key === 'Escape') cerrarReglas();
-});
-document.getElementById('modalReglas').addEventListener('click', function(e) {
-    if (e.target === this) cerrarReglas();
-});
+function abrirReglas() { document.getElementById('modalReglas').classList.remove('hidden'); document.body.style.overflow = 'hidden'; }
+function cerrarReglas() { document.getElementById('modalReglas').classList.add('hidden'); document.body.style.overflow = ''; }
+document.addEventListener('keydown', function(e) { if (e.key === 'Escape') cerrarReglas(); });
+document.getElementById('modalReglas').addEventListener('click', function(e) { if (e.target === this) cerrarReglas(); });
 </script>
 
 </body>
