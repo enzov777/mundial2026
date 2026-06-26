@@ -421,7 +421,8 @@ async function initApp() {
 async function registerOrLogin() {
     const name = $('reg-name').value.trim(); const pin = $('reg-pin').value.trim();
     if (!name || pin.length !== 4 || !/^\d{4}$/.test(pin)) { showToast('Ingresa un nombre y un PIN de 4 digitos', 'error'); return; }
-    const { data: existing } = await sb.from('players').select('*').eq('name', name).single();
+    const { data: existing, error: fetchErr } = await sb.from('players').select('*').eq('name', name).maybeSingle();
+    if (fetchErr) { showToast('Error al buscar jugador: ' + fetchErr.message, 'error'); return; }
     if (existing) {
         if (existing.pin !== pin) { showToast('PIN incorrecto', 'error'); return; }
         currentPlayer = existing;
@@ -435,7 +436,8 @@ async function registerOrLogin() {
 }
 
 async function loadPlayerFromId(id) {
-    const { data } = await sb.from('players').select('*').eq('id', id).single();
+    const { data, error } = await sb.from('players').select('*').eq('id', id).maybeSingle();
+    if (error) { showToast('Error cargando jugador: ' + error.message, 'error'); return; }
     if (data) { currentPlayer = data; localStorage.setItem('quiniela_player', JSON.stringify(currentPlayer)); await initApp(); }
 }
 
@@ -517,7 +519,7 @@ async function saveSingleBet(matchId) {
     let error;
     if (existing) { const { error: err } = await sb.from('bets').update({ home_prediction: homeScore, away_prediction: awayScore }).eq('id', existing.id); error = err; }
     else { const { error: err } = await sb.from('bets').insert({ player_id: currentPlayer.id, match_id: matchId, home_prediction: homeScore, away_prediction: awayScore }); error = err; }
-    if (error) { showToast('Error: ' + error.message, 'error'); return; }
+    if (error) { showToast('Error: ' + error.message, 'error'); console.error('saveSingleBet error:', error); return; }
     await loadBets(); renderMatches(); renderLeaderboard(); showToast('Pronostico guardado', 'success');
 }
 
@@ -569,20 +571,68 @@ async function renderAdminFees() {
 }
 
 async function updateFee(date) {
-    const amountInput = document.getElementById(`fee-amount-${date}`); const freeCheckbox = document.getElementById(`fee-free-${date}`);
-    const amount = parseFloat(amountInput?.value) || 5; const isFree = freeCheckbox?.checked || false;
-    try { await sb.from('payment_fees').upsert({ match_date: date, amount: isFree ? 0 : amount, is_free: isFree, notes: isFree ? 'Fecha libre' : `Alicuota: ${amount} Bs` }, { onConflict: 'match_date' }); await loadPaymentFees(); renderAdminFees(); renderMatches(); showToast(`Alicuota actualizada: ${date} - ${isFree ? 'LIBRE' : amount + ' Bs'}`, 'success'); }
-    catch (error) { showToast('Error: ' + error.message, 'error'); }
+    const amountInput = document.getElementById(`fee-amount-${date}`);
+    const freeCheckbox = document.getElementById(`fee-free-${date}`);
+    const amount = parseFloat(amountInput?.value) || 5;
+    const isFree = freeCheckbox?.checked || false;
+    
+    const { error } = await sb.from('payment_fees').upsert({
+        match_date: date,
+        amount: isFree ? 0 : amount,
+        is_free: isFree,
+        notes: isFree ? 'Fecha libre' : `Alicuota: ${amount} Bs`
+    }, { onConflict: 'match_date' });
+    
+    if (error) {
+        showToast('Error: ' + error.message, 'error');
+        console.error('updateFee error:', error);
+        return;
+    }
+    
+    await loadPaymentFees();
+    renderAdminFees();
+    renderMatches();
+    showToast(`Alicuota actualizada: ${date} - ${isFree ? 'LIBRE' : amount + ' Bs'}`, 'success');
 }
 
-function toggleFeeFree(date) { const freeCheckbox = document.getElementById(`fee-free-${date}`); const amountInput = document.getElementById(`fee-amount-${date}`); if (amountInput) { amountInput.disabled = freeCheckbox.checked; if (freeCheckbox.checked) amountInput.value = 0; } }
+function toggleFeeFree(date) {
+    const freeCheckbox = document.getElementById(`fee-free-${date}`);
+    const amountInput = document.getElementById(`fee-amount-${date}`);
+    if (amountInput) {
+        amountInput.disabled = freeCheckbox.checked;
+        if (freeCheckbox.checked) amountInput.value = 0;
+    }
+}
 
 async function addNewFee() {
-    const dateInput = document.getElementById('new-fee-date'); const amountInput = document.getElementById('new-fee-amount'); const freeCheckbox = document.getElementById('new-fee-free');
-    if (!dateInput.value) { showToast('Selecciona una fecha', 'error'); return; }
-    const date = dateInput.value; const amount = parseFloat(amountInput.value) || 5; const isFree = freeCheckbox.checked;
-    try { await sb.from('payment_fees').upsert({ match_date: date, amount: isFree ? 0 : amount, is_free: isFree, notes: isFree ? 'Fecha libre' : `Alicuota: ${amount} Bs` }, { onConflict: 'match_date' }); dateInput.value = ''; amountInput.value = '5'; freeCheckbox.checked = false; await loadPaymentFees(); renderAdminFees(); renderMatches(); showToast('Alicuota agregada', 'success'); }
-    catch (error) { showToast('Error: ' + error.message, 'error'); }
+    const dateInput = document.getElementById('new-fee-date');
+    const amountInput = document.getElementById('new-fee-amount');
+    const freeCheckbox = document.getElementById('new-fee-free');
+    
+    if (!dateInput.value) {
+        showToast('Selecciona una fecha', 'error');
+        return;
+    }
+    
+    const { error } = await sb.from('payment_fees').upsert({
+        match_date: dateInput.value,
+        amount: freeCheckbox.checked ? 0 : (parseFloat(amountInput.value) || 5),
+        is_free: freeCheckbox.checked,
+        notes: freeCheckbox.checked ? 'Fecha libre' : `Alicuota: ${amountInput.value} Bs`
+    }, { onConflict: 'match_date' });
+    
+    if (error) {
+        showToast('Error: ' + error.message, 'error');
+        return;
+    }
+    
+    dateInput.value = '';
+    amountInput.value = '5';
+    freeCheckbox.checked = false;
+    await loadPaymentFees();
+    renderAdminFees();
+    renderMatches();
+    showToast('Alicuota agregada', 'success');
 }
 
 // ============================================
@@ -606,40 +656,175 @@ async function renderAdminPayments() {
 
 async function verifyPlayerPayment(playerId, date) {
     try {
-        const { data: existing } = await sb.from('payments').select('*').eq('player_id', playerId).eq('match_date', date).single();
+        const { data: existing, error: fetchError } = await sb.from('payments')
+            .select('*')
+            .eq('player_id', playerId)
+            .eq('match_date', date)
+            .maybeSingle();
+        
+        if (fetchError) throw fetchError;
+        
         const player = players.find(p => p.id === playerId);
-        if (existing && existing.status === 'paid' && existing.verified_at) {
-            if (!confirm(`&#9888; ${player.name} tiene pago VERIFICADO para ${formatDateNice(date)}.\n\n¿Invalidar este pago?\n\n&#9888; ESTO HARÁ QUE SUS PRONÓSTICOS NO SUMEN PUNTOS.`)) return;
-            await sb.from('payments').update({ status: 'pending', verified_by: null, verified_at: null }).eq('id', existing.id);
-            showToast(`Pago de ${player.name} invalidado`, 'info');
-        } else if (existing && existing.status === 'paid' && !existing.verified_at) {
-            await sb.from('payments').update({ verified_by: 'admin', verified_at: new Date().toISOString() }).eq('id', existing.id);
-            showToast(`&#9989; Pago de ${player.name} verificado`, 'success');
-        } else if (!existing || existing.status !== 'paid') {
-            await sb.from('payments').upsert({ player_id: playerId, match_date: date, status: 'paid', amount: 5.00, verified_by: 'admin', verified_at: new Date().toISOString() }, { onConflict: 'player_id,match_date' });
-            showToast(`&#9989; Pago de ${player.name} registrado y verificado`, 'success');
+        if (!player) {
+            showToast('Jugador no encontrado', 'error');
+            return;
         }
-        await loadPayments(); renderAdminPayments(); renderLeaderboard();
-    } catch (error) { showToast('Error: ' + error.message, 'error'); }
+
+        if (existing && existing.status === 'paid' && existing.verified_at) {
+            if (!confirm(`⚠️ ${player.name} tiene pago VERIFICADO para ${formatDateNice(date)}.\n\n¿Invalidar este pago?\n\n⚠️ ESTO HARÁ QUE SUS PRONÓSTICOS NO SUMEN PUNTOS.`)) {
+                return;
+            }
+            const { error } = await sb.from('payments')
+                .update({ status: 'pending', verified_by: null, verified_at: null })
+                .eq('id', existing.id);
+            if (error) throw error;
+            showToast(`Pago de ${player.name} invalidado`, 'info');
+            
+        } else if (existing && existing.status === 'paid' && !existing.verified_at) {
+            const { error } = await sb.from('payments')
+                .update({ verified_by: 'admin', verified_at: new Date().toISOString() })
+                .eq('id', existing.id);
+            if (error) throw error;
+            showToast(`✅ Pago de ${player.name} verificado`, 'success');
+            
+        } else {
+            const { error } = await sb.from('payments').upsert({
+                player_id: playerId,
+                match_date: date,
+                status: 'paid',
+                amount: 5.00,
+                verified_by: 'admin',
+                verified_at: new Date().toISOString()
+            }, { onConflict: 'player_id,match_date' });
+            if (error) throw error;
+            showToast(`✅ Pago de ${player.name} registrado y verificado`, 'success');
+        }
+
+        await loadPayments();
+        renderAdminPayments();
+        renderLeaderboard();
+    } catch (error) {
+        console.error('Error en verifyPlayerPayment:', error);
+        showToast('Error: ' + error.message, 'error');
+    }
 }
 
-function formatDateNice(dateStr) { const months = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre']; const [year, month, day] = dateStr.split('-'); return `${parseInt(day)} de ${months[parseInt(month)-1]} ${year}`; }
+function formatDateNice(dateStr) {
+    const months = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+    const [year, month, day] = dateStr.split('-');
+    return `${parseInt(day)} de ${months[parseInt(month)-1]} ${year}`;
+}
 
 function renderAdminPanel() { renderAdminFees(); renderAdminPayments(); renderAdminMatches(); }
 
 function renderAdminMatches() {
     const container = $('admin-matches-container');
     if (!matches.length) { container.innerHTML = '<div class="text-gray-500 text-center py-4">No hay partidos</div>'; return; }
-    container.innerHTML = matches.map(match => { const finished = isMatchFinished(match); const homeFlag = getFlagHTML(match.home_team); const awayFlag = getFlagHTML(match.away_team); return `<div class="flex flex-col md:flex-row items-start md:items-center gap-3 bg-white/5 rounded-lg p-3" id="admin-row-${match.id}"><div class="flex-1 min-w-0"><div class="flex items-center gap-2 mb-1"><span class="text-xs text-gray-500">${match.round}</span><span class="text-xs ${finished ? 'text-green-400' : 'text-yellow-400'}">${finished ? 'Finalizado' : 'Pendiente'}</span></div><div class="flex items-center gap-2 flex-wrap"><div class="flex items-center gap-2">${homeFlag}<input type="text" id="edit-home-${match.id}" value="${match.home_team}" class="admin-input"></div><span class="text-gray-500 font-bold">vs</span><div class="flex items-center gap-2">${awayFlag}<input type="text" id="edit-away-${match.id}" value="${match.away_team}" class="admin-input"></div></div><div class="text-xs text-gray-500 mt-1">${formatDate(match.match_date)}</div></div><div class="flex items-center gap-2"><input type="number" id="res-${match.id}-home" value="${match.home_score ?? ''}" class="w-12 text-center bg-white/10 border border-white/20 rounded px-2 py-1 text-sm" placeholder="L"><span class="text-gray-500">-</span><input type="number" id="res-${match.id}-away" value="${match.away_score ?? ''}" class="w-12 text-center bg-white/10 border border-white/20 rounded px-2 py-1 text-sm" placeholder="V"></div><div class="flex gap-2"><button onclick="updateResult('${match.id}')" class="btn-admin ${finished ? 'btn-save' : 'btn-edit'}">${finished ? 'Actualizar' : 'Guardar'}</button><button onclick="updateTeams('${match.id}')" class="btn-admin btn-edit" title="Actualizar nombres de equipos">Editar Equipos</button></div></div>`; }).join('');
+    container.innerHTML = matches.map(match => {
+        const finished = isMatchFinished(match);
+        const homeFlag = getFlagHTML(match.home_team);
+        const awayFlag = getFlagHTML(match.away_team);
+        return `<div class="flex flex-col md:flex-row items-start md:items-center gap-3 bg-white/5 rounded-lg p-3" id="admin-row-${match.id}"><div class="flex-1 min-w-0"><div class="flex items-center gap-2 mb-1"><span class="text-xs text-gray-500">${match.round}</span><span class="text-xs ${finished ? 'text-green-400' : 'text-yellow-400'}">${finished ? 'Finalizado' : 'Pendiente'}</span></div><div class="flex items-center gap-2 flex-wrap"><div class="flex items-center gap-2">${homeFlag}<input type="text" id="edit-home-${match.id}" value="${match.home_team}" class="admin-input"></div><span class="text-gray-500 font-bold">vs</span><div class="flex items-center gap-2">${awayFlag}<input type="text" id="edit-away-${match.id}" value="${match.away_team}" class="admin-input"></div></div><div class="text-xs text-gray-500 mt-1">${formatDate(match.match_date)}</div></div><div class="flex items-center gap-2"><input type="number" id="res-${match.id}-home" value="${match.home_score ?? ''}" class="w-12 text-center bg-white/10 border border-white/20 rounded px-2 py-1 text-sm" placeholder="L"><span class="text-gray-500">-</span><input type="number" id="res-${match.id}-away" value="${match.away_score ?? ''}" class="w-12 text-center bg-white/10 border border-white/20 rounded px-2 py-1 text-sm" placeholder="V"></div><div class="flex gap-2"><button onclick="updateResult('${match.id}')" class="btn-admin ${finished ? 'btn-save' : 'btn-edit'}">${finished ? 'Actualizar' : 'Guardar'}</button><button onclick="updateTeams('${match.id}')" class="btn-admin btn-edit" title="Actualizar nombres de equipos">Editar Equipos</button></div></div>`;
+    }).join('');
 }
 
-async function updateTeams(matchId) { const home = $(`edit-home-${matchId}`).value.trim(); const away = $(`edit-away-${matchId}`).value.trim(); if (!home || !away) { showToast('Los nombres no pueden estar vacios', 'error'); return; } const { error } = await sb.from('matches').update({ home_team: home, away_team: away }).eq('id', matchId); if (error) { showToast('Error: ' + error.message, 'error'); return; } showToast('Equipos actualizados', 'success'); await loadMatches(); renderMatches(); renderAdminPanel(); }
+async function updateTeams(matchId) {
+    const home = $(`edit-home-${matchId}`).value.trim();
+    const away = $(`edit-away-${matchId}`).value.trim();
+    if (!home || !away) {
+        showToast('Los nombres no pueden estar vacios', 'error');
+        return;
+    }
+    const { error } = await sb.from('matches')
+        .update({ home_team: home, away_team: away })
+        .eq('id', matchId);
+    if (error) {
+        showToast('Error: ' + error.message, 'error');
+        return;
+    }
+    showToast('Equipos actualizados', 'success');
+    await loadMatches();
+    renderMatches();
+    if (currentPlayer?.isAdmin) renderAdminPanel();
+}
 
-async function updateResult(matchId) { const home = parseInt($(`res-${matchId}-home`).value); const away = parseInt($(`res-${matchId}-away`).value); if (isNaN(home) || isNaN(away)) { showToast('Completa ambos resultados', 'error'); return; } await sb.from('matches').update({ home_score: home, away_score: away, status: 'finished' }).eq('id', matchId); showToast('Resultado guardado', 'success'); await loadMatches(); renderMatches(); renderLeaderboard(); renderAdminPanel(); }
+async function updateResult(matchId) {
+    const home = parseInt($(`res-${matchId}-home`).value);
+    const away = parseInt($(`res-${matchId}-away`).value);
+    if (isNaN(home) || isNaN(away)) {
+        showToast('Completa ambos resultados', 'error');
+        return;
+    }
+    const { error } = await sb.from('matches')
+        .update({ home_score: home, away_score: away, status: 'finished' })
+        .eq('id', matchId);
+    if (error) {
+        showToast('Error al guardar: ' + error.message, 'error');
+        console.error('updateResult error:', error);
+        return;
+    }
+    showToast('Resultado guardado', 'success');
+    await loadMatches();
+    renderMatches();
+    renderLeaderboard();
+    if (currentPlayer?.isAdmin) renderAdminPanel();
+}
 
-async function syncResults() { const btn = document.activeElement; const originalText = btn.innerHTML; btn.innerHTML = '&#128260; Sincronizando...'; btn.disabled = true; try { const response = await fetch(`${SUPABASE_URL}/functions/v1/update-results`, { method: 'POST', headers: { 'Authorization': 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json' } }); const data = await response.json(); if (data.updated > 0) { showToast(`&#9989; ${data.updated} partidos actualizados`, 'success'); await loadMatches(); renderMatches(); renderLeaderboard(); if (currentPlayer?.isAdmin) renderAdminPanel(); } else if (data.error) { showToast('&#10060; Error: ' + data.error, 'error'); } else { showToast('&#8505; ' + data.message, 'info'); } } catch (error) { showToast('&#10060; Error de conexion: ' + error.message, 'error'); } finally { btn.innerHTML = originalText; btn.disabled = false; } }
+async function syncResults() {
+    const btn = document.activeElement;
+    const originalText = btn.innerHTML;
+    btn.innerHTML = '&#128260; Sincronizando...';
+    btn.disabled = true;
+    try {
+        const response = await fetch(`${SUPABASE_URL}/functions/v1/update-results`, {
+            method: 'POST',
+            headers: { 'Authorization': 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json' }
+        });
+        const data = await response.json();
+        if (data.updated > 0) {
+            showToast(`&#9989; ${data.updated} partidos actualizados`, 'success');
+            await loadMatches(); renderMatches(); renderLeaderboard();
+            if (currentPlayer?.isAdmin) renderAdminPanel();
+        } else if (data.error) {
+            showToast('&#10060; Error: ' + data.error, 'error');
+        } else {
+            showToast('&#8505; ' + data.message, 'info');
+        }
+    } catch (error) {
+        showToast('&#10060; Error de conexion: ' + error.message, 'error');
+    } finally {
+        btn.innerHTML = originalText;
+        btn.disabled = false;
+    }
+}
 
-async function addMatch() { const home = $('new-home').value.trim(); const away = $('new-away').value.trim(); const date = $('new-date').value; if (!home || !away || !date) { showToast('Completa todos los campos', 'error'); return; } await sb.from('matches').insert({ home_team: home, away_team: away, match_date: new Date(date).toISOString(), status: 'scheduled', round: 'Fase de Grupos' }); $('new-home').value = ''; $('new-away').value = ''; $('new-date').value = ''; showToast('Partido agregado', 'success'); await loadMatches(); renderMatches(); renderAdminPanel(); }
+async function addMatch() {
+    const home = $('new-home').value.trim();
+    const away = $('new-away').value.trim();
+    const date = $('new-date').value;
+    if (!home || !away || !date) {
+        showToast('Completa todos los campos', 'error');
+        return;
+    }
+    const { error } = await sb.from('matches').insert({
+        home_team: home,
+        away_team: away,
+        match_date: new Date(date).toISOString(),
+        status: 'scheduled',
+        round: 'Fase de Grupos'
+    });
+    if (error) {
+        showToast('Error: ' + error.message, 'error');
+        return;
+    }
+    $('new-home').value = '';
+    $('new-away').value = '';
+    $('new-date').value = '';
+    showToast('Partido agregado', 'success');
+    await loadMatches();
+    renderMatches();
+    if (currentPlayer?.isAdmin) renderAdminPanel();
+}
 </script>
 
 <!-- MODAL: CÓMO JUGAR -->
