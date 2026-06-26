@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Finanzas - Quiniela Mundial 2026</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.39.0/dist/umd/supabase.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; background: #0f172a; }
+        .glass { background: rgba(255,255,255,0.05); backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,0.1); }
+        .gradient-text { background: linear-gradient(135deg, #fbbf24, #f59e0b); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        .btn-paid { background: #22c55e; color: white; }
+        .btn-paid:hover { background: #16a34a; }
+        .btn-pending { background: #475569; color: #94a3b8; }
+        .btn-pending:hover { background: #334155; color: white; }
+        .status-paid { background: rgba(34, 197, 94, 0.2); color: #4ade80; border: 1px solid rgba(34, 197, 94, 0.3); }
+        .status-pending { background: rgba(71, 85, 105, 0.2); color: #94a3b8; border: 1px solid rgba(71, 85, 105, 0.3); }
+        .status-late { background: rgba(239, 68, 68, 0.2); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.3); }
+        .prize-card { background: linear-gradient(135deg, rgba(251, 191, 36, 0.1), rgba(245, 158, 11, 0.05)); border: 1px solid rgba(251, 191, 36, 0.3); }
+        .accumulated-card { background: linear-gradient(135deg, rgba(99, 102, 241, 0.1), rgba(139, 92, 246, 0.05)); border: 1px solid rgba(99, 102, 241, 0.3); }
+        .winner-row { background: rgba(251, 191, 36, 0.1) !important; }
+        .disabled-row { background: rgba(75, 85, 99, 0.3) !important; opacity: 0.6; }
+    </style>
+</head>
+<body class="text-white min-h-screen">
+
+<script>
+// ============================================
+// CONFIGURACIÓN SUPABASE
+// ============================================
+const SUPABASE_URL = 'https://dwcnwxrcwuicwxbtqpxs.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImR3Y253eHJjd3VpY3d4YnRxcHhzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODIxNDk4NDcsImV4cCI6MjA5NzcyNTg0N30.Xwa-18sv9YsodNG1AJeItmf3NdwiHanCE9m9Mka4dSE';
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+let currentPlayer = null;
+let players = [];
+let payments = [];
+let prizes = [];
+let accumulatedPool = 0;
+
+// ============================================
+// CARGA DE DATOS
+// ============================================
+async function loadData() {
+    try {
+        // Cargar jugadores
+        const { data: playersData } = await sb.from('players').select('*');
+        players = playersData || [];
+
+        // Cargar pagos
+        const { data: paymentsData } = await sb.from('payments').select('*');
+        payments = paymentsData || [];
+
+        // Cargar premios
+        const { data: prizesData } = await sb.from('prizes').select('*').order('match_date');
+        prizes = prizesData || [];
+
+        // Cargar bolsa acumulada
+        const { data: poolData } = await sb.from('accumulated_pool').select('*').single();
+        accumulatedPool = poolData?.total_amount || 0;
+
+        renderFinances();
+    } catch (error) {
+        console.error('Error:', error);
+        document.getElementById('mainContainer').innerHTML = `
+            <div class="glass rounded-2xl p-8 text-center text-red-400">
+                <p>Error al cargar datos: ${error.message}</p>
+            </div>
+        `;
+    }
+}
+
+// ============================================
+// RENDERIZADO
+// ============================================
+function renderFinances() {
+    const container = document.getElementById('mainContainer');
+
+    // Obtener fechas únicas de los premios
+    const dates = [...new Set(prizes.map(p => p.match_date))].sort();
+    const selectedDate = dates[dates.length - 1] || new Date().toISOString().split('T')[0];
+
+    // Calcular totales
+    const totalCollected = prizes.reduce((sum, p) => sum + (p.total_collected || 0), 0);
+    const totalDistributed = prizes.reduce((sum, p) => sum + (p.winner_share || 0), 0);
+    const totalAccumulated = accumulatedPool;
+
+    container.innerHTML = `
+        <!-- Resumen General -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+            <div class="prize-card rounded-2xl p-6">
+                <div class="text-yellow-400 text-sm font-semibold mb-2">💰 Total Recaudado</div>
+                <div class="text-3xl font-black">${totalCollected.toFixed(2)} Bs</div>
+                <div class="text-gray-400 text-xs mt-1">En todas las fechas</div>
+            </div>
+            <div class="glass rounded-2xl p-6 border-green-500/30">
+                <div class="text-green-400 text-sm font-semibold mb-2">🏆 Total Distribuido</div>
+                <div class="text-3xl font-black">${totalDistributed.toFixed(2)} Bs</div>
+                <div class="text-gray-400 text-xs mt-1">80% a ganadores</div>
+            </div>
+            <div class="accumulated-card rounded-2xl p-6">
+                <div class="text-indigo-400 text-sm font-semibold mb-2">🎯 Bolsa Acumulada</div>
+                <div class="text-3xl font-black">${totalAccumulated.toFixed(2)} Bs</div>
+                <div class="text-gray-400 text-xs mt-1">20% por fecha + final</div>
+            </div>
+        </div>
+
+        <!-- Fechas y Pagos -->
+        <div class="glass rounded-2xl p-6 mb-6">
+            <h2 class="text-xl font-bold mb-4 flex items-center gap-2">
+                📅 Gestión de Pagos por Fecha
+            </h2>
+
+            ${dates.length === 0 ? `
+                <div class="text-center text-gray-400 py-8">
+                    <p>No hay fechas configuradas aún</p>
+                </div>
+            ` : dates.map(date => {
+                const prize = prizes.find(p => p.match_date === date);
+                const datePlayers = players.map(p => {
+                    const payment = payments.find(pay => pay.player_id === p.id && pay.match_date === date);
+                    return { ...p, payment };
+                });
+                const paidCount = datePlayers.filter(p => p.payment?.status === 'paid').length;
+                const totalDate = paidCount * 5;
+
+                return `
+                    <div class="mb-6 border-b border-white/10 pb-6 last:border-0 last:pb-0">
+                        <div class="flex justify-between items-center mb-4">
+                            <div>
+                                <h3 class="text-lg font-bold text-white">${formatDateNice(date)}</h3>
+                                <p class="text-sm text-gray-400">${paidCount} de ${players.length} jugadores pagaron</p>
+                            </div>
+                            <div class="text-right">
+                                <div class="text-2xl font-bold text-yellow-400">${totalDate.toFixed(2)} Bs</div>
+                                <div class="text-xs text-gray-400">Recaudado</div>
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-2 md:grid-cols-4 gap-2 mb-4">
+                            ${datePlayers.map(p => {
+                                const isPaid = p.payment?.status === 'paid';
+                                const isLate = p.payment?.status === 'late';
+                                return `
+                                    <button onclick="togglePayment('${p.id}', '${date}')"
+                                        class="p-3 rounded-xl text-sm font-medium transition-all ${isPaid 
+                                            ? 'btn-paid' 
+                                            : isLate 
+                                                ? 'bg-red-500/20 text-red-400 border border-red-500/30' 
+                                                : 'btn-pending'}">
+                                        <div class="font-bold">${p.name}</div>
+                                        <div class="text-xs mt-1">${isPaid ? '✅ Pagado' : isLate ? '⏰ Tarde' : '💳 Pendiente'}</div>
+                                    </button>
+                                `;
+                            }).join('')}
+                        </div>
+
+                        ${prize ? `
+                            <div class="bg-gray-900/50 rounded-xl p-4">
+                                <div class="flex justify-between items-center">
+                                    <div>
+                                        <span class="text-green-400 font-bold">80% Ganador: ${prize.winner_share?.toFixed(2)} Bs</span>
+                                        <span class="text-gray-500 mx-2">|</span>
+                                        <span class="text-indigo-400 font-bold">20% Acumulado: ${prize.accumulated?.toFixed(2)} Bs</span>
+                                    </div>
+                                    ${prize.winner_id ? `
+                                        <div class="text-yellow-400 font-bold">
+                                            🏆 ${players.find(p => p.id === prize.winner_id)?.name || 'Sin ganador'}
+                                        </div>
+                                    ` : '<div class="text-gray-500">Pendiente de cálculo</div>'}
+                                </div>
+                            </div>
+                        ` : ''}
+                    </div>
+                `;
+            }).join('')}
+        </div>
+
+        <!-- Tabla de Campeonato Acumulado -->
+        <div class="glass rounded-2xl p-6">
+            <h2 class="text-xl font-bold mb-4 flex items-center gap-2">
+                🏆 Campeonato - Puntos y Premios Acumulados
+            </h2>
+            <div class="overflow-x-auto">
+                <table class="w-full">
+                    <thead>
+                        <tr class="text-gray-400 text-xs uppercase tracking-wider border-b border-white/10">
+                            <th class="text-left py-3 px-4">#</th>
+                            <th class="text-left py-3 px-4">Jugador</th>
+                            <th class="text-center py-3 px-4">Pagos</th>
+                            <th class="text-center py-3 px-4">Puntos Fecha</th>
+                            <th class="text-center py-3 px-4">Puntos Acum</th>
+                            <th class="text-center py-3 px-4">Premios Ganados</th>
+                        </tr>
+                    </thead>
+                    <tbody id="leaderboardBody">
+                        ${renderLeaderboard()}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    `;
+}
+
+function renderLeaderboard() {
+    // Calcular estadísticas por jugador
+    const stats = players.map(player => {
+        const playerPayments = payments.filter(p => p.player_id === player.id && p.status === 'paid');
+        const paidDates = playerPayments.length;
+
+        // Calcular puntos de fecha (última fecha pagada)
+        const lastPaidDate = playerPayments.length > 0 
+            ? playerPayments[playerPayments.length - 1].match_date 
+            : null;
+
+        // Calcular puntos acumulados (solo fechas pagadas)
+        let accumulatedPoints = 0;
+        let datePoints = 0;
+
+        // Aquí iría la lógica de cálculo de puntos desde la BD
+        // Por ahora usamos valores de ejemplo
+
+        return {
+            ...player,
+            paidDates,
+            datePoints: datePoints,
+            accumulatedPoints: player.accumulated_points || 0,
+            totalPrize: player.total_prize_won || 0
+        };
+    }).sort((a, b) => b.accumulatedPoints - a.accumulatedPoints);
+
+    return stats.map((p, i) => {
+        const isTop = i === 0 && p.accumulatedPoints > 0;
+        return `
+            <tr class="border-b border-white/5 ${isTop ? 'winner-row' : ''} ${p.paidDates === 0 ? 'disabled-row' : ''}">
+                <td class="py-3 px-4 font-bold">${i + 1}</td>
+                <td class="py-3 px-4 font-semibold ${isTop ? 'text-yellow-400' : ''}">${p.name}</td>
+                <td class="py-3 px-4 text-center">
+                    <span class="${p.paidDates > 0 ? 'text-green-400' : 'text-gray-600'}">${p.paidDates} fechas</span>
+                </td>
+                <td class="py-3 px-4 text-center font-bold">${p.datePoints}</td>
+                <td class="py-3 px-4 text-center font-bold text-yellow-400">${p.accumulatedPoints}</td>
+                <td class="py-3 px-4 text-center text-green-400 font-bold">${p.totalPrize.toFixed(2)} Bs</td>
+            </tr>
+        `;
+    }).join('');
+}
+
+function formatDateNice(dateStr) {
+    const months = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
+    const [year, month, day] = dateStr.split('-');
+    return `${parseInt(day)} de ${months[parseInt(month)-1]} ${year}`;
+}
+
+// ============================================
+// GESTIÓN DE PAGOS
+// ============================================
+async function togglePayment(playerId, date) {
+    const existing = payments.find(p => p.player_id === playerId && p.match_date === date);
+
+    try {
+        if (existing && existing.status === 'paid') {
+            // Cambiar a pendiente
+            await sb.from('payments').update({ status: 'pending' }).eq('id', existing.id);
+        } else if (existing) {
+            // Cambiar a pagado
+            await sb.from('payments').update({ status: 'paid', paid_at: new Date().toISOString() }).eq('id', existing.id);
+        } else {
+            // Crear nuevo pago
+            await sb.from('payments').insert({
+                player_id: playerId,
+                match_date: date,
+                status: 'paid',
+                amount: 5.00
+            });
+        }
+
+        // Recargar datos
+        await loadData();
+
+    } catch (error) {
+        console.error('Error:', error);
+        alert('Error al actualizar pago: ' + error.message);
+    }
+}
+
+// ============================================
+// INICIALIZACIÓN
+// ============================================
+document.addEventListener('DOMContentLoaded', loadData);
+</script>
+
+<!-- ============================================ -->
+<!-- HEADER -->
+<!-- ============================================ -->
+<header class="glass sticky top-0 z-40 border-b border-white/10">
+    <div class="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between">
+        <div class="flex items-center gap-3">
+            <div class="text-3xl">💰</div>
+            <div>
+                <h1 class="text-xl font-black gradient-text">FINANZAS - QUINIELA 2026</h1>
+                <p class="text-xs text-gray-400">Gestión de pagos, premios y bolsa acumulada</p>
+            </div>
+        </div>
+        <div class="flex gap-2">
+            <button onclick="window.location.href='index.html'" class="bg-gray-700 hover:bg-gray-600 text-white px-4 py-2 rounded-lg text-sm transition">
+                ← Volver a Quiniela
+            </button>
+            <button onclick="window.open('evaluaciones.html', '_blank')" class="bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2 rounded-lg text-sm transition">
+                📊 Evaluaciones
+            </button>
+        </div>
+    </div>
+</header>
+
+<!-- ============================================ -->
+<!-- CONTENIDO -->
+<!-- ============================================ -->
+<main class="max-w-6xl mx-auto px-4 mt-6 pb-20" id="mainContainer">
+    <div class="glass rounded-2xl p-12 text-center">
+        <div class="w-12 h-12 border-4 border-yellow-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+        <p class="text-gray-400">Cargando datos financieros...</p>
+    </div>
+</main>
+
+</body>
+</html>
