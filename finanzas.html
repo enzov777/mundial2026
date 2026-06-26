@@ -277,31 +277,39 @@ function formatDateNice(dateStr) {
 // GESTIÓN DE PAGOS CON VERIFICACIÓN ADMIN
 // ============================================
 async function togglePayment(playerId, date) {
-    const existing = payments.find(p => p.player_id === playerId && p.match_date === date);
-    const player = players.find(p => p.id === playerId);
-
     try {
+        const existing = payments.find(p => p.player_id === playerId && p.match_date === date);
+        const player = players.find(p => p.id === playerId);
+        if (!player) {
+            showToast('Jugador no encontrado', 'error');
+            return;
+        }
+
         if (existing && existing.status === 'paid' && existing.verified_at) {
             // Ya está verificado - opción de invalidar
-            if (!confirm(`&#9888; ${player.name} tiene pago VERIFICADO para ${formatDateNice(date)}.\n\n¿Invalidar este pago?\n\n&#9888; ESTO HARÁ QUE SUS PRONÓSTICOS NO SUMEN PUNTOS.`)) {
+            if (!confirm(`⚠️ ${player.name} tiene pago VERIFICADO para ${formatDateNice(date)}.\n\n¿Invalidar este pago?\n\n⚠️ ESTO HARÁ QUE SUS PRONÓSTICOS NO SUMEN PUNTOS.`)) {
                 return;
             }
-            await sb.from('payments').update({ 
+            const { error } = await sb.from('payments').update({ 
                 status: 'pending',
                 verified_by: null,
                 verified_at: null
             }).eq('id', existing.id);
+            if (error) throw error;
             showToast(`Pago de ${player.name} invalidado`, 'info');
+            
         } else if (existing && existing.status === 'paid' && !existing.verified_at) {
             // Verificar pago pendiente
-            await sb.from('payments').update({ 
-                verified_by: 'admin', // En producción usar el ID real del admin
+            const { error } = await sb.from('payments').update({ 
+                verified_by: 'admin',
                 verified_at: new Date().toISOString()
             }).eq('id', existing.id);
-            showToast(`&#9989; Pago de ${player.name} verificado`, 'success');
-        } else if (!existing || existing.status !== 'paid') {
+            if (error) throw error;
+            showToast(`✅ Pago de ${player.name} verificado`, 'success');
+            
+        } else {
             // Crear y verificar nuevo pago
-            await sb.from('payments').upsert({
+            const { error } = await sb.from('payments').upsert({
                 player_id: playerId,
                 match_date: date,
                 status: 'paid',
@@ -309,7 +317,8 @@ async function togglePayment(playerId, date) {
                 verified_by: 'admin',
                 verified_at: new Date().toISOString()
             }, { onConflict: 'player_id,match_date' });
-            showToast(`&#9989; Pago de ${player.name} registrado y verificado`, 'success');
+            if (error) throw error;
+            showToast(`✅ Pago de ${player.name} registrado y verificado`, 'success');
         }
 
         // Recargar datos
@@ -317,7 +326,7 @@ async function togglePayment(playerId, date) {
 
     } catch (error) {
         console.error('Error:', error);
-        alert('Error al actualizar pago: ' + error.message);
+        showToast('Error al actualizar pago: ' + error.message, 'error');
     }
 }
 
