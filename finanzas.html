@@ -22,7 +22,11 @@
         .accumulated-card { background: linear-gradient(135deg, rgba(99, 102, 241, 0.1), rgba(139, 92, 246, 0.05)); border: 1px solid rgba(99, 102, 241, 0.3); }
         .winner-row { background: rgba(251, 191, 36, 0.1) !important; }
         .disabled-row { background: rgba(75, 85, 99, 0.3) !important; opacity: 0.6; }
+        .verified-badge { background: rgba(34, 197, 94, 0.2); color: #4ade80; border: 1px solid rgba(34, 197, 94, 0.3); }
+        .unverified-badge { background: rgba(234, 179, 8, 0.2); color: #facc15; border: 1px solid rgba(234, 179, 8, 0.3); }
+        .no-payment-badge { background: rgba(239, 68, 68, 0.2); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.3); }
     </style>
+<base target="_blank">
 </head>
 <body class="text-white min-h-screen">
 
@@ -91,17 +95,17 @@ function renderFinances() {
         <!-- Resumen General -->
         <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
             <div class="prize-card rounded-2xl p-6">
-                <div class="text-yellow-400 text-sm font-semibold mb-2">💰 Total Recaudado</div>
+                <div class="text-yellow-400 text-sm font-semibold mb-2">&#128176; Total Recaudado</div>
                 <div class="text-3xl font-black">${totalCollected.toFixed(2)} Bs</div>
                 <div class="text-gray-400 text-xs mt-1">En todas las fechas</div>
             </div>
             <div class="glass rounded-2xl p-6 border-green-500/30">
-                <div class="text-green-400 text-sm font-semibold mb-2">🏆 Total Distribuido</div>
+                <div class="text-green-400 text-sm font-semibold mb-2">&#127942; Total Distribuido</div>
                 <div class="text-3xl font-black">${totalDistributed.toFixed(2)} Bs</div>
                 <div class="text-gray-400 text-xs mt-1">80% a ganadores</div>
             </div>
             <div class="accumulated-card rounded-2xl p-6">
-                <div class="text-indigo-400 text-sm font-semibold mb-2">🎯 Bolsa Acumulada</div>
+                <div class="text-indigo-400 text-sm font-semibold mb-2">&#127919; Bolsa Acumulada</div>
                 <div class="text-3xl font-black">${totalAccumulated.toFixed(2)} Bs</div>
                 <div class="text-gray-400 text-xs mt-1">20% por fecha + final</div>
             </div>
@@ -109,9 +113,10 @@ function renderFinances() {
 
         <!-- Fechas y Pagos -->
         <div class="glass rounded-2xl p-6 mb-6">
-            <h2 class="text-xl font-bold mb-4 flex items-center gap-2">
-                📅 Gestión de Pagos por Fecha
+            <h2 class="text-xl font-bold mb-2 flex items-center gap-2">
+                &#128197; Gestión de Pagos por Fecha
             </h2>
+            <p class="text-xs text-gray-400 mb-4">Haz click en un jugador para verificar su pago. Solo los pagos verificados hacen válidos los pronósticos.</p>
 
             ${dates.length === 0 ? `
                 <div class="text-center text-gray-400 py-8">
@@ -123,35 +128,50 @@ function renderFinances() {
                     const payment = payments.find(pay => pay.player_id === p.id && pay.match_date === date);
                     return { ...p, payment };
                 });
-                const paidCount = datePlayers.filter(p => p.payment?.status === 'paid').length;
-                const totalDate = paidCount * 5;
+                const verifiedCount = datePlayers.filter(p => p.payment?.status === 'paid' && p.payment?.verified_at).length;
+                const pendingCount = datePlayers.filter(p => p.payment?.status === 'paid' && !p.payment?.verified_at).length;
+                const notPaidCount = datePlayers.filter(p => !p.payment || p.payment.status !== 'paid').length;
+                const totalDate = verifiedCount * 5;
 
                 return `
                     <div class="mb-6 border-b border-white/10 pb-6 last:border-0 last:pb-0">
                         <div class="flex justify-between items-center mb-4">
                             <div>
                                 <h3 class="text-lg font-bold text-white">${formatDateNice(date)}</h3>
-                                <p class="text-sm text-gray-400">${paidCount} de ${players.length} jugadores pagaron</p>
+                                <div class="flex gap-2 mt-1">
+                                    <span class="text-xs bg-green-500/20 text-green-400 px-2 py-0.5 rounded-full">${verifiedCount} verificados</span>
+                                    <span class="text-xs bg-yellow-500/20 text-yellow-400 px-2 py-0.5 rounded-full">${pendingCount} pendientes</span>
+                                    <span class="text-xs bg-red-500/20 text-red-400 px-2 py-0.5 rounded-full">${notPaidCount} sin pagar</span>
+                                </div>
                             </div>
                             <div class="text-right">
                                 <div class="text-2xl font-bold text-yellow-400">${totalDate.toFixed(2)} Bs</div>
-                                <div class="text-xs text-gray-400">Recaudado</div>
+                                <div class="text-xs text-gray-400">Recaudado verificado</div>
                             </div>
                         </div>
 
                         <div class="grid grid-cols-2 md:grid-cols-4 gap-2 mb-4">
                             ${datePlayers.map(p => {
-                                const isPaid = p.payment?.status === 'paid';
-                                const isLate = p.payment?.status === 'late';
+                                const isVerified = p.payment?.status === 'paid' && p.payment?.verified_at;
+                                const isPending = p.payment?.status === 'paid' && !p.payment?.verified_at;
+                                const isNotPaid = !p.payment || p.payment.status !== 'paid';
+                                const verifiedTime = p.payment?.verified_at ? new Date(p.payment.verified_at).toLocaleString('es-BO', { hour: '2-digit', minute: '2-digit' }) : '';
+
                                 return `
                                     <button onclick="togglePayment('${p.id}', '${date}')"
-                                        class="p-3 rounded-xl text-sm font-medium transition-all ${isPaid 
-                                            ? 'btn-paid' 
-                                            : isLate 
-                                                ? 'bg-red-500/20 text-red-400 border border-red-500/30' 
-                                                : 'btn-pending'}">
+                                        class="p-3 rounded-xl text-sm font-medium transition-all text-left ${isVerified 
+                                            ? 'verified-badge' 
+                                            : isPending 
+                                                ? 'unverified-badge'
+                                                : 'no-payment-badge'}"
+                                        title="${isVerified ? 'Verificado: ' + verifiedTime + '\nClick para invalidar' : isPending ? 'Pago registrado pero NO verificado\nClick para verificar' : 'Sin pago registrado\nClick para verificar pago'}">
                                         <div class="font-bold">${p.name}</div>
-                                        <div class="text-xs mt-1">${isPaid ? '✅ Pagado' : isLate ? '⏰ Tarde' : '💳 Pendiente'}</div>
+                                        <div class="text-xs mt-1 flex items-center gap-1">
+                                            ${isVerified ? '&#9989; Verificado' : isPending ? '&#9200; Pendiente' : '&#128179; Sin pago'}
+                                        </div>
+                                        ${isVerified && p.payment?.verified_at ? `
+                                            <div class="text-[10px] opacity-70 mt-0.5">${verifiedTime}</div>
+                                        ` : ''}
                                     </button>
                                 `;
                             }).join('')}
@@ -167,7 +187,7 @@ function renderFinances() {
                                     </div>
                                     ${prize.winner_id ? `
                                         <div class="text-yellow-400 font-bold">
-                                            🏆 ${players.find(p => p.id === prize.winner_id)?.name || 'Sin ganador'}
+                                            &#127942; ${players.find(p => p.id === prize.winner_id)?.name || 'Sin ganador'}
                                         </div>
                                     ` : '<div class="text-gray-500">Pendiente de cálculo</div>'}
                                 </div>
@@ -181,15 +201,16 @@ function renderFinances() {
         <!-- Tabla de Campeonato Acumulado -->
         <div class="glass rounded-2xl p-6">
             <h2 class="text-xl font-bold mb-4 flex items-center gap-2">
-                🏆 Campeonato - Puntos y Premios Acumulados
+                &#127942; Campeonato - Puntos y Premios Acumulados
             </h2>
+            <p class="text-xs text-gray-400 mb-3">Solo se muestran puntos de jugadores con pagos verificados.</p>
             <div class="overflow-x-auto">
                 <table class="w-full">
                     <thead>
                         <tr class="text-gray-400 text-xs uppercase tracking-wider border-b border-white/10">
                             <th class="text-left py-3 px-4">#</th>
                             <th class="text-left py-3 px-4">Jugador</th>
-                            <th class="text-center py-3 px-4">Pagos</th>
+                            <th class="text-center py-3 px-4">Pagos Verif.</th>
                             <th class="text-center py-3 px-4">Puntos Fecha</th>
                             <th class="text-center py-3 px-4">Puntos Acum</th>
                             <th class="text-center py-3 px-4">Premios Ganados</th>
@@ -205,27 +226,24 @@ function renderFinances() {
 }
 
 function renderLeaderboard() {
-    // Calcular estadísticas por jugador
+    // Calcular estadísticas por jugador - solo pagos verificados
     const stats = players.map(player => {
-        const playerPayments = payments.filter(p => p.player_id === player.id && p.status === 'paid');
+        const playerPayments = payments.filter(p => 
+            p.player_id === player.id && 
+            p.status === 'paid' && 
+            p.verified_at !== null && 
+            p.verified_at !== undefined
+        );
         const paidDates = playerPayments.length;
 
-        // Calcular puntos de fecha (última fecha pagada)
-        const lastPaidDate = playerPayments.length > 0 
-            ? playerPayments[playerPayments.length - 1].match_date 
-            : null;
-
-        // Calcular puntos acumulados (solo fechas pagadas)
-        let accumulatedPoints = 0;
-        let datePoints = 0;
-
-        // Aquí iría la lógica de cálculo de puntos desde la BD
-        // Por ahora usamos valores de ejemplo
+        // Calcular puntos acumulados (solo fechas con pago verificado)
+        // Esto usa los valores de la BD que ya deberían estar calculados por la función SQL
+        // o podemos calcularlos aquí si es necesario
 
         return {
             ...player,
             paidDates,
-            datePoints: datePoints,
+            datePoints: 0, // Se calcularía desde la BD
             accumulatedPoints: player.accumulated_points || 0,
             totalPrize: player.total_prize_won || 0
         };
@@ -233,16 +251,17 @@ function renderLeaderboard() {
 
     return stats.map((p, i) => {
         const isTop = i === 0 && p.accumulatedPoints > 0;
+        const hasPayments = p.paidDates > 0;
         return `
-            <tr class="border-b border-white/5 ${isTop ? 'winner-row' : ''} ${p.paidDates === 0 ? 'disabled-row' : ''}">
+            <tr class="border-b border-white/5 ${isTop ? 'winner-row' : ''} ${!hasPayments ? 'disabled-row' : ''}">
                 <td class="py-3 px-4 font-bold">${i + 1}</td>
-                <td class="py-3 px-4 font-semibold ${isTop ? 'text-yellow-400' : ''}">${p.name}</td>
+                <td class="py-3 px-4 font-semibold ${isTop ? 'text-yellow-400' : ''} ${!hasPayments ? 'text-gray-500' : ''}">${p.name}</td>
                 <td class="py-3 px-4 text-center">
-                    <span class="${p.paidDates > 0 ? 'text-green-400' : 'text-gray-600'}">${p.paidDates} fechas</span>
+                    <span class="${hasPayments ? 'text-green-400' : 'text-gray-600'}">${p.paidDates} fechas</span>
                 </td>
                 <td class="py-3 px-4 text-center font-bold">${p.datePoints}</td>
-                <td class="py-3 px-4 text-center font-bold text-yellow-400">${p.accumulatedPoints}</td>
-                <td class="py-3 px-4 text-center text-green-400 font-bold">${p.totalPrize.toFixed(2)} Bs</td>
+                <td class="py-3 px-4 text-center font-bold ${hasPayments ? 'text-yellow-400' : 'text-gray-600'}">${p.accumulatedPoints}</td>
+                <td class="py-3 px-4 text-center ${hasPayments ? 'text-green-400' : 'text-gray-600'} font-bold">${p.totalPrize.toFixed(2)} Bs</td>
             </tr>
         `;
     }).join('');
@@ -255,26 +274,42 @@ function formatDateNice(dateStr) {
 }
 
 // ============================================
-// GESTIÓN DE PAGOS
+// GESTIÓN DE PAGOS CON VERIFICACIÓN ADMIN
 // ============================================
 async function togglePayment(playerId, date) {
     const existing = payments.find(p => p.player_id === playerId && p.match_date === date);
+    const player = players.find(p => p.id === playerId);
 
     try {
-        if (existing && existing.status === 'paid') {
-            // Cambiar a pendiente
-            await sb.from('payments').update({ status: 'pending' }).eq('id', existing.id);
-        } else if (existing) {
-            // Cambiar a pagado
-            await sb.from('payments').update({ status: 'paid', paid_at: new Date().toISOString() }).eq('id', existing.id);
-        } else {
-            // Crear nuevo pago
-            await sb.from('payments').insert({
+        if (existing && existing.status === 'paid' && existing.verified_at) {
+            // Ya está verificado - opción de invalidar
+            if (!confirm(`&#9888; ${player.name} tiene pago VERIFICADO para ${formatDateNice(date)}.\n\n¿Invalidar este pago?\n\n&#9888; ESTO HARÁ QUE SUS PRONÓSTICOS NO SUMEN PUNTOS.`)) {
+                return;
+            }
+            await sb.from('payments').update({ 
+                status: 'pending',
+                verified_by: null,
+                verified_at: null
+            }).eq('id', existing.id);
+            showToast(`Pago de ${player.name} invalidado`, 'info');
+        } else if (existing && existing.status === 'paid' && !existing.verified_at) {
+            // Verificar pago pendiente
+            await sb.from('payments').update({ 
+                verified_by: 'admin', // En producción usar el ID real del admin
+                verified_at: new Date().toISOString()
+            }).eq('id', existing.id);
+            showToast(`&#9989; Pago de ${player.name} verificado`, 'success');
+        } else if (!existing || existing.status !== 'paid') {
+            // Crear y verificar nuevo pago
+            await sb.from('payments').upsert({
                 player_id: playerId,
                 match_date: date,
                 status: 'paid',
-                amount: 5.00
-            });
+                amount: 5.00,
+                verified_by: 'admin',
+                verified_at: new Date().toISOString()
+            }, { onConflict: 'player_id,match_date' });
+            showToast(`&#9989; Pago de ${player.name} registrado y verificado`, 'success');
         }
 
         // Recargar datos
@@ -284,6 +319,14 @@ async function togglePayment(playerId, date) {
         console.error('Error:', error);
         alert('Error al actualizar pago: ' + error.message);
     }
+}
+
+function showToast(msg, type = 'info') {
+    const toast = document.createElement('div');
+    toast.className = `fixed bottom-4 right-4 px-6 py-3 rounded-lg shadow-lg z-50 ${type === 'error' ? 'bg-red-600' : type === 'success' ? 'bg-green-600' : 'bg-blue-600'}`;
+    toast.innerHTML = msg;
+    document.body.appendChild(toast);
+    setTimeout(() => toast.remove(), 3000);
 }
 
 // ============================================
@@ -298,7 +341,7 @@ document.addEventListener('DOMContentLoaded', loadData);
 <header class="glass sticky top-0 z-40 border-b border-white/10">
     <div class="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between">
         <div class="flex items-center gap-3">
-            <div class="text-3xl">💰</div>
+            <div class="text-3xl">&#128176;</div>
             <div>
                 <h1 class="text-xl font-black gradient-text">FINANZAS - QUINIELA 2026</h1>
                 <p class="text-xs text-gray-400">Gestión de pagos, premios y bolsa acumulada</p>
@@ -306,10 +349,10 @@ document.addEventListener('DOMContentLoaded', loadData);
         </div>
         <div class="flex gap-2">
             <button onclick="window.location.href='index.html'" class="bg-gray-700 hover:bg-gray-600 text-white px-4 py-2 rounded-lg text-sm transition">
-                ← Volver a Quiniela
+                &#8592; Volver a Quiniela
             </button>
             <button onclick="window.open('evaluaciones.html', '_blank')" class="bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2 rounded-lg text-sm transition">
-                📊 Evaluaciones
+                &#128202; Evaluaciones
             </button>
         </div>
     </div>
