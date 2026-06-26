@@ -24,10 +24,16 @@
         .points-2 { background: #60a5fa; color: #0f172a; }
         .points-0 { background: #475569; color: #94a3b8; }
         .highlight-winner { background: rgba(251, 191, 36, 0.1) !important; }
-        .disabled-row { opacity: 0.5; }
+        .disabled-row { opacity: 0.5; background: rgba(75, 85, 99, 0.2) !important; }
         .disabled-row:hover { background: rgba(75, 85, 99, 0.2) !important; }
+        .no-payment-row { background: rgba(239, 68, 68, 0.05) !important; }
+        .no-payment-row:hover { background: rgba(239, 68, 68, 0.1) !important; }
         .loading-spinner { width: 40px; height: 40px; border: 3px solid #334155; border-top-color: #fbbf24; border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto 20px; }
         @keyframes spin { to { transform: rotate(360deg); } }
+        .payment-badge { font-size: 0.65rem; padding: 2px 8px; border-radius: 999px; font-weight: 700; }
+        .payment-verified { background: rgba(34, 197, 94, 0.2); color: #4ade80; border: 1px solid rgba(34, 197, 94, 0.3); }
+        .payment-pending { background: rgba(71, 85, 105, 0.2); color: #94a3b8; border: 1px solid rgba(71, 85, 105, 0.3); }
+        .payment-none { background: rgba(239, 68, 68, 0.2); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.3); }
     </style>
 <base target="_blank">
 </head>
@@ -172,6 +178,33 @@ const getPointsClass = (points) => {
 };
 
 // ============================================
+// FUNCION: Verificar pago validado
+// ============================================
+function hasVerifiedPayment(playerId, matchDateStr, paymentsData) {
+    const matchDate = matchDateStr.split('T')[0];
+    const payment = paymentsData.find(p => 
+        p.player_id === playerId && 
+        p.match_date === matchDate &&
+        p.status === 'paid' &&
+        p.verified_at !== null &&
+        p.verified_at !== undefined
+    );
+    return !!payment;
+}
+
+function getPaymentStatus(playerId, matchDateStr, paymentsData) {
+    const matchDate = matchDateStr.split('T')[0];
+    const payment = paymentsData.find(p => 
+        p.player_id === playerId && 
+        p.match_date === matchDate
+    );
+    if (!payment) return 'none';
+    if (payment.status === 'paid' && payment.verified_at) return 'verified';
+    if (payment.status === 'paid' && !payment.verified_at) return 'pending_verification';
+    return 'pending';
+}
+
+// ============================================
 // CARGA DE DATOS DESDE SUPABASE
 // ============================================
 async function loadData() {
@@ -201,11 +234,10 @@ async function loadData() {
 
         if (betsError) throw betsError;
 
-        // Cargar pagos
+        // Cargar TODOS los pagos (no solo los paid)
         const { data: paymentsData } = await sb
             .from('payments')
-            .select('*')
-            .eq('status', 'paid');
+            .select('*');
 
         renderMatches(matchesData || [], playersData || [], betsData || [], paymentsData || []);
     } catch (error) {
@@ -226,23 +258,24 @@ async function loadData() {
 let allMatches = [];
 let allPlayers = [];
 let allBets = [];
+let allPayments = [];
 let selectedDate = null;
 
 // ============================================
 // RENDERIZADO
 // ============================================
 function renderMatches(matches, players, bets, payments) {
-    const paidPlayerIds = new Set(payments.map(p => p.player_id));
     allMatches = matches;
     allPlayers = players;
     allBets = bets;
+    allPayments = payments;
 
     const container = document.getElementById('matchesContainer');
 
     if (!matches.length) {
         container.innerHTML = `
             <div class="glass rounded-2xl p-12 text-center">
-                <div class="text-5xl mb-4">📭</div>
+                <div class="text-5xl mb-4">&#128235;</div>
                 <p class="text-gray-400 text-lg">Aún no hay partidos finalizados para evaluar.</p>
                 <p class="text-gray-500 text-sm mt-2">Los partidos aparecerán aquí cuando el administrador cargue los resultados.</p>
             </div>
@@ -253,7 +286,6 @@ function renderMatches(matches, players, bets, payments) {
     // Función para obtener fecha local de Bolivia (UTC-4)
     const getBoliviaDateKey = (dateStr) => {
         const utcDate = new Date(dateStr);
-        // Restar 4 horas para obtener hora de Bolivia
         const boliviaMs = utcDate.getTime() - (4 * 60 * 60 * 1000);
         const boliviaDate = new Date(boliviaMs);
         const year = boliviaDate.getUTCFullYear();
@@ -272,16 +304,12 @@ function renderMatches(matches, players, bets, payments) {
 
     const sortedDates = Object.keys(grouped).sort();
 
-    // Si no hay fecha seleccionada, usar la más reciente
     if (!selectedDate) {
         selectedDate = sortedDates[sortedDates.length - 1];
     }
 
-    // Renderizar filtros de fecha
     renderDateFilters(sortedDates, grouped);
-
-    // Renderizar solo la fecha seleccionada
-    renderDateSection(selectedDate, grouped[selectedDate], players, bets);
+    renderDateSection(selectedDate, grouped[selectedDate], players, bets, payments);
 }
 
 function renderDateFilters(dates, grouped) {
@@ -309,7 +337,7 @@ function renderDateFilters(dates, grouped) {
             class="px-4 py-2 rounded-xl text-sm font-semibold transition-all duration-200 border ${selectedDate === 'all' 
                 ? 'bg-yellow-500 text-black border-yellow-500 shadow-lg shadow-yellow-500/20' 
                 : 'bg-gray-800/50 text-gray-400 border-white/10 hover:bg-gray-700/50 hover:text-white'}">
-            📋 Todas
+            &#128203; Todas
         </button>
     `;
 }
@@ -319,12 +347,11 @@ function selectDate(date) {
     if (date === 'all') {
         renderAllDates();
     } else {
-        renderDateSection(date, allMatches.filter(m => getBoliviaDateKey(m.match_date) === date), allPlayers, allBets);
+        renderDateSection(date, allMatches.filter(m => getBoliviaDateKey(m.match_date) === date), allPlayers, allBets, allPayments);
     }
-    // Actualizar los botones de filtro
     const grouped = {};
     allMatches.forEach(m => {
-        const dateKey = m.match_date.split('T')[0];
+        const dateKey = getBoliviaDateKey(m.match_date);
         if (!grouped[dateKey]) grouped[dateKey] = [];
         grouped[dateKey].push(m);
     });
@@ -335,24 +362,24 @@ function renderAllDates() {
     const container = document.getElementById('matchesContainer');
     const grouped = {};
     allMatches.forEach(m => {
-        const dateKey = m.match_date.split('T')[0];
+        const dateKey = getBoliviaDateKey(m.match_date);
         if (!grouped[dateKey]) grouped[dateKey] = [];
         grouped[dateKey].push(m);
     });
 
     let html = '';
     Object.keys(grouped).sort().forEach(date => {
-        html += renderDateSectionHTML(date, grouped[date], allPlayers, allBets);
+        html += renderDateSectionHTML(date, grouped[date], allPlayers, allBets, allPayments);
     });
     container.innerHTML = html;
 }
 
-function renderDateSection(date, dateMatches, players, bets) {
+function renderDateSection(date, dateMatches, players, bets, payments) {
     const container = document.getElementById('matchesContainer');
-    container.innerHTML = renderDateSectionHTML(date, dateMatches, players, bets);
+    container.innerHTML = renderDateSectionHTML(date, dateMatches, players, bets, payments);
 }
 
-function renderDateSectionHTML(date, dateMatches, players, bets) {
+function renderDateSectionHTML(date, dateMatches, players, bets, payments) {
     const months = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
 
     const formatDateNice = (dateStr) => {
@@ -360,12 +387,17 @@ function renderDateSectionHTML(date, dateMatches, players, bets) {
         return `${parseInt(day)} de ${months[parseInt(month)-1]} ${year}`;
     };
 
+    // Contar jugadores con pago verificado para esta fecha
+    const verifiedCount = players.filter(p => hasVerifiedPayment(p.id, date, payments)).length;
+    const totalPlayers = players.length;
+
     let html = `
         <div class="mb-8">
             <div class="flex items-center gap-3 mb-5 px-2">
                 <div class="w-1 h-8 bg-yellow-500 rounded-full"></div>
-                <h2 class="text-xl font-bold text-white">📅 ${formatDateNice(date)}</h2>
+                <h2 class="text-xl font-bold text-white">&#128197; ${formatDateNice(date)}</h2>
                 <span class="bg-gray-700 text-gray-300 px-3 py-1 rounded-full text-xs font-semibold">${dateMatches.length} partido${dateMatches.length > 1 ? 's' : ''}</span>
+                <span class="bg-green-500/20 text-green-400 px-3 py-1 rounded-full text-xs font-semibold">${verifiedCount}/${totalPlayers} pagos verificados</span>
             </div>
     `;
 
@@ -375,6 +407,8 @@ function renderDateSectionHTML(date, dateMatches, players, bets) {
         const playerResults = players.map(player => {
             const bet = matchBets.find(b => b.player_id === player.id);
             const initials = player.name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
+            const isVerified = hasVerifiedPayment(player.id, date, payments);
+            const paymentStatus = getPaymentStatus(player.id, date, payments);
 
             if (!bet) {
                 return {
@@ -383,47 +417,72 @@ function renderDateSectionHTML(date, dateMatches, players, bets) {
                     predHome: '-',
                     predAway: '-',
                     points: 0,
-                    reason: "Sin pronóstico"
+                    reason: "Sin pronóstico",
+                    isVerified: false,
+                    paymentStatus: 'none'
                 };
             }
 
-            const result = calculatePoints(
-                bet.home_prediction,
-                bet.away_prediction,
-                match.home_score,
-                match.away_score
-            );
+            let result;
+            if (isVerified) {
+                result = calculatePoints(
+                    bet.home_prediction,
+                    bet.away_prediction,
+                    match.home_score,
+                    match.away_score
+                );
+            } else {
+                result = { points: 0, reason: "Pago no verificado" };
+            }
 
             return {
                 name: player.name,
                 initials: initials,
                 predHome: bet.home_prediction,
                 predAway: bet.away_prediction,
-                ...result
+                ...result,
+                isVerified: isVerified,
+                paymentStatus: paymentStatus
             };
-        }).sort((a, b) => b.points - a.points);
+        }).sort((a, b) => {
+            // Primero los verificados con más puntos, luego los no verificados
+            if (a.isVerified && !b.isVerified) return -1;
+            if (!a.isVerified && b.isVerified) return 1;
+            return b.points - a.points;
+        });
 
-        const maxPoints = Math.max(...playerResults.map(p => p.points));
+        const maxPoints = Math.max(...playerResults.filter(p => p.isVerified).map(p => p.points), 0);
 
         const predictionsRows = playerResults.map(p => {
-            const isTop = p.points === maxPoints && p.points > 0;
+            const isTop = p.isVerified && p.points === maxPoints && p.points > 0;
             const predDisplay = p.predHome === '-' 
                 ? '<span class="text-gray-600">-</span>' 
                 : `${p.predHome} - ${p.predAway}`;
 
+            const paymentBadge = p.paymentStatus === 'verified' 
+                ? '<span class="payment-badge payment-verified">&#9989; Verif</span>'
+                : p.paymentStatus === 'pending_verification'
+                    ? '<span class="payment-badge payment-pending">&#9200; Pend</span>'
+                    : '<span class="payment-badge payment-none">&#128683; No pago</span>';
+
+            const rowClass = !p.isVerified ? 'no-payment-row' : (isTop ? 'highlight-winner' : '');
+
             return `
-                <tr class="${isTop ? 'highlight-winner' : ''} border-b border-white/5 hover:bg-white/5 transition">
+                <tr class="${rowClass} border-b border-white/5 hover:bg-white/5 transition">
                     <td class="py-3 px-4">
                         <div class="flex items-center gap-3">
-                            <div class="w-8 h-8 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-xs font-bold text-white">${p.initials}</div>
-                            <span class="font-medium text-sm">${p.name}</span>
+                            <div class="w-8 h-8 rounded-full ${p.isVerified ? 'bg-gradient-to-br from-indigo-500 to-purple-600' : 'bg-gray-600'} flex items-center justify-center text-xs font-bold text-white">${p.initials}</div>
+                            <div>
+                                <span class="font-medium text-sm ${p.isVerified ? '' : 'text-gray-500 line-through'}">${p.name}</span>
+                                <div class="mt-0.5">${paymentBadge}</div>
+                            </div>
                         </div>
                     </td>
-                    <td class="py-3 px-4 text-center font-mono text-sm">${predDisplay}</td>
+                    <td class="py-3 px-4 text-center font-mono text-sm ${p.isVerified ? '' : 'text-gray-600'}">${predDisplay}</td>
                     <td class="py-3 px-4">
                         <div class="flex items-center gap-3">
-                            <span class="px-3 py-1 rounded-lg text-sm font-bold ${getPointsClass(p.points)}">${p.points}</span>
-                            <span class="text-xs text-gray-500 hidden sm:inline">${p.reason}</span>
+                            <span class="px-3 py-1 rounded-lg text-sm font-bold ${p.isVerified ? getPointsClass(p.points) : 'points-0'}">${p.isVerified ? p.points : '-'}</span>
+                            <span class="text-xs ${p.isVerified ? 'text-gray-500' : 'text-red-400'}">${p.reason}</span>
                         </div>
                     </td>
                 </tr>
@@ -454,7 +513,8 @@ function renderDateSectionHTML(date, dateMatches, players, bets) {
                 </div>
                 <div class="p-5">
                     <h4 class="text-yellow-400 text-sm font-bold uppercase tracking-wider mb-4 flex items-center gap-2">
-                        🎯 Pronósticos de los Jugadores
+                        &#127919; Pronósticos de los Jugadores
+                        <span class="text-xs text-gray-500 font-normal normal-case">- Solo verificados suman puntos</span>
                     </h4>
                     <div class="overflow-x-auto">
                         <table class="w-full">
@@ -508,12 +568,12 @@ document.addEventListener('DOMContentLoaded', loadData);
     <!-- Botón volver -->
     <button onclick="window.location.href='index.html'" 
         class="mb-6 flex items-center gap-2 bg-gray-800 hover:bg-gray-700 text-gray-300 px-5 py-2.5 rounded-lg transition text-sm font-medium border border-white/10">
-        ← Volver a Quiniela
+        &#8592; Volver a Quiniela
     </button>
 
     <!-- Sistema de puntuación -->
     <div class="glass rounded-2xl p-6 mb-4">
-        <h3 class="text-yellow-400 font-bold mb-4 text-lg">📋 Sistema de Puntuación</h3>
+        <h3 class="text-yellow-400 font-bold mb-4 text-lg">&#128203; Sistema de Puntuación</h3>
         <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
             <div class="bg-gray-900/50 rounded-xl p-4 text-center border border-white/5">
                 <span class="text-2xl font-black text-yellow-400 block">5</span>
@@ -532,12 +592,15 @@ document.addEventListener('DOMContentLoaded', loadData);
                 <span class="text-xs text-gray-400">Empate correcto</span>
             </div>
         </div>
+        <div class="mt-4 p-3 bg-red-500/10 border border-red-500/20 rounded-lg">
+            <p class="text-red-400 text-xs">&#9888; <strong>Importante:</strong> Solo los jugadores con <strong>pago verificado por el administrador</strong> acumulan puntos. Los pronósticos de jugadores sin pago validado aparecen tachados y no suman puntos.</p>
+        </div>
     </div>
 
     <!-- Filtro de fechas -->
     <div class="glass rounded-2xl p-4 mb-6">
         <div class="flex items-center gap-3 flex-wrap">
-            <span class="text-gray-400 text-sm font-medium">📅 Filtrar por fecha:</span>
+            <span class="text-gray-400 text-sm font-medium">&#128197; Filtrar por fecha:</span>
             <div id="dateFilters" class="flex gap-2 flex-wrap">
                 <!-- Los botones de fecha se generan dinámicamente -->
             </div>
