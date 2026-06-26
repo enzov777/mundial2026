@@ -24,6 +24,8 @@
         .points-2 { background: #60a5fa; color: #0f172a; }
         .points-0 { background: #475569; color: #94a3b8; }
         .highlight-winner { background: rgba(251, 191, 36, 0.1) !important; }
+        .disabled-row { opacity: 0.5; }
+        .disabled-row:hover { background: rgba(75, 85, 99, 0.2) !important; }
         .loading-spinner { width: 40px; height: 40px; border: 3px solid #334155; border-top-color: #fbbf24; border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto 20px; }
         @keyframes spin { to { transform: rotate(360deg); } }
     </style>
@@ -199,7 +201,13 @@ async function loadData() {
 
         if (betsError) throw betsError;
 
-        renderMatches(matchesData || [], playersData || [], betsData || []);
+        // Cargar pagos
+        const { data: paymentsData } = await sb
+            .from('payments')
+            .select('*')
+            .eq('status', 'paid');
+
+        renderMatches(matchesData || [], playersData || [], betsData || [], paymentsData || []);
     } catch (error) {
         console.error('Error cargando datos:', error);
         container.innerHTML = `
@@ -223,7 +231,8 @@ let selectedDate = null;
 // ============================================
 // RENDERIZADO
 // ============================================
-function renderMatches(matches, players, bets) {
+function renderMatches(matches, players, bets, payments) {
+    const paidPlayerIds = new Set(payments.map(p => p.player_id));
     allMatches = matches;
     allPlayers = players;
     allBets = bets;
