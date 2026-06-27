@@ -559,38 +559,17 @@ async function saveAllBets() {
 }
 
 function renderLeaderboard() {
-    console.log('=== DEBUG RENDER LEADERBOARD ===');
-    console.log('Total players:', players.length);
-    console.log('Total matches:', matches.length);
-    console.log('Total bets:', bets.length);
-    console.log('Total payments:', payments.length);
-    console.log('Total paymentFees:', paymentFees.length);
-
     const stats = players.map(player => {
         const playerBets = bets.filter(b => b.player_id === player.id); 
         let totalPoints = 0; let exactos = 0; let totalBets = 0; let validBets = 0;
 
-        if (player.name.toLowerCase().includes('yuri')) {
-            console.log(`\n--- DEBUG: ${player.name} ---`);
-        }
-
         playerBets.forEach(bet => { 
             const match = matches.find(m => m.id === bet.match_id); 
             if (match && isMatchFinished(match)) { 
-                const hasPayment = hasVerifiedPayment(player.id, match.match_date); 
                 const fee = getFeeForDate(match.match_date);
+                // Solo sumar puntos si NO es fecha libre Y tiene pago verificado
+                const hasPayment = !fee.isFree && hasVerifiedPayment(player.id, match.match_date);
                 const pts = hasPayment ? calculatePoints(bet, match) : 0;
-
-                if (player.name.toLowerCase().includes('yuri')) {
-                    console.log(`Match: ${match.home_team} vs ${match.away_team}`);
-                    console.log(`  Date (UTC): ${match.match_date}`);
-                    console.log(`  Date (BO): ${new Date(match.match_date).toLocaleString('en-US', {timeZone:'America/La_Paz'})}`);
-                    console.log(`  Prediction: ${bet.home_prediction}-${bet.away_prediction}`);
-                    console.log(`  Result: ${match.home_score}-${match.away_score}`);
-                    console.log(`  Fee: ${fee.isFree ? 'FREE' : fee.amount + ' Bs'}`);
-                    console.log(`  HasPayment: ${hasPayment}`);
-                    console.log(`  Points: ${pts}`);
-                }
 
                 if (hasPayment) { 
                     totalPoints += pts; 
@@ -601,14 +580,8 @@ function renderLeaderboard() {
             } 
         });
 
-        if (player.name.toLowerCase().includes('yuri')) {
-            console.log(`TOTAL for ${player.name}: ${totalPoints} points`);
-        }
-
         return { ...player, totalPoints, exactos, totalBets, validBets };
     }).sort((a, b) => b.totalPoints - a.totalPoints);
-
-    console.log('=== END DEBUG ===');
     const tbody = $('leaderboard-body');
     if (!stats.length) { tbody.innerHTML = '<tr><td colspan="6" class="text-center py-8 text-gray-500">Aun no hay jugadores</td></tr>'; return; }
     tbody.innerHTML = stats.map((p, i) => { let medal = ''; if (i === 0) medal = '1.'; else if (i === 1) medal = '2.'; else if (i === 2) medal = '3.'; else medal = `<span class="text-gray-500">${i + 1}.</span>`; const isMe = p.id === currentPlayer?.id; const hasAnyPayment = p.validBets > 0; return `<tr class="border-b border-white/5 ${isMe ? 'bg-yellow-500/10' : ''} hover:bg-white/5 transition"><td class="py-3 px-2 font-bold">${medal}</td><td class="py-3 px-2 font-semibold ${isMe ? 'text-yellow-400' : ''} ${!hasAnyPayment ? 'disabled-player' : ''}">${p.name}</td><td class="py-3 px-2 text-center text-gray-400">${p.validBets}/${p.totalBets}</td><td class="py-3 px-2 text-center text-yellow-400 font-bold">${p.exactos}</td><td class="py-3 px-2 text-center font-bold text-lg ${hasAnyPayment ? 'text-white' : 'text-gray-600'}">${p.totalPoints}</td><td class="py-3 px-2 text-center">${hasAnyPayment ? '<span class="text-xs bg-green-500/20 text-green-400 px-2 py-1 rounded-full">&#9989; Verificado</span>' : '<span class="text-xs bg-red-500/20 text-red-400 px-2 py-1 rounded-full">&#128683; Sin pago</span>'}</td></tr>`; }).join('');
