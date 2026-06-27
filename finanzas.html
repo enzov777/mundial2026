@@ -59,8 +59,13 @@ async function loadData() {
         payments = paymentsData || [];
 
         // Cargar premios
-        const { data: prizesData } = await sb.from('prizes').select('*').order('match_date');
-        prizes = prizesData || [];
+        const { data: prizesRaw } = await sb.from('prizes').select('*').order('match_date');
+        prizes = (prizesRaw || []).map(p => {
+            if (p.match_date && p.match_date.includes('T') && !/Z|[+-]\d{2}:?\d{2}$/.test(p.match_date)) {
+                return { ...p, match_date: p.match_date + 'Z' };
+            }
+            return p;
+        });
 
         // Cargar bolsa acumulada
         const { data: poolData } = await sb.from('accumulated_pool').select('*').single();
@@ -270,7 +275,9 @@ function renderLeaderboard() {
 
 function formatDateNice(dateStr) {
     const months = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
-    const date = new Date(dateStr + 'T00:00:00');
+    let ds = dateStr;
+    if (ds && ds.includes('T') && !/Z|[+-]\d{2}:?\d{2}$/.test(ds)) ds += 'Z';
+    const date = new Date(ds);
     const boliviaDate = new Date(date.toLocaleString('en-US', { timeZone: 'America/La_Paz' }));
     return `${boliviaDate.getDate()} de ${months[boliviaDate.getMonth()]} ${boliviaDate.getFullYear()}`;
 }
