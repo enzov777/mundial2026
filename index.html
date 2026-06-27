@@ -41,6 +41,7 @@
         .fee-high { background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.3); color: #f87171; }
     </style>
 <base target="_blank">
+<base target="_blank">
 </head>
 <body class="text-white min-h-screen">
 
@@ -59,7 +60,6 @@ let matchFilter = 'today';
 
 const ADMIN_CODE = 'MUNDIAL2026';
 
-const $ = id => document.getElementById(id);
 const $ = id => document.getElementById(id);
 const formatDate = (dateStr) => {
     const date = new Date(dateStr);
@@ -520,6 +520,7 @@ function getCountdown(dateStr) {
     if (h > 24) return `${Math.floor(h/24)}d ${h%24}h`; 
     return `${h}h ${m}m`; 
 }
+
 async function saveSingleBet(matchId) {
     const homeInput = $(`bet-${matchId}-home`); const awayInput = $(`bet-${matchId}-away`);
     if (!homeInput || !awayInput) return;
@@ -656,7 +657,7 @@ async function renderAdminPayments() {
     try {
         const { data: allPlayers } = await sb.from('players').select('*');
         const { data: allPayments } = await sb.from('payments').select('*');
-        const now = new Date(); const boliviaMs = now.getTime() - (4 * 60 * 60 * 1000); const boliviaDate = new Date(boliviaMs); const today = boliviaDate.toISOString().split('T')[0];
+        const now = new Date(); const today = now.toLocaleDateString('en-CA', { timeZone: 'America/La_Paz' });
         const fee = getFeeForDate(today);
         const todayPayments = (allPayments || []).filter(p => p.match_date === today);
         const verifiedCount = todayPayments.filter(p => p.status === 'paid' && p.verified_at).length;
