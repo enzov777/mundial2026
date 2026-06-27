@@ -63,17 +63,13 @@ const ADMIN_CODE = 'MUNDIAL2026';
 const $ = id => document.getElementById(id);
 const formatDate = (dateStr) => {
     const date = new Date(dateStr);
-    const options = { 
-        day: '2-digit', 
-        month: 'short', 
-        hour: '2-digit', 
-        minute: '2-digit',
-        timeZone: 'America/La_Paz'
-    };
+    const options = { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: 'America/La_Paz' };
     return date.toLocaleString('es-BO', options).replace(',', '');
 };
 const isMatchOpen = (match) => {
-    const matchDate = new Date(match.match_date);
+    let md = match.match_date;
+    if (md && md.includes('T') && !/Z|[+-]\d{2}:?\d{2}$/.test(md)) md += 'Z';
+    const matchDate = new Date(md);
     const now = new Date();
     return matchDate > now && match.status === 'scheduled';
 };
@@ -465,7 +461,15 @@ function showSection(section) {
     if (section === 'posiciones') renderLeaderboard(); if (section === 'qr') renderQR(); if (section === 'admin') renderAdminPanel();
 }
 
-async function loadMatches() { const { data } = await sb.from('matches').select('*').order('match_date'); matches = data || []; }
+async function loadMatches() { 
+    const { data } = await sb.from('matches').select('*').order('match_date'); 
+    matches = (data || []).map(m => {
+        if (m.match_date && m.match_date.includes('T') && !/Z|[+-]\d{2}:?\d{2}$/.test(m.match_date)) {
+            return { ...m, match_date: m.match_date + 'Z' };
+        }
+        return m;
+    });
+}
 async function loadPlayers() { const { data } = await sb.from('players').select('*'); players = data || []; }
 async function loadBets() { const { data } = await sb.from('bets').select('*'); bets = data || []; }
 async function loadPayments() { const { data } = await sb.from('payments').select('*'); payments = data || []; }
