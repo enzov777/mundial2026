@@ -155,14 +155,8 @@ function getPaymentStatus(playerId, matchDateStr, paymentsData) { const matchDat
 async function loadData() {
     const container = document.getElementById('matchesContainer');
     try {
-        const { data: matchesRaw, error: matchesError } = await sb.from('matches').select('*').eq('status', 'finished').order('match_date');
+        const { data: matchesData, error: matchesError } = await sb.from('matches').select('*').eq('status', 'finished').order('match_date');
         if (matchesError) throw matchesError;
-        const matchesData = (matchesRaw || []).map(m => {
-            if (m.match_date && m.match_date.includes('T') && !/Z|[+-]\d{2}:?\d{2}$/.test(m.match_date)) {
-                return { ...m, match_date: m.match_date + 'Z' };
-            }
-            return m;
-        });
         const { data: playersData, error: playersError } = await sb.from('players').select('*');
         if (playersError) throw playersError;
         const { data: betsData, error: betsError } = await sb.from('bets').select('*');
@@ -176,12 +170,7 @@ async function loadData() {
     }
 }
 
-function getBoliviaDateKey(dateStr) { 
-    let ds = dateStr;
-    if (ds && ds.includes('T') && !/Z|[+-]\d{2}:?\d{2}$/.test(ds)) ds += 'Z';
-    const date = new Date(ds);
-    return date.toLocaleDateString('en-CA', { timeZone: 'America/La_Paz' }); 
-}
+function getBoliviaDateKey(dateStr) { const utcDate = new Date(dateStr); const boliviaMs = utcDate.getTime() - (4 * 60 * 60 * 1000); const boliviaDate = new Date(boliviaMs); return `${boliviaDate.getUTCFullYear()}-${String(boliviaDate.getUTCMonth()+1).padStart(2,'0')}-${String(boliviaDate.getUTCDate()).padStart(2,'0')}`; }
 
 function renderMatches(matches, players, bets, payments, fees) {
     allMatches = matches; allPlayers = players; allBets = bets; allPayments = payments; allFees = fees;
@@ -203,13 +192,7 @@ function renderDateSection(date, dateMatches, players, bets, payments) { const c
 
 function renderDateSectionHTML(date, dateMatches, players, bets, payments) {
     const months = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
-    const formatDateNice = (dateStr) => { 
-    let ds = dateStr;
-    if (ds && ds.includes('T') && !/Z|[+-]\d{2}:?\d{2}$/.test(ds)) ds += 'Z';
-    const date = new Date(ds);
-    const boliviaDate = new Date(date.toLocaleString('en-US', { timeZone: 'America/La_Paz' }));
-    return `${boliviaDate.getDate()} de ${months[boliviaDate.getMonth()]} ${boliviaDate.getFullYear()}`; 
-};
+    const formatDateNice = (dateStr) => { const [year, month, day] = dateStr.split('-'); return `${parseInt(day)} de ${months[parseInt(month)-1]} ${year}`; };
     const fee = getFeeForDate(date);
     const verifiedCount = players.filter(p => hasVerifiedPayment(p.id, date, payments)).length;
     const totalPlayers = players.length;
@@ -235,6 +218,65 @@ function renderDateSectionHTML(date, dateMatches, players, bets, payments) {
         }).join('');
         html += `<div class="match-card glass rounded-2xl mb-5 overflow-hidden"><div class="p-5 bg-gradient-to-r from-gray-800 to-gray-900 border-b border-white/10"><div class="flex justify-between items-center mb-4"><span class="text-xs text-gray-400 font-medium uppercase tracking-wider">${match.round || 'Fase de Grupos'}</span><span class="bg-green-500/20 text-green-400 text-xs font-bold px-3 py-1 rounded-full uppercase">Finalizado</span></div><div class="flex items-center justify-center gap-6"><div class="text-center flex-1"><div class="flex justify-center mb-2">${getFlagHTML(match.home_team)}</div><div class="text-sm font-semibold">${match.home_team}</div></div><div class="bg-gradient-to-br from-indigo-600 to-purple-700 px-6 py-3 rounded-xl text-center min-w-[100px]"><div class="text-2xl font-black text-white">${match.home_score} - ${match.away_score}</div><div class="text-[10px] text-indigo-200 uppercase tracking-widest mt-1">Resultado</div></div><div class="text-center flex-1"><div class="flex justify-center mb-2">${getFlagHTML(match.away_team)}</div><div class="text-sm font-semibold">${match.away_team}</div></div></div></div><div class="p-5"><h4 class="text-yellow-400 text-sm font-bold uppercase tracking-wider mb-4 flex items-center gap-2">&#127919; Pronósticos de los Jugadores <span class="text-xs text-gray-500 font-normal normal-case">- Solo verificados suman puntos</span></h4><div class="overflow-x-auto"><table class="w-full"><thead><tr class="text-gray-500 text-xs uppercase tracking-wider border-b border-white/10"><th class="text-left py-2 px-4">Jugador</th><th class="text-center py-2 px-4">Pronóstico</th><th class="text-left py-2 px-4">Puntos</th></tr></thead><tbody>${predictionsRows}</tbody></table></div></div></div>`;
     });
+    
+    // === GANADOR DE LA FECHA ===
+    // Sumar puntos de TODOS los partidos de esta fecha (incluye fechas libres y pagas)
+    const datePlayerScores = players.map(player => {
+        let totalPoints = 0;
+        let exactos = 0;
+        let partidosJugados = 0;
+        dateMatches.forEach(match => {
+            const bet = bets.find(b => b.player_id === player.id && b.match_id === match.id);
+            if (bet) {
+                partidosJugados++;
+                const result = calculatePoints(bet.home_prediction, bet.away_prediction, match.home_score, match.away_score);
+                totalPoints += result.points;
+                if (result.points === 5) exactos++;
+            }
+        });
+        return { 
+            name: player.name, 
+            initials: player.name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase(),
+            totalPoints, 
+            exactos, 
+            partidosJugados 
+        };
+    }).sort((a, b) => b.totalPoints - a.totalPoints);
+
+    const maxDatePoints = Math.max(...datePlayerScores.map(p => p.totalPoints), 0);
+    const winners = datePlayerScores.filter(p => p.totalPoints === maxDatePoints && p.totalPoints > 0);
+
+    if (winners.length > 0) {
+        const prizePerWinner = fee.isFree ? 0 : ((verifiedCount * fee.amount) * 0.8 / winners.length).toFixed(2);
+        const accumulated = fee.isFree ? 0 : ((verifiedCount * fee.amount) * 0.2).toFixed(2);
+
+        html += `
+        <div class="mt-4 p-4 bg-gradient-to-r from-yellow-500/20 to-amber-500/10 rounded-xl border border-yellow-500/30">
+            <div class="flex items-center gap-2 mb-2">
+                <span class="text-2xl">&#127942;</span>
+                <h3 class="text-yellow-400 font-bold text-lg">Ganador${winners.length > 1 ? 'es' : ''} de la Fecha</h3>
+            </div>
+            <div class="flex flex-wrap items-center gap-4">
+                <div class="flex items-center gap-2">
+                    ${winners.map(w => `
+                        <div class="flex items-center gap-2 bg-white/5 px-3 py-1.5 rounded-lg">
+                            <div class="w-8 h-8 rounded-full bg-gradient-to-br from-yellow-500 to-amber-600 flex items-center justify-center text-xs font-bold text-white">${w.initials}</div>
+                            <span class="font-semibold text-white">${w.name}</span>
+                            <span class="text-yellow-400 font-bold">${w.totalPoints} pts</span>
+                        </div>
+                    `).join('')}
+                </div>
+                ${!fee.isFree ? `
+                <div class="flex items-center gap-3 text-sm">
+                    <span class="text-green-400">&#128176; ${prizePerWinner} Bs cada uno</span>
+                    <span class="text-gray-500">|</span>
+                    <span class="text-indigo-400">&#127919; ${accumulated} Bs a bolsa</span>
+                </div>
+                ` : '<span class="text-green-400 text-sm">&#127381; Fecha libre - sin premio</span>'}
+            </div>
+        </div>`;
+    }
+
     html += '</div>'; return html;
 }
 
