@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ganador de la Fecha - Quiniela Mundial 2026</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.39.0/dist/umd/supabase.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; background: #0f172a; }
+        .glass { background: rgba(255,255,255,0.05); backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,0.1); }
+        .gradient-text { background: linear-gradient(135deg, #fbbf24, #f59e0b); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        .winner-card { background: linear-gradient(135deg, rgba(251, 191, 36, 0.15), rgba(245, 158, 11, 0.05)); border: 1px solid rgba(251, 191, 36, 0.3); }
+        .free-date { background: linear-gradient(135deg, rgba(34, 197, 94, 0.15), rgba(34, 197, 94, 0.05)); border: 1px solid rgba(34, 197, 94, 0.3); }
+        .loading-spinner { width: 40px; height: 40px; border: 3px solid #334155; border-top-color: #fbbf24; border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto 20px; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .points-5 { background: #fbbf24; color: #0f172a; }
+        .points-3 { background: #34d399; color: #0f172a; }
+        .points-2 { background: #60a5fa; color: #0f172a; }
+        .points-0 { background: #475569; color: #94a3b8; }
+    </style>
+</head>
+<body class="text-white min-h-screen">
+
+<script>
+const SUPABASE_URL = 'https://dwcnwxrcwuicwxbtqpxs.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImR3Y253eHJjd3VpY3d4YnRxcHhzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODIxNDk4NDcsImV4cCI6MjA5NzcyNTg0N30.Xwa-18sv9YsodNG1AJeItmf3NdwiHanCE9m9Mka4dSE';
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+const countryCodes = {
+    'Argentina':'ar','Brasil':'br','Brazil':'br','Alemania':'de','Germany':'de',
+    'Espana':'es','Spain':'es','Francia':'fr','France':'fr','Inglaterra':'gb-eng',
+    'England':'gb-eng','Portugal':'pt','Italia':'it','Italy':'it','Paises Bajos':'nl',
+    'Netherlands':'nl','Belgica':'be','Belgium':'be','Uruguay':'uy','Croacia':'hr',
+    'Croatia':'hr','Mexico':'mx','Estados Unidos':'us','United States':'us','USA':'us',
+    'Canada':'ca','Japon':'jp','Japan':'jp','Corea del Sur':'kr','Korea Republic':'kr',
+    'South Korea':'kr','Australia':'au','Senegal':'sn','Marruecos':'ma','Morocco':'ma',
+    'Suiza':'ch','Switzerland':'ch','Polonia':'pl','Poland':'pl','Dinamarca':'dk',
+    'Denmark':'dk','Colombia':'co','Chile':'cl','Ecuador':'ec','Peru':'pe',
+    'Paraguay':'py','Bolivia':'bo','Venezuela':'ve','Qatar':'qa','Arabia Saudita':'sa',
+    'Saudi Arabia':'sa','Iran':'ir','Tunez':'tn','Tunisia':'tn','Gales':'gb-wls',
+    'Wales':'gb-wls','Costa Rica':'cr','Serbia':'rs','Grecia':'gr','Greece':'gr',
+    'Suecia':'se','Sweden':'se','Noruega':'no','Norway':'no','Ucrania':'ua',
+    'Ukraine':'ua','Turquia':'tr','Turkiye':'tr','Turkey':'tr','Austria':'at',
+    'Republica Checa':'cz','Czechia':'cz','Czech Republic':'cz','Hungria':'hu',
+    'Hungary':'hu','Rumania':'ro','Romania':'ro','Eslovaquia':'sk','Slovakia':'sk',
+    'Eslovenia':'si','Slovenia':'si','Finlandia':'fi','Finland':'fi','Irlanda':'ie',
+    'Ireland':'ie','Escocia':'gb-sct','Scotland':'gb-sct','Nigeria':'ng','Ghana':'gh',
+    'Camerun':'cm','Cameroon':'cm','Costa de Marfil':'ci','Ivory Coast':'ci',
+    "Cote d'Ivoire":'ci','Egipto':'eg','Egypt':'eg','Argelia':'dz','Algeria':'dz',
+    'Sudafrica':'za','South Africa':'za','Nueva Zelanda':'nz','New Zealand':'nz',
+    'Panama':'pa','Honduras':'hn','Jamaica':'jm','Trinidad y Tobago':'tt',
+    'Trinidad and Tobago':'tt','Haiti':'ht','Guatemala':'gt','El Salvador':'sv',
+    'Nicaragua':'ni','Cuba':'cu','Republica Dominicana':'do','Dominican Republic':'do',
+    'Puerto Rico':'pr','Islandia':'is','Iceland':'is','Bosnia':'ba',
+    'Bosnia and Herzegovina':'ba','Macedonia':'mk','North Macedonia':'mk',
+    'Albania':'al','Montenegro':'me','Kosovo':'xk','Moldavia':'md','Moldova':'md',
+    'Bielorrusia':'by','Belarus':'by','Lituania':'lt','Lithuania':'lt',
+    'Letonia':'lv','Latvia':'lv','Estonia':'ee','Georgia':'ge','Armenia':'am',
+    'Azerbaiyan':'az','Azerbaijan':'az','Kazajistan':'kz','Kazakhstan':'kz',
+    'Uzbekistan':'uz','Turkmenistan':'tm','Kirguistan':'kg','Kyrgyzstan':'kg',
+    'Tayikistan':'tj','Tajikistan':'tj','Afganistan':'af','Afghanistan':'af',
+    'Pakistan':'pk','India':'in','Bangladesh':'bd','Sri Lanka':'lk','Nepal':'np',
+    'Butan':'bt','Bhutan':'bt','Maldivas':'mv','Maldives':'mv','Tailandia':'th',
+    'Thailand':'th','Vietnam':'vn','Camboya':'kh','Cambodia':'kh','Laos':'la',
+    'Myanmar':'mm','Malasia':'my','Malaysia':'my','Singapur':'sg','Singapore':'sg',
+    'Indonesia':'id','Filipinas':'ph','Philippines':'ph','Brunei':'bn',
+    'Timor Oriental':'tl','East Timor':'tl','Papua Nueva Guinea':'pg',
+    'Papua New Guinea':'pg','Fiyi':'fj','Fiji':'fj','Samoa':'ws','Tonga':'to',
+    'Vanuatu':'vu','Islas Salomon':'sb','Solomon Islands':'sb','Kiribati':'ki',
+    'Tuvalu':'tv','Nauru':'nr','Palau':'pw','Islas Marshall':'mh',
+    'Marshall Islands':'mh','Micronesia':'fm','Guam':'gu','Samoa Americana':'as',
+    'American Samoa':'as','Islas Cook':'ck','Cook Islands':'ck','Niue':'nu',
+    'Tokelau':'tk','Wallis y Futuna':'wf','Polinesia Francesa':'pf',
+    'French Polynesia':'pf','Nueva Caledonia':'nc','New Caledonia':'nc',
+    'Islas Pitcairn':'pn','Pitcairn Islands':'pn','Islas Norfolk':'nf',
+    'Norfolk Island':'nf','Islas Christmas':'cx','Christmas Island':'cx',
+    'Islas Cocos':'cc','Cocos Islands':'cc','Antartida':'aq','Antarctica':'aq',
+    'Groenlandia':'gl','Greenland':'gl','Sudan':'sd','Madagascar':'mg',
+    'Mauricio':'mu','Mauritius':'mu','Seychelles':'sc','Comoras':'km','Comoros':'km',
+    'Santo Tome y Principe':'st','Sao Tome and Principe':'st',
+    'Guinea Ecuatorial':'gq','Equatorial Guinea':'gq','Gabon':'ga','Congo':'cg',
+    'Congo RDC':'cd','DR Congo':'cd','Democratic Republic of the Congo':'cd',
+    'Ruanda':'rw','Rwanda':'rw','Burundi':'bi','Uganda':'ug','Kenia':'ke',
+    'Kenya':'ke','Tanzania':'tz','Zambia':'zm','Zimbabue':'zw','Zimbabwe':'zw',
+    'Botsuana':'bw','Botswana':'bw','Namibia':'na','Angola':'ao','Mozambique':'mz',
+    'Malawi':'mw','Lesoto':'ls','Lesotho':'ls','Eswatini':'sz','Mauritania':'mr',
+    'Mali':'ml','Burkina Faso':'bf','Niger':'ne','Chad':'td',
+    'Republica Centroafricana':'cf','Central African Republic':'cf','Guinea':'gn',
+    'Guinea-Bissau':'gw','Sierra Leona':'sl','Sierra Leone':'sl','Liberia':'lr',
+    'Togo':'tg','Benin':'bj','Curacao':'cw','Jordan':'jo','Jordania':'jo',
+    'Iraq':'iq','Irak':'iq','Cape Verde':'cv','Cabo Verde':'cv',
+    'Surinam':'sr','Suriname':'sr','Guyana':'gy','Guayana Francesa':'gf',
+    'French Guiana':'gf','Belice':'bz','Belize':'bz','Barbados':'bb',
+    'Santa Lucia':'lc','Saint Lucia':'lc','San Vicente y Granadinas':'vc',
+    'Saint Vincent and the Grenadines':'vc','Granada':'gd','Grenada':'gd',
+    'San Cristobal y Nieves':'kn','Saint Kitts and Nevis':'kn',
+    'Antigua y Barbuda':'ag','Antigua and Barbuda':'ag','Dominica':'dm',
+    'Montserrat':'ms','Anguila':'ai','Anguilla':'ai',
+    'Islas Virgenes Britanicas':'vg','British Virgin Islands':'vg',
+    'Islas Virgenes Americanas':'vi','United States Virgin Islands':'vi',
+    'Islas Caiman':'ky','Cayman Islands':'ky',
+    'Islas Turcas y Caicos':'tc','Turks and Caicos Islands':'tc',
+    'Bahamas':'bs','Bermudas':'bm','Bermuda':'bm',
+    'Svalbard':'sj','Islas Georgias del Sur':'gs','South Georgia':'gs',
+    'Islas Sandwich del Sur':'sh','Saint Helena':'sh',
+    'Islas Malvinas':'fk','Falkland Islands':'fk','Gibraltar':'gi',
+    'Islas Feroe':'fo','Faroe Islands':'fo','Islas Aland':'ax','Aland Islands':'ax',
+    'Jersey':'je','Guernsey':'gg','Isla de Man':'im','Isle of Man':'im',
+    'San Marino':'sm','Vaticano':'va','Monaco':'mc','Andorra':'ad',
+    'Liechtenstein':'li','Malta':'mt','Chipre':'cy','Cyprus':'cy',
+    'Luxemburgo':'lu','Luxembourg':'lu'
+};
+
+const getFlagHTML = (team) => {
+    const code = countryCodes[team] || 'xx';
+    const fallback = team.substring(0, 2).toUpperCase();
+    return `<div class="flag-box" style="background: linear-gradient(135deg, #1e3a5f, #0f172a);"><img src="https://flagcdn.com/w80/${code}.png" alt="${team}" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';" loading="lazy"><span class="flag-fallback" style="display:none;">${fallback}</span></div>`;
+};
+
+const calculatePoints = (betHome, betAway, realHome, realAway) => {
+    if (betHome === realHome && betAway === realAway) return { points: 5, reason: "Resultado exacto" };
+    const betDiff = betHome - betAway; const realDiff = realHome - realAway;
+    if (betDiff === realDiff && betDiff !== 0) return { points: 3, reason: "Diferencia de goles" };
+    if (betDiff === 0 && realDiff === 0) return { points: 2, reason: "Empate correcto" };
+    const betWinner = betHome > betAway ? 'home' : betHome < betAway ? 'away' : 'draw';
+    const realWinner = realHome > realAway ? 'home' : realHome < realAway ? 'away' : 'draw';
+    if (betWinner === realWinner && betWinner !== 'draw') return { points: 2, reason: "Ganador correcto" };
+    return { points: 0, reason: "Sin acierto" };
+};
+
+const getPointsClass = (points) => { if (points === 5) return 'points-5'; if (points === 3) return 'points-3'; if (points === 2) return 'points-2'; return 'points-0'; };
+
+let allMatches = []; let allPlayers = []; let allBets = []; let allPayments = []; let allFees = []; let selectedDate = null;
+
+function getFeeForDate(dateStr) { const date = dateStr.split('T')[0]; const fee = allFees.find(f => f.match_date === date); if (fee && fee.is_free) return { amount: 0, isFree: true, notes: fee.notes }; if (fee) return { amount: fee.amount, isFree: false, notes: fee.notes }; return { amount: 5.00, isFree: false, notes: 'Valor por defecto' }; }
+
+function getBoliviaDateKey(dateStr) { const date = new Date(dateStr); const boliviaDate = new Date(date.toLocaleString('en-US', { timeZone: 'America/La_Paz' })); return `${boliviaDate.getFullYear()}-${String(boliviaDate.getMonth()+1).padStart(2,'0')}-${String(boliviaDate.getDate()).padStart(2,'0')}`; }
+
+async function loadData() {
+    const container = document.getElementById('winnersContainer');
+    try {
+        const { data: matchesData, error: matchesError } = await sb.from('matches').select('*').eq('status', 'finished').order('match_date');
+        if (matchesError) throw matchesError;
+        const { data: playersData, error: playersError } = await sb.from('players').select('*');
+        if (playersError) throw playersError;
+        const { data: betsData, error: betsError } = await sb.from('bets').select('*');
+        if (betsError) throw betsError;
+        const { data: paymentsData } = await sb.from('payments').select('*');
+        const { data: feesData } = await sb.from('payment_fees').select('*');
+        renderWinners(matchesData || [], playersData || [], betsData || [], paymentsData || [], feesData || []);
+    } catch (error) {
+        console.error('Error cargando datos:', error);
+        container.innerHTML = `<div class="glass rounded-2xl p-8 text-center text-red-400"><p class="text-lg font-bold mb-2">Error al cargar los datos</p><p class="text-sm text-gray-400">${error.message}</p></div>`;
+    }
+}
+
+function renderWinners(matches, players, bets, payments, fees) {
+    allMatches = matches; allPlayers = players; allBets = bets; allPayments = payments; allFees = fees;
+    const container = document.getElementById('winnersContainer');
+    if (!matches.length) { container.innerHTML = `<div class="glass rounded-2xl p-12 text-center"><div class="text-5xl mb-4">&#128235;</div><p class="text-gray-400 text-lg">Aun no hay fechas finalizadas para evaluar.</p></div>`; return; }
+
+    const grouped = {}; matches.forEach(m => { const dateKey = getBoliviaDateKey(m.match_date); if (!grouped[dateKey]) grouped[dateKey] = []; grouped[dateKey].push(m); });
+    const sortedDates = Object.keys(grouped).sort().reverse(); // Mas recientes primero
+    if (!selectedDate) selectedDate = sortedDates[0];
+
+    renderDateFilters(sortedDates, grouped);
+    renderDateWinners(selectedDate, grouped[selectedDate], players, bets, payments);
+}
+
+function renderDateFilters(dates, grouped) {
+    const container = document.getElementById('dateFilters');
+    const months = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+    container.innerHTML = dates.map(date => {
+        const [year, month, day] = date.split('-');
+        const label = `${parseInt(day)} ${months[parseInt(month)-1]}`;
+        const count = grouped[date].length;
+        const isActive = date === selectedDate;
+        const fee = getFeeForDate(date);
+        return `<button onclick="selectDate('${date}')" class="px-4 py-2 rounded-xl text-sm font-semibold transition-all duration-200 border ${isActive ? 'bg-yellow-500 text-black border-yellow-500 shadow-lg shadow-yellow-500/20' : 'bg-gray-800/50 text-gray-400 border-white/10 hover:bg-gray-700/50 hover:text-white'}" title="${count} partido${count > 1 ? 's' : ''}">${label} ${fee.isFree ? '<span class="ml-1 text-[10px] bg-green-500 text-white px-1 rounded">LIBRE</span>' : fee.amount !== 5 ? `<span class="ml-1 text-[10px] bg-orange-500 text-white px-1 rounded">${fee.amount}Bs</span>` : ''}<span class="ml-1 text-xs opacity-70">(${count})</span></button>`;
+    }).join('');
+}
+
+function selectDate(date) { selectedDate = date; renderDateWinners(date, allMatches.filter(m => getBoliviaDateKey(m.match_date) === date), allPlayers, allBets, allPayments); renderDateFilters(Object.keys(allMatches.reduce((g, m) => { const dk = getBoliviaDateKey(m.match_date); if (!g[dk]) g[dk] = []; g[dk].push(m); return g; }, {})).sort().reverse(), allMatches.reduce((g, m) => { const dk = getBoliviaDateKey(m.match_date); if (!g[dk]) g[dk] = []; g[dk].push(m); return g; }, {})); }
+
+function renderDateWinners(date, dateMatches, players, bets, payments) {
+    const container = document.getElementById('winnersContainer');
+    const months = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+    const formatDateNice = (dateStr) => { const [year, month, day] = dateStr.split('-'); return `${parseInt(day)} de ${months[parseInt(month)-1]} ${year}`; };
+
+    const fee = getFeeForDate(date);
+    const verifiedCount = players.filter(p => {
+        const payment = payments.find(pay => pay.player_id === p.id && pay.match_date === date && pay.status === 'paid' && pay.verified_at);
+        return !!payment;
+    }).length;
+    const totalPlayers = players.length;
+    const totalCollected = verifiedCount * fee.amount;
+    const prizePool = fee.isFree ? 0 : totalCollected * 0.8;
+    const accumulated = fee.isFree ? 0 : totalCollected * 0.2;
+
+    // Calcular puntos de TODOS los jugadores para esta fecha (incluye fechas libres)
+    const datePlayerScores = players.map(player => {
+        let totalPoints = 0;
+        let exactos = 0;
+        let partidosJugados = 0;
+        let results = [];
+
+        dateMatches.forEach(match => {
+            const bet = bets.find(b => b.player_id === player.id && b.match_id === match.id);
+            if (bet) {
+                partidosJugados++;
+                const result = calculatePoints(bet.home_prediction, bet.away_prediction, match.home_score, match.away_score);
+                totalPoints += result.points;
+                if (result.points === 5) exactos++;
+                results.push({
+                    match: `${match.home_team} vs ${match.away_team}`,
+                    prediction: `${bet.home_prediction}-${bet.away_prediction}`,
+                    result: `${match.home_score}-${match.away_score}`,
+                    points: result.points,
+                    reason: result.reason
+                });
+            } else {
+                results.push({
+                    match: `${match.home_team} vs ${match.away_team}`,
+                    prediction: '-',
+                    result: `${match.home_score}-${match.away_score}`,
+                    points: 0,
+                    reason: 'Sin pronóstico'
+                });
+            }
+        });
+
+        return { 
+            id: player.id,
+            name: player.name, 
+            initials: player.name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase(),
+            totalPoints, 
+            exactos, 
+            partidosJugados,
+            results
+        };
+    }).sort((a, b) => b.totalPoints - a.totalPoints);
+
+    const maxDatePoints = Math.max(...datePlayerScores.map(p => p.totalPoints), 0);
+    const winners = datePlayerScores.filter(p => p.totalPoints === maxDatePoints && p.totalPoints > 0);
+    const nonWinners = datePlayerScores.filter(p => p.totalPoints < maxDatePoints);
+
+    let html = `<div class="mb-8">`;
+
+    // Header de la fecha
+    html += `
+    <div class="glass rounded-2xl p-6 mb-6">
+        <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-4">
+            <div>
+                <h2 class="text-2xl font-bold text-white flex items-center gap-2">
+                    <span class="text-3xl">&#128197;</span> ${formatDateNice(date)}
+                </h2>
+                <p class="text-gray-400 text-sm mt-1">${dateMatches.length} partido${dateMatches.length > 1 ? 's' : ''} finalizado${dateMatches.length > 1 ? 's' : ''}</p>
+            </div>
+            <div class="flex flex-wrap gap-2">
+                ${fee.isFree ? '<span class="free-date px-4 py-2 rounded-full text-sm font-bold text-green-400">&#127381; FECHA LIBRE</span>' : `
+                <span class="winner-card px-4 py-2 rounded-full text-sm font-bold text-yellow-400">&#128176; ${totalCollected.toFixed(2)} Bs recaudados</span>
+                <span class="winner-card px-4 py-2 rounded-full text-sm font-bold text-green-400">&#127942; ${prizePool.toFixed(2)} Bs premio</span>
+                <span class="bg-indigo-500/20 text-indigo-400 px-4 py-2 rounded-full text-sm font-bold">&#127919; ${accumulated.toFixed(2)} Bs acumulado</span>
+                `}
+            </div>
+        </div>
+
+        <div class="flex items-center gap-4 text-sm text-gray-400">
+            <span>&#128100; ${totalPlayers} jugadores</span>
+            <span>|</span>
+            <span>&#9989; ${verifiedCount} pagos verificados</span>
+            ${!fee.isFree ? `<span>|</span><span>&#128176; ${fee.amount} Bs por jugador</span>` : ''}
+        </div>
+    </div>`;
+
+    // Ganadores
+    if (winners.length > 0) {
+        const prizePerWinner = winners.length > 0 ? (prizePool / winners.length).toFixed(2) : 0;
+
+        html += `
+        <div class="winner-card rounded-2xl p-6 mb-6">
+            <div class="flex items-center gap-3 mb-4">
+                <span class="text-4xl">&#127942;</span>
+                <div>
+                    <h3 class="text-xl font-black text-yellow-400">Ganador${winners.length > 1 ? 'es' : ''} de la Fecha</h3>
+                    <p class="text-gray-400 text-sm">${winners.length > 1 ? 'Empate entre ' + winners.length + ' jugadores' : 'Unico ganador'}</p>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-${Math.min(winners.length, 3)} gap-4">
+                ${winners.map((w, i) => `
+                <div class="bg-white/5 rounded-xl p-4 border border-yellow-500/20">
+                    <div class="flex items-center gap-3 mb-3">
+                        <div class="w-12 h-12 rounded-full bg-gradient-to-br from-yellow-500 to-amber-600 flex items-center justify-center text-lg font-bold text-white">${w.initials}</div>
+                        <div>
+                            <div class="font-bold text-white text-lg">${w.name}</div>
+                            <div class="text-yellow-400 font-bold">${w.totalPoints} puntos</div>
+                        </div>
+                        ${winners.length > 1 ? `<div class="ml-auto text-2xl font-black text-yellow-400">#${i+1}</div>` : ''}
+                    </div>
+                    <div class="flex gap-2 text-xs text-gray-400 mb-3">
+                        <span class="bg-white/5 px-2 py-1 rounded">${w.exactos} exactos</span>
+                        <span class="bg-white/5 px-2 py-1 rounded">${w.partidosJugados}/${dateMatches.length} pronosticados</span>
+                    </div>
+                    ${!fee.isFree ? `<div class="bg-green-500/20 text-green-400 text-center py-2 rounded-lg font-bold">&#128176; ${prizePerWinner} Bs</div>` : '<div class="bg-green-500/20 text-green-400 text-center py-2 rounded-lg font-bold">&#127381; Fecha libre</div>'}
+                </div>
+                `).join('')}
+            </div>
+        </div>`;
+    }
+
+    // Tabla de todos los jugadores
+    html += `
+    <div class="glass rounded-2xl p-6">
+        <h3 class="text-lg font-bold mb-4 flex items-center gap-2">&#128202; Puntajes de la Fecha</h3>
+        <div class="overflow-x-auto">
+            <table class="w-full">
+                <thead>
+                    <tr class="text-gray-400 text-xs uppercase tracking-wider border-b border-white/10">
+                        <th class="text-left py-3 px-4">#</th>
+                        <th class="text-left py-3 px-4">Jugador</th>
+                        <th class="text-center py-3 px-4">Pronósticos</th>
+                        <th class="text-center py-3 px-4">Exactos</th>
+                        <th class="text-center py-3 px-4">Puntos</th>
+                        <th class="text-left py-3 px-4">Detalle</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${datePlayerScores.map((p, i) => {
+                        const isWinner = p.totalPoints === maxDatePoints && p.totalPoints > 0;
+                        return `<tr class="border-b border-white/5 ${isWinner ? 'bg-yellow-500/5' : ''} hover:bg-white/5 transition">
+                            <td class="py-3 px-4 font-bold ${isWinner ? 'text-yellow-400' : 'text-gray-500'}">${i + 1}</td>
+                            <td class="py-3 px-4">
+                                <div class="flex items-center gap-3">
+                                    <div class="w-8 h-8 rounded-full ${isWinner ? 'bg-gradient-to-br from-yellow-500 to-amber-600' : 'bg-gray-700'} flex items-center justify-center text-xs font-bold text-white">${p.initials}</div>
+                                    <span class="font-semibold ${isWinner ? 'text-yellow-400' : ''}">${p.name}</span>
+                                    ${isWinner ? '<span class="text-yellow-400 text-lg">&#127942;</span>' : ''}
+                                </div>
+                            </td>
+                            <td class="py-3 px-4 text-center text-gray-400">${p.partidosJugados}/${dateMatches.length}</td>
+                            <td class="py-3 px-4 text-center text-yellow-400 font-bold">${p.exactos}</td>
+                            <td class="py-3 px-4 text-center">
+                                <span class="px-3 py-1 rounded-lg text-sm font-bold ${isWinner ? 'points-5' : getPointsClass(p.totalPoints)}">${p.totalPoints}</span>
+                            </td>
+                            <td class="py-3 px-4">
+                                <div class="flex flex-wrap gap-1">
+                                    ${p.results.map(r => `
+                                        <span class="text-[10px] px-2 py-0.5 rounded bg-white/5 text-gray-400" title="${r.match}: ${r.prediction} vs ${r.result} - ${r.reason}">
+                                            ${r.points > 0 ? '+' : ''}${r.points}
+                                        </span>
+                                    `).join('')}
+                                </div>
+                            </td>
+                        </tr>`;
+                    }).join('')}
+                </tbody>
+            </table>
+        </div>
+    </div>`;
+
+    html += '</div>';
+    container.innerHTML = html;
+}
+
+document.addEventListener('DOMContentLoaded', loadData);
+</script>
+
+<header class="glass sticky top-0 z-40 border-b border-white/10">
+    <div class="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between">
+        <div class="flex items-center gap-3">
+            <div class="text-3xl">&#127942;</div>
+            <div>
+                <h1 class="text-xl font-black gradient-text">GANADOR DE LA FECHA</h1>
+                <p class="text-xs text-gray-400">Quiniela Mundial 2026 - Premios por fecha</p>
+            </div>
+        </div>
+        <div class="flex gap-2">
+            <button onclick="window.location.href='index.html'" class="bg-gray-700 hover:bg-gray-600 text-white px-4 py-2 rounded-lg text-sm transition">&#8592; Quiniela</button>
+            <button onclick="window.open('evaluaciones.html','_blank')" class="bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2 rounded-lg text-sm transition">&#128202; Evaluaciones</button>
+            <button onclick="window.open('finanzas.html','_blank')" class="bg-green-600 hover:bg-green-500 text-white px-4 py-2 rounded-lg text-sm transition">&#128176; Finanzas</button>
+        </div>
+    </div>
+</header>
+
+<main class="max-w-6xl mx-auto px-4 mt-6 pb-20">
+    <div class="glass rounded-2xl p-4 mb-6">
+        <div class="flex items-center gap-3 flex-wrap">
+            <span class="text-gray-400 text-sm font-medium">&#128197; Seleccionar fecha:</span>
+            <div id="dateFilters" class="flex gap-2 flex-wrap"></div>
+        </div>
+    </div>
+
+    <div id="winnersContainer">
+        <div class="glass rounded-2xl p-12 text-center">
+            <div class="loading-spinner"></div>
+            <p class="text-gray-400 mt-4">Cargando fechas y puntajes...</p>
+        </div>
+    </div>
+</main>
+
+</body>
+</html>
