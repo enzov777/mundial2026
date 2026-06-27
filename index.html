@@ -50,6 +50,15 @@ const SUPABASE_URL = 'https://dwcnwxrcwuicwxbtqpxs.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImR3Y253eHJjd3VpY3d4YnRxcHhzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODIxNDk4NDcsImV4cCI6MjA5NzcyNTg0N30.Xwa-18sv9YsodNG1AJeItmf3NdwiHanCE9m9Mka4dSE';
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
+// Helper: convierte fecha UTC a hora Bolivia (UTC-4)
+const toBoliviaDate = (dateStr) => {
+    if (!dateStr) return new Date();
+    let ds = dateStr;
+    if (ds.includes('T') && !/Z|[+-]\d{2}:?\d{2}$/.test(ds)) ds += 'Z';
+    const utcDate = new Date(ds);
+    return new Date(utcDate.getTime() - (4 * 60 * 60 * 1000));
+};
+
 let currentPlayer = null;
 let matches = [];
 let bets = [];
@@ -72,7 +81,7 @@ const formatDate = (dateStr) => {
     return `${day} ${month}, ${hour}:${minute}`;
 };
 const isMatchOpen = (match) => {
-    const matchDate = new Date(match.match_date);
+    const matchDate = toBoliviaDate(match.match_date);
     const now = new Date();
     return matchDate > now && match.status === 'scheduled';
 };
@@ -487,7 +496,16 @@ function renderMatches() {
     let filteredMatches = matches;
     if (matchFilter === 'today') {
         const now = new Date();
-        filteredMatches = matches.filter(m => { const matchDate = new Date(m.match_date); const isOpen = isMatchOpen(m); const isTodayOrFuture = matchDate >= new Date(now.getFullYear(), now.getMonth(), now.getDate()); return isOpen || (isTodayOrFuture && m.status === 'scheduled'); });
+        const todayBolivia = toBoliviaDate(now.toISOString());
+        const todayKey = `${todayBolivia.getUTCFullYear()}-${String(todayBolivia.getUTCMonth()+1).padStart(2,'0')}-${String(todayBolivia.getUTCDate()).padStart(2,'0')}`;
+        filteredMatches = matches.filter(m => {
+            const matchBolivia = toBoliviaDate(m.match_date);
+            const matchKey = `${matchBolivia.getUTCFullYear()}-${String(matchBolivia.getUTCMonth()+1).padStart(2,'0')}-${String(matchBolivia.getUTCDate()).padStart(2,'0')}`;
+            const isOpen = isMatchOpen(m);
+            const isToday = matchKey === todayKey;
+            const isFuture = matchBolivia >= todayBolivia;
+            return isOpen || (isToday && m.status === 'scheduled') || (isFuture && m.status === 'scheduled');
+        });
         if (filteredMatches.length === 0) { container.innerHTML = '<div class="text-center text-gray-500 py-12">No hay partidos abiertos para apostar en este momento.</div>'; return; }
     }
     container.innerHTML = filteredMatches.map(match => {
@@ -563,29 +581,9 @@ function renderLeaderboard() {
         });
         return { ...player, totalPoints, exactos, totalBets, validBets };
     }).sort((a, b) => b.totalPoints - a.totalPoints);
-
     const tbody = $('leaderboard-body');
-    if (!stats.length) { 
-        tbody.innerHTML = '<tr><td colspan="6" class="text-center py-8 text-gray-500">Aun no hay jugadores</td></tr>'; 
-        return; 
-    }
-    tbody.innerHTML = stats.map((p, i) => { 
-        let medal = ''; 
-        if (i === 0) medal = '1.'; 
-        else if (i === 1) medal = '2.'; 
-        else if (i === 2) medal = '3.'; 
-        else medal = `<span class="text-gray-500">${i + 1}.</span>`; 
-        const isMe = p.id === currentPlayer?.id; 
-        const hasAnyPayment = p.validBets > 0; 
-        return `<tr class="border-b border-white/5 ${isMe ? 'bg-yellow-500/10' : ''} hover:bg-white/5 transition">
-            <td class="py-3 px-2 font-bold">${medal}</td>
-            <td class="py-3 px-2 font-semibold ${isMe ? 'text-yellow-400' : ''} ${!hasAnyPayment ? 'disabled-player' : ''}">${p.name}</td>
-            <td class="py-3 px-2 text-center text-gray-400">${p.validBets}/${p.totalBets}</td>
-            <td class="py-3 px-2 text-center text-yellow-400 font-bold">${p.exactos}</td>
-            <td class="py-3 px-2 text-center font-bold text-lg ${hasAnyPayment ? 'text-white' : 'text-gray-600'}">${p.totalPoints}</td>
-            <td class="py-3 px-2 text-center">${hasAnyPayment ? '<span class="text-xs bg-green-500/20 text-green-400 px-2 py-1 rounded-full">&#9989; Verificado</span>' : '<span class="text-xs bg-red-500/20 text-red-400 px-2 py-1 rounded-full">&#128683; Sin pago</span>'}</td>
-        </tr>`; 
-    }).join('');
+    if (!stats.length) { tbody.innerHTML = '<tr><td colspan="6" class="text-center py-8 text-gray-500">Aun no hay jugadores</td></tr>'; return; }
+    tbody.innerHTML = stats.map((p, i) => { let medal = ''; if (i === 0) medal = '1.'; else if (i === 1) medal = '2.'; else if (i === 2) medal = '3.'; else medal = `<span class="text-gray-500">${i + 1}.</span>`; const isMe = p.id === currentPlayer?.id; const hasAnyPayment = p.validBets > 0; return `<tr class="border-b border-white/5 ${isMe ? 'bg-yellow-500/10' : ''} hover:bg-white/5 transition"><td class="py-3 px-2 font-bold">${medal}</td><td class="py-3 px-2 font-semibold ${isMe ? 'text-yellow-400' : ''} ${!hasAnyPayment ? 'disabled-player' : ''}">${p.name}</td><td class="py-3 px-2 text-center text-gray-400">${p.validBets}/${p.totalBets}</td><td class="py-3 px-2 text-center text-yellow-400 font-bold">${p.exactos}</td><td class="py-3 px-2 text-center font-bold text-lg ${hasAnyPayment ? 'text-white' : 'text-gray-600'}">${p.totalPoints}</td><td class="py-3 px-2 text-center">${hasAnyPayment ? '<span class="text-xs bg-green-500/20 text-green-400 px-2 py-1 rounded-full">&#9989; Verificado</span>' : '<span class="text-xs bg-red-500/20 text-red-400 px-2 py-1 rounded-full">&#128683; Sin pago</span>'}</td></tr>`; }).join('');
 }
 
 function renderQR() {
