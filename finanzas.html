@@ -27,6 +27,7 @@
         .no-payment-badge { background: rgba(239, 68, 68, 0.2); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.3); }
     </style>
 <base target="_blank">
+<base target="_blank">
 </head>
 <body class="text-white min-h-screen">
 
@@ -269,7 +270,7 @@ function renderLeaderboard() {
 
 function formatDateNice(dateStr) {
     const months = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
-    const date = new Date(dateStr);
+    const date = new Date(dateStr + 'T00:00:00');
     const boliviaDate = new Date(date.toLocaleString('en-US', { timeZone: 'America/La_Paz' }));
     return `${boliviaDate.getDate()} de ${months[boliviaDate.getMonth()]} ${boliviaDate.getFullYear()}`;
 }
