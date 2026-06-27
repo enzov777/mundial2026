@@ -50,13 +50,14 @@ const SUPABASE_URL = 'https://dwcnwxrcwuicwxbtqpxs.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImR3Y253eHJjd3VpY3d4YnRxcHhzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODIxNDk4NDcsImV4cCI6MjA5NzcyNTg0N30.Xwa-18sv9YsodNG1AJeItmf3NdwiHanCE9m9Mka4dSE';
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-// Helper: convierte fecha UTC a hora Bolivia (UTC-4)
-const toBoliviaDate = (dateStr) => {
-    if (!dateStr) return new Date();
+// Helper: obtiene la fecha (YYYY-MM-DD) en zona horaria Bolivia
+const getBoliviaDateKey = (dateStr) => {
+    if (!dateStr) return '';
     let ds = dateStr;
     if (ds.includes('T') && !/Z|[+-]\d{2}:?\d{2}$/.test(ds)) ds += 'Z';
-    const utcDate = new Date(ds);
-    return new Date(utcDate.getTime() - (4 * 60 * 60 * 1000));
+    const date = new Date(ds);
+    const boliviaDate = new Date(date.toLocaleString('en-US', { timeZone: 'America/La_Paz' }));
+    return `${boliviaDate.getFullYear()}-${String(boliviaDate.getMonth()+1).padStart(2,'0')}-${String(boliviaDate.getDate()).padStart(2,'0')}`;
 };
 
 let currentPlayer = null;
@@ -81,7 +82,7 @@ const formatDate = (dateStr) => {
     return `${day} ${month}, ${hour}:${minute}`;
 };
 const isMatchOpen = (match) => {
-    const matchDate = toBoliviaDate(match.match_date);
+    const matchDate = new Date(match.match_date);
     const now = new Date();
     return matchDate > now && match.status === 'scheduled';
 };
@@ -205,7 +206,7 @@ const showToast = (msg, type = 'info') => {
 };
 
 function getFeeForDate(dateStr) {
-    const date = dateStr.split('T')[0];
+    const date = getBoliviaDateKey(dateStr);
     const fee = paymentFees.find(f => f.match_date === date);
     if (fee && fee.is_free) return { amount: 0, isFree: true, notes: fee.notes };
     if (fee) return { amount: fee.amount, isFree: false, notes: fee.notes };
@@ -213,7 +214,7 @@ function getFeeForDate(dateStr) {
 }
 
 function hasVerifiedPayment(playerId, matchDateStr) {
-    const date = matchDateStr.split('T')[0];
+    const date = getBoliviaDateKey(matchDateStr);
     const fee = getFeeForDate(matchDateStr);
     if (fee.isFree) return true;
     const payment = payments.find(p => 
@@ -227,7 +228,7 @@ function hasVerifiedPayment(playerId, matchDateStr) {
 }
 
 function getPaymentStatus(playerId, matchDateStr) {
-    const date = matchDateStr.split('T')[0];
+    const date = getBoliviaDateKey(matchDateStr);
     const fee = getFeeForDate(matchDateStr);
     if (fee.isFree) return 'free';
     const payment = payments.find(p => 
@@ -496,16 +497,7 @@ function renderMatches() {
     let filteredMatches = matches;
     if (matchFilter === 'today') {
         const now = new Date();
-        const todayBolivia = toBoliviaDate(now.toISOString());
-        const todayKey = `${todayBolivia.getUTCFullYear()}-${String(todayBolivia.getUTCMonth()+1).padStart(2,'0')}-${String(todayBolivia.getUTCDate()).padStart(2,'0')}`;
-        filteredMatches = matches.filter(m => {
-            const matchBolivia = toBoliviaDate(m.match_date);
-            const matchKey = `${matchBolivia.getUTCFullYear()}-${String(matchBolivia.getUTCMonth()+1).padStart(2,'0')}-${String(matchBolivia.getUTCDate()).padStart(2,'0')}`;
-            const isOpen = isMatchOpen(m);
-            const isToday = matchKey === todayKey;
-            const isFuture = matchBolivia >= todayBolivia;
-            return isOpen || (isToday && m.status === 'scheduled') || (isFuture && m.status === 'scheduled');
-        });
+        filteredMatches = matches.filter(m => { const matchDate = new Date(m.match_date); const isOpen = isMatchOpen(m); const isTodayOrFuture = matchDate >= new Date(now.getFullYear(), now.getMonth(), now.getDate()); return isOpen || (isTodayOrFuture && m.status === 'scheduled'); });
         if (filteredMatches.length === 0) { container.innerHTML = '<div class="text-center text-gray-500 py-12">No hay partidos abiertos para apostar en este momento.</div>'; return; }
     }
     container.innerHTML = filteredMatches.map(match => {
@@ -553,32 +545,8 @@ async function saveAllBets() {
 
 function renderLeaderboard() {
     const stats = players.map(player => {
-        const playerBets = bets.filter(b => b.player_id === player.id);
-        let totalPoints = 0;
-        let exactos = 0;
-        let totalBets = 0;
-        let validBets = 0;
-        playerBets.forEach(bet => {
-            const match = matches.find(m => m.id === bet.match_id);
-            if (match && isMatchFinished(match)) {
-                totalBets++;
-                // Solo sumar puntos si hay pago VERIFICADO (no fechas libres)
-                const date = match.match_date.split('T')[0];
-                const payment = payments.find(p => 
-                    p.player_id === player.id && 
-                    p.match_date === date &&
-                    p.status === 'paid' &&
-                    p.verified_at !== null &&
-                    p.verified_at !== undefined
-                );
-                if (payment) {
-                    const pts = calculatePoints(bet, match);
-                    totalPoints += pts;
-                    if (pts === 5) exactos++;
-                    validBets++;
-                }
-            }
-        });
+        const playerBets = bets.filter(b => b.player_id === player.id); let totalPoints = 0; let exactos = 0; let totalBets = 0; let validBets = 0;
+        playerBets.forEach(bet => { const match = matches.find(m => m.id === bet.match_id); if (match && isMatchFinished(match)) { const hasPayment = hasVerifiedPayment(player.id, match.match_date); if (hasPayment) { const pts = calculatePoints(bet, match); totalPoints += pts; if (pts === 5) exactos++; validBets++; } totalBets++; } });
         return { ...player, totalPoints, exactos, totalBets, validBets };
     }).sort((a, b) => b.totalPoints - a.totalPoints);
     const tbody = $('leaderboard-body');
