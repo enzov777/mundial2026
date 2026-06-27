@@ -20,6 +20,7 @@
         .points-2 { background: #60a5fa; color: #0f172a; }
         .points-0 { background: #475569; color: #94a3b8; }
     </style>
+<base target="_blank">
 </head>
 <body class="text-white min-h-screen">
 
@@ -136,6 +137,14 @@ let allMatches = []; let allPlayers = []; let allBets = []; let allPayments = []
 
 function getFeeForDate(dateStr) { const date = dateStr.split('T')[0]; const fee = allFees.find(f => f.match_date === date); if (fee && fee.is_free) return { amount: 0, isFree: true, notes: fee.notes }; if (fee) return { amount: fee.amount, isFree: false, notes: fee.notes }; return { amount: 5.00, isFree: false, notes: 'Valor por defecto' }; }
 
+function hasVerifiedPayment(playerId, matchDateStr) {
+    const date = matchDateStr.split('T')[0];
+    const fee = getFeeForDate(matchDateStr);
+    if (fee.isFree) return true;
+    const payment = allPayments.find(p => p.player_id === playerId && p.match_date === date && p.status === 'paid' && p.verified_at !== null && p.verified_at !== undefined);
+    return !!payment;
+}
+
 function getBoliviaDateKey(dateStr) { const date = new Date(dateStr); const boliviaDate = new Date(date.toLocaleString('en-US', { timeZone: 'America/La_Paz' })); return `${boliviaDate.getFullYear()}-${String(boliviaDate.getMonth()+1).padStart(2,'0')}-${String(boliviaDate.getDate()).padStart(2,'0')}`; }
 
 async function loadData() {
@@ -199,27 +208,38 @@ function renderDateWinners(date, dateMatches, players, bets, payments) {
     const prizePool = fee.isFree ? 0 : totalCollected * 0.8;
     const accumulated = fee.isFree ? 0 : totalCollected * 0.2;
 
-    // Calcular puntos de TODOS los jugadores para esta fecha (incluye fechas libres)
+    // Calcular puntos de los jugadores (solo verificados suman puntos)
     const datePlayerScores = players.map(player => {
         let totalPoints = 0;
         let exactos = 0;
         let partidosJugados = 0;
         let results = [];
+        const isVerified = hasVerifiedPayment(player.id, date);
 
         dateMatches.forEach(match => {
             const bet = bets.find(b => b.player_id === player.id && b.match_id === match.id);
             if (bet) {
                 partidosJugados++;
-                const result = calculatePoints(bet.home_prediction, bet.away_prediction, match.home_score, match.away_score);
-                totalPoints += result.points;
-                if (result.points === 5) exactos++;
-                results.push({
-                    match: `${match.home_team} vs ${match.away_team}`,
-                    prediction: `${bet.home_prediction}-${bet.away_prediction}`,
-                    result: `${match.home_score}-${match.away_score}`,
-                    points: result.points,
-                    reason: result.reason
-                });
+                if (isVerified) {
+                    const result = calculatePoints(bet.home_prediction, bet.away_prediction, match.home_score, match.away_score);
+                    totalPoints += result.points;
+                    if (result.points === 5) exactos++;
+                    results.push({
+                        match: `${match.home_team} vs ${match.away_team}`,
+                        prediction: `${bet.home_prediction}-${bet.away_prediction}`,
+                        result: `${match.home_score}-${match.away_score}`,
+                        points: result.points,
+                        reason: result.reason
+                    });
+                } else {
+                    results.push({
+                        match: `${match.home_team} vs ${match.away_team}`,
+                        prediction: `${bet.home_prediction}-${bet.away_prediction}`,
+                        result: `${match.home_score}-${match.away_score}`,
+                        points: 0,
+                        reason: 'Pago no verificado'
+                    });
+                }
             } else {
                 results.push({
                     match: `${match.home_team} vs ${match.away_team}`,
@@ -238,13 +258,14 @@ function renderDateWinners(date, dateMatches, players, bets, payments) {
             totalPoints, 
             exactos, 
             partidosJugados,
-            results
+            results,
+            isVerified
         };
     }).sort((a, b) => b.totalPoints - a.totalPoints);
 
-    const maxDatePoints = Math.max(...datePlayerScores.map(p => p.totalPoints), 0);
-    const winners = datePlayerScores.filter(p => p.totalPoints === maxDatePoints && p.totalPoints > 0);
-    const nonWinners = datePlayerScores.filter(p => p.totalPoints < maxDatePoints);
+    const maxDatePoints = Math.max(...datePlayerScores.filter(p => p.isVerified).map(p => p.totalPoints), 0);
+    const winners = datePlayerScores.filter(p => p.totalPoints === maxDatePoints && p.totalPoints > 0 && p.isVerified);
+    const nonWinners = datePlayerScores.filter(p => p.totalPoints < maxDatePoints || !p.isVerified);
 
     let html = `<div class="mb-8">`;
 
@@ -303,6 +324,7 @@ function renderDateWinners(date, dateMatches, players, bets, payments) {
                     <div class="flex gap-2 text-xs text-gray-400 mb-3">
                         <span class="bg-white/5 px-2 py-1 rounded">${w.exactos} exactos</span>
                         <span class="bg-white/5 px-2 py-1 rounded">${w.partidosJugados}/${dateMatches.length} pronosticados</span>
+                        <span class="bg-green-500/20 text-green-400 px-2 py-1 rounded">&#9989; Verificado</span>
                     </div>
                     ${!fee.isFree ? `<div class="bg-green-500/20 text-green-400 text-center py-2 rounded-lg font-bold">&#128176; ${prizePerWinner} Bs</div>` : '<div class="bg-green-500/20 text-green-400 text-center py-2 rounded-lg font-bold">&#127381; Fecha libre</div>'}
                 </div>
@@ -329,25 +351,31 @@ function renderDateWinners(date, dateMatches, players, bets, payments) {
                 </thead>
                 <tbody>
                     ${datePlayerScores.map((p, i) => {
-                        const isWinner = p.totalPoints === maxDatePoints && p.totalPoints > 0;
-                        return `<tr class="border-b border-white/5 ${isWinner ? 'bg-yellow-500/5' : ''} hover:bg-white/5 transition">
+                        const isWinner = p.totalPoints === maxDatePoints && p.totalPoints > 0 && p.isVerified;
+                        const rowClass = !p.isVerified ? 'bg-red-500/10' : (isWinner ? 'bg-yellow-500/5' : '');
+                        const nameClass = !p.isVerified ? 'text-red-400 line-through' : (isWinner ? 'text-yellow-400' : '');
+                        const initialsClass = !p.isVerified ? 'bg-red-600' : (isWinner ? 'bg-gradient-to-br from-yellow-500 to-amber-600' : 'bg-gray-700');
+                        const pointsClass = !p.isVerified ? 'bg-red-500/20 text-red-400' : (isWinner ? 'points-5' : getPointsClass(p.totalPoints));
+                        const paymentBadge = !p.isVerified ? '<span class="ml-2 text-[10px] bg-red-500/20 text-red-400 px-2 py-0.5 rounded-full font-bold">&#128683; Sin pago</span>' : '';
+                        return `<tr class="border-b border-white/5 ${rowClass} hover:bg-white/5 transition">
                             <td class="py-3 px-4 font-bold ${isWinner ? 'text-yellow-400' : 'text-gray-500'}">${i + 1}</td>
                             <td class="py-3 px-4">
                                 <div class="flex items-center gap-3">
-                                    <div class="w-8 h-8 rounded-full ${isWinner ? 'bg-gradient-to-br from-yellow-500 to-amber-600' : 'bg-gray-700'} flex items-center justify-center text-xs font-bold text-white">${p.initials}</div>
-                                    <span class="font-semibold ${isWinner ? 'text-yellow-400' : ''}">${p.name}</span>
+                                    <div class="w-8 h-8 rounded-full ${initialsClass} flex items-center justify-center text-xs font-bold text-white">${p.initials}</div>
+                                    <span class="font-semibold ${nameClass}">${p.name}</span>
+                                    ${paymentBadge}
                                     ${isWinner ? '<span class="text-yellow-400 text-lg">&#127942;</span>' : ''}
                                 </div>
                             </td>
-                            <td class="py-3 px-4 text-center text-gray-400">${p.partidosJugados}/${dateMatches.length}</td>
-                            <td class="py-3 px-4 text-center text-yellow-400 font-bold">${p.exactos}</td>
+                            <td class="py-3 px-4 text-center ${p.isVerified ? 'text-gray-400' : 'text-red-400'}">${p.partidosJugados}/${dateMatches.length}</td>
+                            <td class="py-3 px-4 text-center ${p.isVerified ? 'text-yellow-400' : 'text-red-400'} font-bold">${p.exactos}</td>
                             <td class="py-3 px-4 text-center">
-                                <span class="px-3 py-1 rounded-lg text-sm font-bold ${isWinner ? 'points-5' : getPointsClass(p.totalPoints)}">${p.totalPoints}</span>
+                                <span class="px-3 py-1 rounded-lg text-sm font-bold ${pointsClass}">${p.totalPoints}</span>
                             </td>
                             <td class="py-3 px-4">
                                 <div class="flex flex-wrap gap-1">
                                     ${p.results.map(r => `
-                                        <span class="text-[10px] px-2 py-0.5 rounded bg-white/5 text-gray-400" title="${r.match}: ${r.prediction} vs ${r.result} - ${r.reason}">
+                                        <span class="text-[10px] px-2 py-0.5 rounded ${p.isVerified ? 'bg-white/5 text-gray-400' : 'bg-red-500/10 text-red-400'}" title="${r.match}: ${r.prediction} vs ${r.result} - ${r.reason}">
                                             ${r.points > 0 ? '+' : ''}${r.points}
                                         </span>
                                     `).join('')}
