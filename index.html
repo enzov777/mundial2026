@@ -50,16 +50,6 @@ const SUPABASE_URL = 'https://dwcnwxrcwuicwxbtqpxs.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImR3Y253eHJjd3VpY3d4YnRxcHhzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODIxNDk4NDcsImV4cCI6MjA5NzcyNTg0N30.Xwa-18sv9YsodNG1AJeItmf3NdwiHanCE9m9Mka4dSE';
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-// Helper: obtiene la fecha (YYYY-MM-DD) en zona horaria Bolivia
-const getBoliviaDateKey = (dateStr) => {
-    if (!dateStr) return '';
-    let ds = dateStr;
-    if (ds.includes('T') && !/Z|[+-]\d{2}:?\d{2}$/.test(ds)) ds += 'Z';
-    const date = new Date(ds);
-    const boliviaDate = new Date(date.toLocaleString('en-US', { timeZone: 'America/La_Paz' }));
-    return `${boliviaDate.getFullYear()}-${String(boliviaDate.getMonth()+1).padStart(2,'0')}-${String(boliviaDate.getDate()).padStart(2,'0')}`;
-};
-
 let currentPlayer = null;
 let matches = [];
 let bets = [];
@@ -206,7 +196,7 @@ const showToast = (msg, type = 'info') => {
 };
 
 function getFeeForDate(dateStr) {
-    const date = getBoliviaDateKey(dateStr);
+    const date = dateStr.split('T')[0];
     const fee = paymentFees.find(f => f.match_date === date);
     if (fee && fee.is_free) return { amount: 0, isFree: true, notes: fee.notes };
     if (fee) return { amount: fee.amount, isFree: false, notes: fee.notes };
@@ -214,7 +204,7 @@ function getFeeForDate(dateStr) {
 }
 
 function hasVerifiedPayment(playerId, matchDateStr) {
-    const date = getBoliviaDateKey(matchDateStr);
+    const date = matchDateStr.split('T')[0];
     const fee = getFeeForDate(matchDateStr);
     if (fee.isFree) return true;
     const payment = payments.find(p => 
@@ -228,7 +218,7 @@ function hasVerifiedPayment(playerId, matchDateStr) {
 }
 
 function getPaymentStatus(playerId, matchDateStr) {
-    const date = getBoliviaDateKey(matchDateStr);
+    const date = matchDateStr.split('T')[0];
     const fee = getFeeForDate(matchDateStr);
     if (fee.isFree) return 'free';
     const payment = payments.find(p => 
@@ -545,8 +535,35 @@ async function saveAllBets() {
 
 function renderLeaderboard() {
     const stats = players.map(player => {
-        const playerBets = bets.filter(b => b.player_id === player.id); let totalPoints = 0; let exactos = 0; let totalBets = 0; let validBets = 0;
-        playerBets.forEach(bet => { const match = matches.find(m => m.id === bet.match_id); if (match && isMatchFinished(match)) { const hasPayment = hasVerifiedPayment(player.id, match.match_date); if (hasPayment) { const pts = calculatePoints(bet, match); totalPoints += pts; if (pts === 5) exactos++; validBets++; } totalBets++; } });
+        const playerBets = bets.filter(b => b.player_id === player.id);
+        let totalPoints = 0;
+        let exactos = 0;
+        let totalBets = 0;
+        let validBets = 0;
+        playerBets.forEach(bet => {
+            const match = matches.find(m => m.id === bet.match_id);
+            if (match && isMatchFinished(match)) {
+                totalBets++;
+                // Solo sumar puntos si hay PAGO VERIFICADO (no fechas libres)
+                const date = match.match_date.split('T')[0];
+                const fee = getFeeForDate(match.match_date);
+                // Fechas libres NO suman para la tabla general
+                if (fee.isFree) return;
+                const payment = payments.find(p => 
+                    p.player_id === player.id && 
+                    p.match_date === date &&
+                    p.status === 'paid' &&
+                    p.verified_at !== null &&
+                    p.verified_at !== undefined
+                );
+                if (payment) {
+                    const pts = calculatePoints(bet, match);
+                    totalPoints += pts;
+                    if (pts === 5) exactos++;
+                    validBets++;
+                }
+            }
+        });
         return { ...player, totalPoints, exactos, totalBets, validBets };
     }).sort((a, b) => b.totalPoints - a.totalPoints);
     const tbody = $('leaderboard-body');
