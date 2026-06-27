@@ -42,6 +42,7 @@
     </style>
 <base target="_blank">
 <base target="_blank">
+<base target="_blank">
 </head>
 <body class="text-white min-h-screen">
 
@@ -49,16 +50,6 @@
 const SUPABASE_URL = 'https://dwcnwxrcwuicwxbtqpxs.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImR3Y253eHJjd3VpY3d4YnRxcHhzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODIxNDk4NDcsImV4cCI6MjA5NzcyNTg0N30.Xwa-18sv9YsodNG1AJeItmf3NdwiHanCE9m9Mka4dSE';
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-
-// Helper: obtiene la fecha (YYYY-MM-DD) en zona horaria Bolivia - MISMO que evaluaciones.html
-const getBoliviaDateKey = (dateStr) => {
-    if (!dateStr) return '';
-    let ds = dateStr;
-    if (ds.includes('T') && !/Z|[+-]\d{2}:?\d{2}$/.test(ds)) ds += 'Z';
-    const date = new Date(ds);
-    const boliviaDate = new Date(date.toLocaleString('en-US', { timeZone: 'America/La_Paz' }));
-    return `${boliviaDate.getFullYear()}-${String(boliviaDate.getMonth()+1).padStart(2,'0')}-${String(boliviaDate.getDate()).padStart(2,'0')}`;
-};
 
 let currentPlayer = null;
 let matches = [];
@@ -72,14 +63,15 @@ const ADMIN_CODE = 'MUNDIAL2026';
 
 const $ = id => document.getElementById(id);
 const formatDate = (dateStr) => {
-    const utcDate = new Date(dateStr);
-    const boliviaMs = utcDate.getTime() - (4 * 60 * 60 * 1000);
-    const boliviaDate = new Date(boliviaMs);
-    const day = String(boliviaDate.getUTCDate()).padStart(2, '0');
-    const month = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'][boliviaDate.getUTCMonth()];
-    const hour = String(boliviaDate.getUTCHours()).padStart(2, '0');
-    const minute = String(boliviaDate.getUTCMinutes()).padStart(2, '0');
-    return `${day} ${month}, ${hour}:${minute}`;
+    const date = new Date(dateStr);
+    const options = { 
+        day: '2-digit', 
+        month: 'short', 
+        hour: '2-digit', 
+        minute: '2-digit',
+        timeZone: 'America/La_Paz'
+    };
+    return date.toLocaleString('es-BO', options).replace(',', '');
 };
 const isMatchOpen = (match) => {
     const matchDate = new Date(match.match_date);
@@ -206,8 +198,7 @@ const showToast = (msg, type = 'info') => {
 };
 
 function getFeeForDate(dateStr) {
-    // MISMO criterio que evaluaciones.html: usar getBoliviaDateKey
-    const date = getBoliviaDateKey(dateStr);
+    const date = dateStr.split('T')[0];
     const fee = paymentFees.find(f => f.match_date === date);
     if (fee && fee.is_free) return { amount: 0, isFree: true, notes: fee.notes };
     if (fee) return { amount: fee.amount, isFree: false, notes: fee.notes };
@@ -215,8 +206,7 @@ function getFeeForDate(dateStr) {
 }
 
 function hasVerifiedPayment(playerId, matchDateStr) {
-    // MISMO criterio que evaluaciones.html: usar getBoliviaDateKey
-    const date = getBoliviaDateKey(matchDateStr);
+    const date = matchDateStr.split('T')[0];
     const fee = getFeeForDate(matchDateStr);
     if (fee.isFree) return true;
     const payment = payments.find(p => 
@@ -230,8 +220,7 @@ function hasVerifiedPayment(playerId, matchDateStr) {
 }
 
 function getPaymentStatus(playerId, matchDateStr) {
-    // MISMO criterio que evaluaciones.html: usar getBoliviaDateKey
-    const date = getBoliviaDateKey(matchDateStr);
+    const date = matchDateStr.split('T')[0];
     const fee = getFeeForDate(matchDateStr);
     if (fee.isFree) return 'free';
     const payment = payments.find(p => 
@@ -268,6 +257,7 @@ function getPaymentStatus(playerId, matchDateStr) {
         <button onclick="showSection('posiciones')" id="tab-posiciones" class="pb-3 text-sm font-semibold text-gray-400 hover:text-white whitespace-nowrap">Posiciones</button>
         <button onclick="abrirReglas()" class="pb-3 text-sm font-semibold text-yellow-400 hover:text-yellow-300 whitespace-nowrap">&#128203; Cómo Jugar</button>
         <button onclick="showSection('qr')" id="tab-qr" class="pb-3 text-sm font-semibold text-gray-400 hover:text-white whitespace-nowrap">Mi QR</button>
+        <button onclick="window.open('ganador-fecha.html','_blank')" class="pb-3 text-sm font-semibold text-amber-400 hover:text-amber-300 whitespace-nowrap">&#127942; Ganador Fecha</button>
         <button onclick="window.open('evaluaciones.html','_blank')" class="pb-3 text-sm font-semibold text-yellow-400 hover:text-yellow-300 whitespace-nowrap">&#128202; Evaluaciones</button>
         <button onclick="window.open('finanzas.html','_blank')" class="pb-3 text-sm font-semibold text-green-400 hover:text-green-300 whitespace-nowrap">&#128176; Finanzas</button>
         <button onclick="showSection('admin')" id="tab-admin" class="hidden pb-3 text-sm font-semibold text-gray-400 hover:text-white whitespace-nowrap">&#9881; Admin</button>
@@ -520,7 +510,18 @@ function renderMatches() {
     }).join('');
 }
 
-function getCountdown(dateStr) { const matchDate = new Date(dateStr); const now = new Date(); const diff = matchDate - now; if (diff <= 0) return 'En juego'; const h = Math.floor(diff / 3600000); const m = Math.floor((diff % 3600000) / 60000); if (h > 24) return `${Math.floor(h/24)}d ${h%24}h`; return `${h}h ${m}m`; }
+function getCountdown(dateStr) { 
+    const matchDate = new Date(dateStr);
+    const now = new Date();
+    const matchBolivia = new Date(matchDate.toLocaleString('en-US', { timeZone: 'America/La_Paz' }));
+    const nowBolivia = new Date(now.toLocaleString('en-US', { timeZone: 'America/La_Paz' }));
+    const diff = matchBolivia - nowBolivia; 
+    if (diff <= 0) return 'En juego'; 
+    const h = Math.floor(diff / 3600000); 
+    const m = Math.floor((diff % 3600000) / 60000); 
+    if (h > 24) return `${Math.floor(h/24)}d ${h%24}h`; 
+    return `${h}h ${m}m`; 
+}
 
 async function saveSingleBet(matchId) {
     const homeInput = $(`bet-${matchId}-home`); const awayInput = $(`bet-${matchId}-away`);
@@ -658,7 +659,7 @@ async function renderAdminPayments() {
     try {
         const { data: allPlayers } = await sb.from('players').select('*');
         const { data: allPayments } = await sb.from('payments').select('*');
-        const now = new Date(); const boliviaMs = now.getTime() - (4 * 60 * 60 * 1000); const boliviaDate = new Date(boliviaMs); const today = boliviaDate.toISOString().split('T')[0];
+        const now = new Date(); const today = now.toLocaleDateString('en-CA', { timeZone: 'America/La_Paz' });
         const fee = getFeeForDate(today);
         const todayPayments = (allPayments || []).filter(p => p.match_date === today);
         const verifiedCount = todayPayments.filter(p => p.status === 'paid' && p.verified_at).length;
