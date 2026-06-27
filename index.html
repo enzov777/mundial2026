@@ -184,8 +184,10 @@ const calculatePoints = (bet, match) => {
     const betDiff = bp - ba;
     const realDiff = rp - ra;
     if (betDiff === realDiff && betDiff !== 0) return 3;
-    if (Math.sign(betDiff) === Math.sign(realDiff)) return 2;
     if (betDiff === 0 && realDiff === 0) return 2;
+    const betWinner = bp > ba ? 'home' : bp < ba ? 'away' : 'draw';
+    const realWinner = rp > ra ? 'home' : rp < ra ? 'away' : 'draw';
+    if (betWinner === realWinner && betWinner !== 'draw') return 2;
     return 0;
 };
 
@@ -198,20 +200,30 @@ const showToast = (msg, type = 'info') => {
 };
 
 function getFeeForDate(dateStr) {
-    const date = dateStr.split('T')[0];
-    const fee = paymentFees.find(f => f.match_date === date);
+    const date = new Date(dateStr);
+    const boliviaDate = new Date(date.toLocaleString('en-US', { timeZone: 'America/La_Paz' }));
+    const year = boliviaDate.getFullYear();
+    const month = String(boliviaDate.getMonth() + 1).padStart(2, '0');
+    const day = String(boliviaDate.getDate()).padStart(2, '0');
+    const dateKey = `${year}-${month}-${day}`;
+    const fee = paymentFees.find(f => f.match_date === dateKey);
     if (fee && fee.is_free) return { amount: 0, isFree: true, notes: fee.notes };
     if (fee) return { amount: fee.amount, isFree: false, notes: fee.notes };
     return { amount: 5.00, isFree: false, notes: 'Valor por defecto' };
 }
 
 function hasVerifiedPayment(playerId, matchDateStr) {
-    const date = matchDateStr.split('T')[0];
+    const date = new Date(matchDateStr);
+    const boliviaDate = new Date(date.toLocaleString('en-US', { timeZone: 'America/La_Paz' }));
+    const year = boliviaDate.getFullYear();
+    const month = String(boliviaDate.getMonth() + 1).padStart(2, '0');
+    const day = String(boliviaDate.getDate()).padStart(2, '0');
+    const dateKey = `${year}-${month}-${day}`;
     const fee = getFeeForDate(matchDateStr);
     if (fee.isFree) return true;
     const payment = payments.find(p => 
         p.player_id === playerId && 
-        p.match_date === date &&
+        p.match_date === dateKey &&
         p.status === 'paid' &&
         p.verified_at !== null &&
         p.verified_at !== undefined
@@ -259,7 +271,6 @@ function getPaymentStatus(playerId, matchDateStr) {
         <button onclick="showSection('qr')" id="tab-qr" class="pb-3 text-sm font-semibold text-gray-400 hover:text-white whitespace-nowrap">Mi QR</button>
         <button onclick="window.open('ganador-fecha.html','_blank')" class="pb-3 text-sm font-semibold text-amber-400 hover:text-amber-300 whitespace-nowrap">&#127942; Ganador Fecha</button>
         <button onclick="window.open('evaluaciones.html','_blank')" class="pb-3 text-sm font-semibold text-yellow-400 hover:text-yellow-300 whitespace-nowrap">&#128202; Evaluaciones</button>
-        <button onclick="window.open('finanzas.html','_blank')" class="pb-3 text-sm font-semibold text-green-400 hover:text-green-300 whitespace-nowrap">&#128176; Finanzas</button>
         <button onclick="showSection('admin')" id="tab-admin" class="hidden pb-3 text-sm font-semibold text-gray-400 hover:text-white whitespace-nowrap">&#9881; Admin</button>
     </div>
 </nav>
@@ -377,7 +388,7 @@ function getPaymentStatus(playerId, matchDateStr) {
             <div id="admin-payments-container" class="space-y-3">
                 <p class="text-gray-500 text-sm">Cargando pagos...</p>
             </div>
-            <button onclick="window.open('finanzas.html','_blank')" class="mt-3 w-full bg-gradient-to-r from-green-500 to-emerald-600 text-white font-bold py-2 rounded-lg hover:from-green-400 hover:to-emerald-500 transition text-sm">Ver Detalle Completo de Finanzas &#8594;</button>
+
         </div>
 
         <div id="admin-matches-container" class="space-y-3"></div>
@@ -548,11 +559,56 @@ async function saveAllBets() {
 }
 
 function renderLeaderboard() {
+    console.log('=== DEBUG RENDER LEADERBOARD ===');
+    console.log('Total players:', players.length);
+    console.log('Total matches:', matches.length);
+    console.log('Total bets:', bets.length);
+    console.log('Total payments:', payments.length);
+    console.log('Total paymentFees:', paymentFees.length);
+
     const stats = players.map(player => {
-        const playerBets = bets.filter(b => b.player_id === player.id); let totalPoints = 0; let exactos = 0; let totalBets = 0; let validBets = 0;
-        playerBets.forEach(bet => { const match = matches.find(m => m.id === bet.match_id); if (match && isMatchFinished(match)) { const hasPayment = hasVerifiedPayment(player.id, match.match_date); if (hasPayment) { const pts = calculatePoints(bet, match); totalPoints += pts; if (pts === 5) exactos++; validBets++; } totalBets++; } });
+        const playerBets = bets.filter(b => b.player_id === player.id); 
+        let totalPoints = 0; let exactos = 0; let totalBets = 0; let validBets = 0;
+
+        if (player.name.toLowerCase().includes('yuri')) {
+            console.log(`\n--- DEBUG: ${player.name} ---`);
+        }
+
+        playerBets.forEach(bet => { 
+            const match = matches.find(m => m.id === bet.match_id); 
+            if (match && isMatchFinished(match)) { 
+                const hasPayment = hasVerifiedPayment(player.id, match.match_date); 
+                const fee = getFeeForDate(match.match_date);
+                const pts = hasPayment ? calculatePoints(bet, match) : 0;
+
+                if (player.name.toLowerCase().includes('yuri')) {
+                    console.log(`Match: ${match.home_team} vs ${match.away_team}`);
+                    console.log(`  Date (UTC): ${match.match_date}`);
+                    console.log(`  Date (BO): ${new Date(match.match_date).toLocaleString('en-US', {timeZone:'America/La_Paz'})}`);
+                    console.log(`  Prediction: ${bet.home_prediction}-${bet.away_prediction}`);
+                    console.log(`  Result: ${match.home_score}-${match.away_score}`);
+                    console.log(`  Fee: ${fee.isFree ? 'FREE' : fee.amount + ' Bs'}`);
+                    console.log(`  HasPayment: ${hasPayment}`);
+                    console.log(`  Points: ${pts}`);
+                }
+
+                if (hasPayment) { 
+                    totalPoints += pts; 
+                    if (pts === 5) exactos++; 
+                    validBets++; 
+                } 
+                totalBets++; 
+            } 
+        });
+
+        if (player.name.toLowerCase().includes('yuri')) {
+            console.log(`TOTAL for ${player.name}: ${totalPoints} points`);
+        }
+
         return { ...player, totalPoints, exactos, totalBets, validBets };
     }).sort((a, b) => b.totalPoints - a.totalPoints);
+
+    console.log('=== END DEBUG ===');
     const tbody = $('leaderboard-body');
     if (!stats.length) { tbody.innerHTML = '<tr><td colspan="6" class="text-center py-8 text-gray-500">Aun no hay jugadores</td></tr>'; return; }
     tbody.innerHTML = stats.map((p, i) => { let medal = ''; if (i === 0) medal = '1.'; else if (i === 1) medal = '2.'; else if (i === 2) medal = '3.'; else medal = `<span class="text-gray-500">${i + 1}.</span>`; const isMe = p.id === currentPlayer?.id; const hasAnyPayment = p.validBets > 0; return `<tr class="border-b border-white/5 ${isMe ? 'bg-yellow-500/10' : ''} hover:bg-white/5 transition"><td class="py-3 px-2 font-bold">${medal}</td><td class="py-3 px-2 font-semibold ${isMe ? 'text-yellow-400' : ''} ${!hasAnyPayment ? 'disabled-player' : ''}">${p.name}</td><td class="py-3 px-2 text-center text-gray-400">${p.validBets}/${p.totalBets}</td><td class="py-3 px-2 text-center text-yellow-400 font-bold">${p.exactos}</td><td class="py-3 px-2 text-center font-bold text-lg ${hasAnyPayment ? 'text-white' : 'text-gray-600'}">${p.totalPoints}</td><td class="py-3 px-2 text-center">${hasAnyPayment ? '<span class="text-xs bg-green-500/20 text-green-400 px-2 py-1 rounded-full">&#9989; Verificado</span>' : '<span class="text-xs bg-red-500/20 text-red-400 px-2 py-1 rounded-full">&#128683; Sin pago</span>'}</td></tr>`; }).join('');
