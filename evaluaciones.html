@@ -155,8 +155,14 @@ function getPaymentStatus(playerId, matchDateStr, paymentsData) { const matchDat
 async function loadData() {
     const container = document.getElementById('matchesContainer');
     try {
-        const { data: matchesData, error: matchesError } = await sb.from('matches').select('*').eq('status', 'finished').order('match_date');
+        const { data: matchesRaw, error: matchesError } = await sb.from('matches').select('*').eq('status', 'finished').order('match_date');
         if (matchesError) throw matchesError;
+        const matchesData = (matchesRaw || []).map(m => {
+            if (m.match_date && m.match_date.includes('T') && !/Z|[+-]\d{2}:?\d{2}$/.test(m.match_date)) {
+                return { ...m, match_date: m.match_date + 'Z' };
+            }
+            return m;
+        });
         const { data: playersData, error: playersError } = await sb.from('players').select('*');
         if (playersError) throw playersError;
         const { data: betsData, error: betsError } = await sb.from('bets').select('*');
@@ -170,7 +176,12 @@ async function loadData() {
     }
 }
 
-function getBoliviaDateKey(dateStr) { const date = new Date(dateStr); return date.toLocaleDateString('en-CA', { timeZone: 'America/La_Paz' }); }
+function getBoliviaDateKey(dateStr) { 
+    let ds = dateStr;
+    if (ds && ds.includes('T') && !/Z|[+-]\d{2}:?\d{2}$/.test(ds)) ds += 'Z';
+    const date = new Date(ds);
+    return date.toLocaleDateString('en-CA', { timeZone: 'America/La_Paz' }); 
+}
 
 function renderMatches(matches, players, bets, payments, fees) {
     allMatches = matches; allPlayers = players; allBets = bets; allPayments = payments; allFees = fees;
@@ -192,7 +203,13 @@ function renderDateSection(date, dateMatches, players, bets, payments) { const c
 
 function renderDateSectionHTML(date, dateMatches, players, bets, payments) {
     const months = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
-    const formatDateNice = (dateStr) => { const [year, month, day] = dateStr.split('-'); return `${parseInt(day)} de ${months[parseInt(month)-1]} ${year}`; };
+    const formatDateNice = (dateStr) => { 
+    let ds = dateStr;
+    if (ds && ds.includes('T') && !/Z|[+-]\d{2}:?\d{2}$/.test(ds)) ds += 'Z';
+    const date = new Date(ds);
+    const boliviaDate = new Date(date.toLocaleString('en-US', { timeZone: 'America/La_Paz' }));
+    return `${boliviaDate.getDate()} de ${months[boliviaDate.getMonth()]} ${boliviaDate.getFullYear()}`; 
+};
     const fee = getFeeForDate(date);
     const verifiedCount = players.filter(p => hasVerifiedPayment(p.id, date, payments)).length;
     const totalPlayers = players.length;
