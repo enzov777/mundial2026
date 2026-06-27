@@ -268,9 +268,10 @@ function renderLeaderboard() {
 }
 
 function formatDateNice(dateStr) {
-    const months = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
-    const [year, month, day] = dateStr.split('-');
-    return `${parseInt(day)} de ${months[parseInt(month)-1]} ${year}`;
+    const months = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+    const date = new Date(dateStr);
+    const boliviaDate = new Date(date.toLocaleString('en-US', { timeZone: 'America/La_Paz' }));
+    return `${boliviaDate.getDate()} de ${months[boliviaDate.getMonth()]} ${boliviaDate.getFullYear()}`;
 }
 
 // ============================================
