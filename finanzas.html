@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Finanzas - Quiniela Mundial 2026</title>
+    <title>Finanzas - Centro de Control Económico - Quiniela Mundial 2026</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.39.0/dist/umd/supabase.min.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&display=swap" rel="stylesheet">
@@ -11,334 +11,524 @@
         body { font-family: 'Inter', sans-serif; background: #0f172a; }
         .glass { background: rgba(255,255,255,0.05); backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,0.1); }
         .gradient-text { background: linear-gradient(135deg, #fbbf24, #f59e0b); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
-        .btn-paid { background: #22c55e; color: white; }
-        .btn-paid:hover { background: #16a34a; }
-        .btn-pending { background: #475569; color: #94a3b8; }
-        .btn-pending:hover { background: #334155; color: white; }
-        .status-paid { background: rgba(34, 197, 94, 0.2); color: #4ade80; border: 1px solid rgba(34, 197, 94, 0.3); }
-        .status-pending { background: rgba(71, 85, 105, 0.2); color: #94a3b8; border: 1px solid rgba(71, 85, 105, 0.3); }
-        .status-late { background: rgba(239, 68, 68, 0.2); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.3); }
-        .prize-card { background: linear-gradient(135deg, rgba(251, 191, 36, 0.1), rgba(245, 158, 11, 0.05)); border: 1px solid rgba(251, 191, 36, 0.3); }
-        .accumulated-card { background: linear-gradient(135deg, rgba(99, 102, 241, 0.1), rgba(139, 92, 246, 0.05)); border: 1px solid rgba(99, 102, 241, 0.3); }
-        .winner-row { background: rgba(251, 191, 36, 0.1) !important; }
-        .disabled-row { background: rgba(75, 85, 99, 0.3) !important; opacity: 0.6; }
+        .stat-card { transition: all 0.3s ease; }
+        .stat-card:hover { transform: translateY(-4px); }
+        .income-card { background: linear-gradient(135deg, rgba(34, 197, 94, 0.15), rgba(34, 197, 94, 0.05)); border: 1px solid rgba(34, 197, 94, 0.3); }
+        .prize-card { background: linear-gradient(135deg, rgba(251, 191, 36, 0.15), rgba(245, 158, 11, 0.05)); border: 1px solid rgba(251, 191, 36, 0.3); }
+        .accumulated-card { background: linear-gradient(135deg, rgba(99, 102, 241, 0.15), rgba(139, 92, 246, 0.05)); border: 1px solid rgba(99, 102, 241, 0.3); }
+        .pending-card { background: linear-gradient(135deg, rgba(234, 179, 8, 0.15), rgba(234, 179, 8, 0.05)); border: 1px solid rgba(234, 179, 8, 0.3); }
+        .player-row { transition: all 0.2s; }
+        .player-row:hover { background: rgba(255,255,255,0.05); }
+        .winner-row { background: rgba(251, 191, 36, 0.08) !important; }
+        .loading-spinner { width: 40px; height: 40px; border: 3px solid #334155; border-top-color: #fbbf24; border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto 20px; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .tab-active { border-bottom: 3px solid #fbbf24; color: #fbbf24; }
+        .date-section { border-left: 3px solid #fbbf24; }
         .verified-badge { background: rgba(34, 197, 94, 0.2); color: #4ade80; border: 1px solid rgba(34, 197, 94, 0.3); }
-        .unverified-badge { background: rgba(234, 179, 8, 0.2); color: #facc15; border: 1px solid rgba(234, 179, 8, 0.3); }
+        .pending-badge { background: rgba(234, 179, 8, 0.2); color: #facc15; border: 1px solid rgba(234, 179, 8, 0.3); }
         .no-payment-badge { background: rgba(239, 68, 68, 0.2); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.3); }
+        .free-badge { background: rgba(34, 197, 94, 0.2); color: #4ade80; border: 1px solid rgba(34, 197, 94, 0.3); }
     </style>
-<base target="_blank">
 <base target="_blank">
 </head>
 <body class="text-white min-h-screen">
 
 <script>
 // ============================================
-// CONFIGURACIÓN SUPABASE
+// CONFIGURACIÓN SUPABASE - CREDENCIALES REALES
 // ============================================
 const SUPABASE_URL = 'https://dwcnwxrcwuicwxbtqpxs.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImR3Y253eHJjd3VpY3d4YnRxcHhzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODIxNDk4NDcsImV4cCI6MjA5NzcyNTg0N30.Xwa-18sv9YsodNG1AJeItmf3NdwiHanCE9m9Mka4dSE';
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-let currentPlayer = null;
 let players = [];
+let matches = [];
+let bets = [];
 let payments = [];
-let prizes = [];
-let accumulatedPool = 0;
+let paymentFees = [];
+
+// ============================================
+// FUNCIONES AUXILIARES
+// ============================================
+const getBoliviaDateKey = (dateStr) => {
+    const date = new Date(dateStr);
+    const boliviaDate = new Date(date.toLocaleString('en-US', { timeZone: 'America/La_Paz' }));
+    const year = boliviaDate.getFullYear();
+    const month = String(boliviaDate.getMonth() + 1).padStart(2, '0');
+    const day = String(boliviaDate.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+};
+
+function getFeeForDate(dateStr) {
+    const dateKey = getBoliviaDateKey(dateStr);
+    const fee = paymentFees.find(f => f.match_date === dateKey);
+    if (fee && fee.is_free) return { amount: 0, isFree: true, notes: fee.notes };
+    if (fee) return { amount: fee.amount, isFree: false, notes: fee.notes };
+    return { amount: 5.00, isFree: false, notes: 'Valor por defecto' };
+}
+
+function hasVerifiedPayment(playerId, matchDateStr) {
+    const dateKey = getBoliviaDateKey(matchDateStr);
+    const fee = getFeeForDate(matchDateStr);
+    if (fee.isFree) return true;
+    const payment = payments.find(p =>
+        p.player_id === playerId &&
+        p.match_date === dateKey &&
+        p.status === 'paid' &&
+        p.verified_at !== null &&
+        p.verified_at !== undefined
+    );
+    return !!payment;
+}
+
+const calculatePoints = (betHome, betAway, realHome, realAway) => {
+    if (betHome === realHome && betAway === realAway) return { points: 5, reason: "Resultado exacto" };
+    const betDiff = betHome - betAway;
+    const realDiff = realHome - realAway;
+    if (betDiff === realDiff && betDiff !== 0) return { points: 3, reason: "Diferencia de goles" };
+    if (betDiff === 0 && realDiff === 0) return { points: 2, reason: "Empate correcto" };
+    const betWinner = betHome > betAway ? 'home' : betHome < betAway ? 'away' : 'draw';
+    const realWinner = realHome > realAway ? 'home' : realHome < realAway ? 'away' : 'draw';
+    if (betWinner === realWinner && betWinner !== 'draw') return { points: 2, reason: "Ganador correcto" };
+    return { points: 0, reason: "Sin acierto" };
+};
+
+function formatDateNice(dateStr) {
+    const months = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+    const date = new Date(dateStr + 'T00:00:00');
+    const boliviaDate = new Date(date.toLocaleString('en-US', { timeZone: 'America/La_Paz' }));
+    return `${boliviaDate.getDate()} de ${months[boliviaDate.getMonth()]} ${boliviaDate.getFullYear()}`;
+}
+
+function formatCurrency(amount) {
+    return amount.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+}
 
 // ============================================
 // CARGA DE DATOS
 // ============================================
 async function loadData() {
     try {
-        // Cargar jugadores
-        const { data: playersData } = await sb.from('players').select('*');
+        const [{ data: playersData }, { data: matchesData }, { data: betsData }, { data: paymentsData }, { data: feesData }] = await Promise.all([
+            sb.from('players').select('*'),
+            sb.from('matches').select('*').eq('status', 'finished').order('match_date'),
+            sb.from('bets').select('*'),
+            sb.from('payments').select('*'),
+            sb.from('payment_fees').select('*')
+        ]);
+
         players = playersData || [];
-
-        // Cargar pagos
-        const { data: paymentsData } = await sb.from('payments').select('*');
+        matches = matchesData || [];
+        bets = betsData || [];
         payments = paymentsData || [];
-
-        // Cargar premios
-        const { data: prizesRaw } = await sb.from('prizes').select('*').order('match_date');
-        prizes = (prizesRaw || []).map(p => {
-            if (p.match_date && p.match_date.includes('T') && !/Z|[+-]\d{2}:?\d{2}$/.test(p.match_date)) {
-                return { ...p, match_date: p.match_date + 'Z' };
-            }
-            return p;
-        });
-
-        // Cargar bolsa acumulada
-        const { data: poolData } = await sb.from('accumulated_pool').select('*').single();
-        accumulatedPool = poolData?.total_amount || 0;
+        paymentFees = feesData || [];
 
         renderFinances();
     } catch (error) {
-        console.error('Error:', error);
+        console.error('Error cargando datos:', error);
         document.getElementById('mainContainer').innerHTML = `
             <div class="glass rounded-2xl p-8 text-center text-red-400">
-                <p>Error al cargar datos: ${error.message}</p>
+                <p class="text-lg font-bold mb-2">Error al cargar datos</p>
+                <p class="text-sm text-gray-400">${error.message}</p>
             </div>
         `;
     }
 }
 
 // ============================================
-// RENDERIZADO
+// CÁLCULOS FINANCIEROS PRINCIPALES
+// ============================================
+function calculateFinancials() {
+    // Agrupar partidos por fecha
+    const groupedMatches = {};
+    matches.forEach(m => {
+        const dateKey = getBoliviaDateKey(m.match_date);
+        if (!groupedMatches[dateKey]) groupedMatches[dateKey] = [];
+        groupedMatches[dateKey].push(m);
+    });
+
+    let totalIncome = 0;
+    let totalDistributed = 0;
+    let totalAccumulated = 0;
+    const dateResults = [];
+
+    Object.keys(groupedMatches).sort().forEach(date => {
+        const dateMatches = groupedMatches[date];
+        const fee = getFeeForDate(date);
+
+        // Contar pagos verificados para esta fecha
+        const verifiedPlayers = players.filter(p => {
+            const payment = payments.find(pay =>
+                pay.player_id === p.id &&
+                pay.match_date === date &&
+                pay.status === 'paid' &&
+                pay.verified_at
+            );
+            return !!payment;
+        });
+
+        const verifiedCount = verifiedPlayers.length;
+        const dateIncome = fee.isFree ? 0 : verifiedCount * fee.amount;
+        const datePrize = fee.isFree ? 0 : dateIncome * 0.8;
+        const dateAccumulated = fee.isFree ? 0 : dateIncome * 0.2;
+
+        // Calcular ganador(es) de la fecha
+        const datePlayerScores = players.map(player => {
+            let totalPoints = 0;
+            let exactos = 0;
+            dateMatches.forEach(match => {
+                const bet = bets.find(b => b.player_id === player.id && b.match_id === match.id);
+                if (bet && hasVerifiedPayment(player.id, match.match_date)) {
+                    const result = calculatePoints(bet.home_prediction, bet.away_prediction, match.home_score, match.away_score);
+                    totalPoints += result.points;
+                    if (result.points === 5) exactos++;
+                }
+            });
+            return { id: player.id, name: player.name, totalPoints, exactos };
+        }).sort((a, b) => b.totalPoints - a.totalPoints);
+
+        const maxPoints = Math.max(...datePlayerScores.map(p => p.totalPoints), 0);
+        const winners = datePlayerScores.filter(p => p.totalPoints === maxPoints && p.totalPoints > 0);
+        const prizePerWinner = winners.length > 0 ? datePrize / winners.length : 0;
+
+        // Guardar resultado de fecha
+        dateResults.push({
+            date,
+            fee,
+            verifiedCount,
+            totalPlayers: players.length,
+            income: dateIncome,
+            prizePool: datePrize,
+            accumulated: dateAccumulated,
+            winners,
+            prizePerWinner,
+            dateMatches
+        });
+
+        totalIncome += dateIncome;
+        totalDistributed += datePrize;
+        totalAccumulated += dateAccumulated;
+    });
+
+    return { totalIncome, totalDistributed, totalAccumulated, dateResults };
+}
+
+function calculatePlayerStats() {
+    const groupedMatches = {};
+    matches.forEach(m => {
+        const dateKey = getBoliviaDateKey(m.match_date);
+        if (!groupedMatches[dateKey]) groupedMatches[dateKey] = [];
+        groupedMatches[dateKey].push(m);
+    });
+
+    return players.map(player => {
+        let totalValidPoints = 0;
+        let totalPrizeMoney = 0;
+        let verifiedPaymentsCount = 0;
+        let totalPaymentsCount = 0;
+        let exactos = 0;
+        let matchesPlayed = 0;
+
+        // Contar pagos
+        payments.forEach(pay => {
+            if (pay.player_id === player.id && pay.status === 'paid') {
+                totalPaymentsCount++;
+                if (pay.verified_at) verifiedPaymentsCount++;
+            }
+        });
+
+        // Calcular puntos y premios por fecha
+        Object.keys(groupedMatches).sort().forEach(date => {
+            const dateMatches = groupedMatches[date];
+            const fee = getFeeForDate(date);
+
+            // Verificar si tiene pago verificado para esta fecha
+            const hasPayment = hasVerifiedPayment(player.id, date + 'T00:00:00');
+            if (!hasPayment && !fee.isFree) return;
+
+            let datePoints = 0;
+            dateMatches.forEach(match => {
+                const bet = bets.find(b => b.player_id === player.id && b.match_id === match.id);
+                if (bet) {
+                    matchesPlayed++;
+                    const result = calculatePoints(bet.home_prediction, bet.away_prediction, match.home_score, match.away_score);
+                    datePoints += result.points;
+                    if (result.points === 5) exactos++;
+                }
+            });
+
+            totalValidPoints += datePoints;
+
+            // Verificar si ganó esta fecha
+            const allPlayerScores = players.map(p => {
+                let pts = 0;
+                dateMatches.forEach(m => {
+                    const b = bets.find(bet => bet.player_id === p.id && bet.match_id === m.id);
+                    if (b && hasVerifiedPayment(p.id, m.match_date)) {
+                        const r = calculatePoints(b.home_prediction, b.away_prediction, m.home_score, m.away_score);
+                        pts += r.points;
+                    }
+                });
+                return { id: p.id, points: pts };
+            }).sort((a, b) => b.points - a.points);
+
+            const maxDatePoints = Math.max(...allPlayerScores.map(p => p.points), 0);
+            if (datePoints === maxDatePoints && datePoints > 0) {
+                const verifiedCount = players.filter(p => hasVerifiedPayment(p.id, date + 'T00:00:00')).length;
+                const dateIncome = fee.isFree ? 0 : verifiedCount * fee.amount;
+                const datePrize = fee.isFree ? 0 : dateIncome * 0.8;
+                const winnersCount = allPlayerScores.filter(p => p.points === maxDatePoints).length;
+                totalPrizeMoney += datePrize / winnersCount;
+            }
+        });
+
+        return {
+            ...player,
+            verifiedPaymentsCount,
+            totalPaymentsCount,
+            totalValidPoints,
+            exactos,
+            matchesPlayed,
+            totalPrizeMoney
+        };
+    }).sort((a, b) => b.totalValidPoints - a.totalValidPoints);
+}
+
+// ============================================
+// RENDERIZADO PRINCIPAL
 // ============================================
 function renderFinances() {
     const container = document.getElementById('mainContainer');
-
-    // Obtener fechas únicas de los premios
-    const dates = [...new Set(prizes.map(p => p.match_date))].sort();
-    const selectedDate = dates[dates.length - 1] || new Date().toISOString().split('T')[0];
-
-    // Calcular totales
-    const totalCollected = prizes.reduce((sum, p) => sum + (p.total_collected || 0), 0);
-    const totalDistributed = prizes.reduce((sum, p) => sum + (p.winner_share || 0), 0);
-    const totalAccumulated = accumulatedPool;
+    const { totalIncome, totalDistributed, totalAccumulated, dateResults } = calculateFinancials();
+    const playerStats = calculatePlayerStats();
 
     container.innerHTML = `
-        <!-- Resumen General -->
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-            <div class="prize-card rounded-2xl p-6">
-                <div class="text-yellow-400 text-sm font-semibold mb-2">&#128176; Total Recaudado</div>
-                <div class="text-3xl font-black">${totalCollected.toFixed(2)} Bs</div>
-                <div class="text-gray-400 text-xs mt-1">En todas las fechas</div>
-            </div>
-            <div class="glass rounded-2xl p-6 border-green-500/30">
-                <div class="text-green-400 text-sm font-semibold mb-2">&#127942; Total Distribuido</div>
-                <div class="text-3xl font-black">${totalDistributed.toFixed(2)} Bs</div>
-                <div class="text-gray-400 text-xs mt-1">80% a ganadores</div>
-            </div>
-            <div class="accumulated-card rounded-2xl p-6">
-                <div class="text-indigo-400 text-sm font-semibold mb-2">&#127919; Bolsa Acumulada</div>
-                <div class="text-3xl font-black">${totalAccumulated.toFixed(2)} Bs</div>
-                <div class="text-gray-400 text-xs mt-1">20% por fecha + final</div>
-            </div>
-        </div>
-
-        <!-- Fechas y Pagos -->
-        <div class="glass rounded-2xl p-6 mb-6">
-            <h2 class="text-xl font-bold mb-2 flex items-center gap-2">
-                &#128197; Gestión de Pagos por Fecha
-            </h2>
-            <p class="text-xs text-gray-400 mb-4">Haz click en un jugador para verificar su pago. Solo los pagos verificados hacen válidos los pronósticos.</p>
-
-            ${dates.length === 0 ? `
-                <div class="text-center text-gray-400 py-8">
-                    <p>No hay fechas configuradas aún</p>
+        <!-- RESUMEN EJECUTIVO -->
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+            <div class="income-card stat-card rounded-2xl p-6">
+                <div class="flex items-center gap-3 mb-3">
+                    <span class="text-3xl">&#128176;</span>
+                    <span class="text-green-400 text-sm font-semibold uppercase tracking-wider">Total Ingresado</span>
                 </div>
-            ` : dates.map(date => {
-                const prize = prizes.find(p => p.match_date === date);
-                const datePlayers = players.map(p => {
-                    const payment = payments.find(pay => pay.player_id === p.id && pay.match_date === date);
-                    return { ...p, payment };
-                });
-                const verifiedCount = datePlayers.filter(p => p.payment?.status === 'paid' && p.payment?.verified_at).length;
-                const pendingCount = datePlayers.filter(p => p.payment?.status === 'paid' && !p.payment?.verified_at).length;
-                const notPaidCount = datePlayers.filter(p => !p.payment || p.payment.status !== 'paid').length;
-                const totalDate = verifiedCount * 5;
+                <div class="text-3xl font-black text-white">${formatCurrency(totalIncome)} Bs</div>
+                <div class="text-green-400/70 text-xs mt-2">Dinero recaudado de pagos verificados</div>
+            </div>
 
-                return `
-                    <div class="mb-6 border-b border-white/10 pb-6 last:border-0 last:pb-0">
-                        <div class="flex justify-between items-center mb-4">
-                            <div>
-                                <h3 class="text-lg font-bold text-white">${formatDateNice(date)}</h3>
-                                <div class="flex gap-2 mt-1">
-                                    <span class="text-xs bg-green-500/20 text-green-400 px-2 py-0.5 rounded-full">${verifiedCount} verificados</span>
-                                    <span class="text-xs bg-yellow-500/20 text-yellow-400 px-2 py-0.5 rounded-full">${pendingCount} pendientes</span>
-                                    <span class="text-xs bg-red-500/20 text-red-400 px-2 py-0.5 rounded-full">${notPaidCount} sin pagar</span>
-                                </div>
-                            </div>
-                            <div class="text-right">
-                                <div class="text-2xl font-bold text-yellow-400">${totalDate.toFixed(2)} Bs</div>
-                                <div class="text-xs text-gray-400">Recaudado verificado</div>
-                            </div>
-                        </div>
+            <div class="prize-card stat-card rounded-2xl p-6">
+                <div class="flex items-center gap-3 mb-3">
+                    <span class="text-3xl">&#127942;</span>
+                    <span class="text-yellow-400 text-sm font-semibold uppercase tracking-wider">Total Repartido</span>
+                </div>
+                <div class="text-3xl font-black text-white">${formatCurrency(totalDistributed)} Bs</div>
+                <div class="text-yellow-400/70 text-xs mt-2">80% del total recaudado a ganadores</div>
+            </div>
 
-                        <div class="grid grid-cols-2 md:grid-cols-4 gap-2 mb-4">
-                            ${datePlayers.map(p => {
-                                const isVerified = p.payment?.status === 'paid' && p.payment?.verified_at;
-                                const isPending = p.payment?.status === 'paid' && !p.payment?.verified_at;
-                                const isNotPaid = !p.payment || p.payment.status !== 'paid';
-                                const verifiedTime = p.payment?.verified_at ? new Date(p.payment.verified_at).toLocaleString('es-BO', { hour: '2-digit', minute: '2-digit' }) : '';
+            <div class="accumulated-card stat-card rounded-2xl p-6">
+                <div class="flex items-center gap-3 mb-3">
+                    <span class="text-3xl">&#127919;</span>
+                    <span class="text-indigo-400 text-sm font-semibold uppercase tracking-wider">Bolsa Acumulada</span>
+                </div>
+                <div class="text-3xl font-black text-white">${formatCurrency(totalAccumulated)} Bs</div>
+                <div class="text-indigo-400/70 text-xs mt-2">20% por fecha para premio final</div>
+            </div>
 
-                                return `
-                                    <button onclick="togglePayment('${p.id}', '${date}')"
-                                        class="p-3 rounded-xl text-sm font-medium transition-all text-left ${isVerified 
-                                            ? 'verified-badge' 
-                                            : isPending 
-                                                ? 'unverified-badge'
-                                                : 'no-payment-badge'}"
-                                        title="${isVerified ? 'Verificado: ' + verifiedTime + '\nClick para invalidar' : isPending ? 'Pago registrado pero NO verificado\nClick para verificar' : 'Sin pago registrado\nClick para verificar pago'}">
-                                        <div class="font-bold">${p.name}</div>
-                                        <div class="text-xs mt-1 flex items-center gap-1">
-                                            ${isVerified ? '&#9989; Verificado' : isPending ? '&#9200; Pendiente' : '&#128179; Sin pago'}
-                                        </div>
-                                        ${isVerified && p.payment?.verified_at ? `
-                                            <div class="text-[10px] opacity-70 mt-0.5">${verifiedTime}</div>
-                                        ` : ''}
-                                    </button>
-                                `;
-                            }).join('')}
-                        </div>
-
-                        ${prize ? `
-                            <div class="bg-gray-900/50 rounded-xl p-4">
-                                <div class="flex justify-between items-center">
-                                    <div>
-                                        <span class="text-green-400 font-bold">80% Ganador: ${prize.winner_share?.toFixed(2)} Bs</span>
-                                        <span class="text-gray-500 mx-2">|</span>
-                                        <span class="text-indigo-400 font-bold">20% Acumulado: ${prize.accumulated?.toFixed(2)} Bs</span>
-                                    </div>
-                                    ${prize.winner_id ? `
-                                        <div class="text-yellow-400 font-bold">
-                                            &#127942; ${players.find(p => p.id === prize.winner_id)?.name || 'Sin ganador'}
-                                        </div>
-                                    ` : '<div class="text-gray-500">Pendiente de cálculo</div>'}
-                                </div>
-                            </div>
-                        ` : ''}
-                    </div>
-                `;
-            }).join('')}
+            <div class="pending-card stat-card rounded-2xl p-6">
+                <div class="flex items-center gap-3 mb-3">
+                    <span class="text-3xl">&#128100;</span>
+                    <span class="text-amber-400 text-sm font-semibold uppercase tracking-wider">Jugadores</span>
+                </div>
+                <div class="text-3xl font-black text-white">${players.length}</div>
+                <div class="text-amber-400/70 text-xs mt-2">Participantes registrados</div>
+            </div>
         </div>
 
-        <!-- Tabla de Campeonato Acumulado -->
-        <div class="glass rounded-2xl p-6">
-            <h2 class="text-xl font-bold mb-4 flex items-center gap-2">
-                &#127942; Campeonato - Puntos y Premios Acumulados
+        <!-- DETALLE POR FECHA -->
+        <div class="glass rounded-2xl p-6 mb-8">
+            <h2 class="text-xl font-bold mb-2 flex items-center gap-2">
+                <span class="text-2xl">&#128197;</span> Detalle por Fecha
             </h2>
-            <p class="text-xs text-gray-400 mb-3">Solo se muestran puntos de jugadores con pagos verificados.</p>
+            <p class="text-xs text-gray-400 mb-6">Desglose de ingresos, premios y acumulado fecha por fecha</p>
+
+            ${dateResults.length === 0 ? `
+                <div class="text-center text-gray-500 py-8">
+                    <p class="text-lg">Aún no hay fechas finalizadas</p>
+                </div>
+            ` : dateResults.map(dr => `
+                <div class="date-section pl-4 mb-6 last:mb-0">
+                    <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-3 mb-3">
+                        <div>
+                            <h3 class="text-lg font-bold text-white">${formatDateNice(dr.date)}</h3>
+                            <p class="text-xs text-gray-400">${dr.dateMatches.length} partido${dr.dateMatches.length > 1 ? 's' : ''} finalizado${dr.dateMatches.length > 1 ? 's' : ''}</p>
+                        </div>
+                        <div class="flex flex-wrap gap-2">
+                            ${dr.fee.isFree
+                                ? '<span class="free-badge px-3 py-1 rounded-full text-xs font-bold">&#127381; FECHA LIBRE</span>'
+                                : `<span class="verified-badge px-3 py-1 rounded-full text-xs font-bold">&#9989; ${dr.verifiedCount}/${dr.totalPlayers} pagos</span>`
+                            }
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-3 gap-3 mb-3">
+                        <div class="bg-white/5 rounded-xl p-3 text-center">
+                            <div class="text-green-400 font-bold text-lg">${formatCurrency(dr.income)} Bs</div>
+                            <div class="text-gray-500 text-xs">Recaudado</div>
+                        </div>
+                        <div class="bg-white/5 rounded-xl p-3 text-center">
+                            <div class="text-yellow-400 font-bold text-lg">${formatCurrency(dr.prizePool)} Bs</div>
+                            <div class="text-gray-500 text-xs">Premio (80%)</div>
+                        </div>
+                        <div class="bg-white/5 rounded-xl p-3 text-center">
+                            <div class="text-indigo-400 font-bold text-lg">${formatCurrency(dr.accumulated)} Bs</div>
+                            <div class="text-gray-500 text-xs">Acumulado (20%)</div>
+                        </div>
+                    </div>
+
+                    ${dr.winners.length > 0 ? `
+                        <div class="bg-yellow-500/10 border border-yellow-500/20 rounded-xl p-3">
+                            <div class="flex items-center gap-2 mb-2">
+                                <span class="text-yellow-400">&#127942;</span>
+                                <span class="text-yellow-400 font-bold text-sm">Ganador${dr.winners.length > 1 ? 'es' : ''} de la Fecha</span>
+                            </div>
+                            <div class="flex flex-wrap gap-2">
+                                ${dr.winners.map(w => `
+                                    <span class="bg-yellow-500/20 text-yellow-400 px-3 py-1 rounded-full text-sm font-semibold">
+                                        ${w.name} — ${w.totalPoints} pts — ${formatCurrency(dr.prizePerWinner)} Bs
+                                    </span>
+                                `).join('')}
+                            </div>
+                        </div>
+                    ` : `
+                        <div class="bg-gray-700/30 rounded-xl p-3 text-center text-gray-500 text-sm">
+                            Sin ganador definido o fecha libre
+                        </div>
+                    `}
+                </div>
+            `).join('')}
+        </div>
+
+        <!-- RANKING DE JUGADORES - CENTRO DE CONTROL ECONÓMICO -->
+        <div class="glass rounded-2xl p-6 mb-8">
+            <h2 class="text-xl font-bold mb-2 flex items-center gap-2">
+                <span class="text-2xl">&#128202;</span> Centro de Control por Jugador
+            </h2>
+            <p class="text-xs text-gray-400 mb-6">Pagos realizados, puntos válidos y dinero ganado por cada participante</p>
+
             <div class="overflow-x-auto">
-                <table class="w-full">
+                <table class="w-full text-sm">
                     <thead>
                         <tr class="text-gray-400 text-xs uppercase tracking-wider border-b border-white/10">
-                            <th class="text-left py-3 px-4">#</th>
-                            <th class="text-left py-3 px-4">Jugador</th>
-                            <th class="text-center py-3 px-4">Pagos Verif.</th>
-                            <th class="text-center py-3 px-4">Puntos Fecha</th>
-                            <th class="text-center py-3 px-4">Puntos Acum</th>
-                            <th class="text-center py-3 px-4">Premios Ganados</th>
+                            <th class="text-left py-3 px-3">#</th>
+                            <th class="text-left py-3 px-3">Jugador</th>
+                            <th class="text-center py-3 px-3">Pagos Verif.</th>
+                            <th class="text-center py-3 px-3">Partidos</th>
+                            <th class="text-center py-3 px-3">Exactos</th>
+                            <th class="text-center py-3 px-3">Puntos Válidos</th>
+                            <th class="text-center py-3 px-3">Dinero Ganado</th>
+                            <th class="text-center py-3 px-3">Balance</th>
                         </tr>
                     </thead>
-                    <tbody id="leaderboardBody">
-                        ${renderLeaderboard()}
+                    <tbody>
+                        ${playerStats.map((p, i) => {
+                            const isTop = i === 0 && p.totalValidPoints > 0;
+                            const hasActivity = p.verifiedPaymentsCount > 0 || p.totalPrizeMoney > 0;
+                            const initials = p.name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
+                            // Balance = premios ganados - dinero pagado
+                            const moneyPaid = p.verifiedPaymentsCount * 5; // Asumiendo 5 Bs por fecha
+                            const balance = p.totalPrizeMoney - moneyPaid;
+                            const balanceClass = balance >= 0 ? 'text-green-400' : 'text-red-400';
+                            const balanceIcon = balance >= 0 ? '+' : '';
+
+                            return `
+                                <tr class="player-row border-b border-white/5 ${isTop ? 'winner-row' : ''} ${!hasActivity ? 'opacity-50' : ''}">
+                                    <td class="py-3 px-3 font-bold ${isTop ? 'text-yellow-400' : 'text-gray-500'}">${i + 1}</td>
+                                    <td class="py-3 px-3">
+                                        <div class="flex items-center gap-3">
+                                            <div class="w-8 h-8 rounded-full ${isTop ? 'bg-gradient-to-br from-yellow-500 to-amber-600' : 'bg-gray-700'} flex items-center justify-center text-xs font-bold text-white">${initials}</div>
+                                            <span class="font-semibold ${isTop ? 'text-yellow-400' : ''}">${p.name}</span>
+                                            ${isTop ? '<span class="text-yellow-400">&#127942;</span>' : ''}
+                                        </div>
+                                    </td>
+                                    <td class="py-3 px-3 text-center">
+                                        <span class="${p.verifiedPaymentsCount > 0 ? 'text-green-400' : 'text-gray-600'} font-semibold">${p.verifiedPaymentsCount}</span>
+                                        <span class="text-gray-600 text-xs">/${p.totalPaymentsCount}</span>
+                                    </td>
+                                    <td class="py-3 px-3 text-center text-gray-400">${p.matchesPlayed}</td>
+                                    <td class="py-3 px-3 text-center text-yellow-400 font-bold">${p.exactos}</td>
+                                    <td class="py-3 px-3 text-center">
+                                        <span class="px-3 py-1 rounded-lg font-bold ${isTop ? 'bg-yellow-500 text-black' : 'bg-white/10 text-white'}">${p.totalValidPoints}</span>
+                                    </td>
+                                    <td class="py-3 px-3 text-center">
+                                        <span class="text-green-400 font-bold">${formatCurrency(p.totalPrizeMoney)} Bs</span>
+                                    </td>
+                                    <td class="py-3 px-3 text-center">
+                                        <span class="font-bold ${balanceClass}">${balanceIcon}${formatCurrency(balance)} Bs</span>
+                                    </td>
+                                </tr>
+                            `;
+                        }).join('')}
                     </tbody>
                 </table>
+            </div>
+        </div>
+
+        <!-- GRÁFICO DE DISTRIBUCIÓN -->
+        <div class="glass rounded-2xl p-6">
+            <h2 class="text-xl font-bold mb-6 flex items-center gap-2">
+                <span class="text-2xl">&#128200;</span> Distribución del Dinero
+            </h2>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div class="text-center">
+                    <div class="relative w-32 h-32 mx-auto mb-4">
+                        <svg viewBox="0 0 36 36" class="w-full h-full transform -rotate-90">
+                            <path d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="#1e293b" stroke-width="3" />
+                            <path d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="#22c55e" stroke-width="3"
+                                stroke-dasharray="${totalIncome > 0 ? (totalIncome / (totalIncome + totalDistributed + totalAccumulated) * 100) : 0}, 100" />
+                        </svg>
+                        <div class="absolute inset-0 flex items-center justify-center">
+                            <span class="text-lg font-bold text-green-400">${totalIncome > 0 ? Math.round(totalIncome / (totalIncome + totalDistributed + totalAccumulated) * 100) : 0}%</span>
+                        </div>
+                    </div>
+                    <div class="text-green-400 font-bold">Ingresos</div>
+                    <div class="text-gray-500 text-xs">${formatCurrency(totalIncome)} Bs</div>
+                </div>
+
+                <div class="text-center">
+                    <div class="relative w-32 h-32 mx-auto mb-4">
+                        <svg viewBox="0 0 36 36" class="w-full h-full transform -rotate-90">
+                            <path d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="#1e293b" stroke-width="3" />
+                            <path d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="#fbbf24" stroke-width="3"
+                                stroke-dasharray="${totalDistributed > 0 ? (totalDistributed / (totalIncome + totalDistributed + totalAccumulated) * 100) : 0}, 100" />
+                        </svg>
+                        <div class="absolute inset-0 flex items-center justify-center">
+                            <span class="text-lg font-bold text-yellow-400">${totalDistributed > 0 ? Math.round(totalDistributed / (totalIncome + totalDistributed + totalAccumulated) * 100) : 0}%</span>
+                        </div>
+                    </div>
+                    <div class="text-yellow-400 font-bold">Premios</div>
+                    <div class="text-gray-500 text-xs">${formatCurrency(totalDistributed)} Bs</div>
+                </div>
+
+                <div class="text-center">
+                    <div class="relative w-32 h-32 mx-auto mb-4">
+                        <svg viewBox="0 0 36 36" class="w-full h-full transform -rotate-90">
+                            <path d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="#1e293b" stroke-width="3" />
+                            <path d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="#818cf8" stroke-width="3"
+                                stroke-dasharray="${totalAccumulated > 0 ? (totalAccumulated / (totalIncome + totalDistributed + totalAccumulated) * 100) : 0}, 100" />
+                        </svg>
+                        <div class="absolute inset-0 flex items-center justify-center">
+                            <span class="text-lg font-bold text-indigo-400">${totalAccumulated > 0 ? Math.round(totalAccumulated / (totalIncome + totalDistributed + totalAccumulated) * 100) : 0}%</span>
+                        </div>
+                    </div>
+                    <div class="text-indigo-400 font-bold">Acumulado</div>
+                    <div class="text-gray-500 text-xs">${formatCurrency(totalAccumulated)} Bs</div>
+                </div>
             </div>
         </div>
     `;
 }
 
-function renderLeaderboard() {
-    // Calcular estadísticas por jugador - solo pagos verificados
-    const stats = players.map(player => {
-        const playerPayments = payments.filter(p => 
-            p.player_id === player.id && 
-            p.status === 'paid' && 
-            p.verified_at !== null && 
-            p.verified_at !== undefined
-        );
-        const paidDates = playerPayments.length;
-
-        // Calcular puntos acumulados (solo fechas con pago verificado)
-        // Esto usa los valores de la BD que ya deberían estar calculados por la función SQL
-        // o podemos calcularlos aquí si es necesario
-
-        return {
-            ...player,
-            paidDates,
-            datePoints: 0, // Se calcularía desde la BD
-            accumulatedPoints: player.accumulated_points || 0,
-            totalPrize: player.total_prize_won || 0
-        };
-    }).sort((a, b) => b.accumulatedPoints - a.accumulatedPoints);
-
-    return stats.map((p, i) => {
-        const isTop = i === 0 && p.accumulatedPoints > 0;
-        const hasPayments = p.paidDates > 0;
-        return `
-            <tr class="border-b border-white/5 ${isTop ? 'winner-row' : ''} ${!hasPayments ? 'disabled-row' : ''}">
-                <td class="py-3 px-4 font-bold">${i + 1}</td>
-                <td class="py-3 px-4 font-semibold ${isTop ? 'text-yellow-400' : ''} ${!hasPayments ? 'text-gray-500' : ''}">${p.name}</td>
-                <td class="py-3 px-4 text-center">
-                    <span class="${hasPayments ? 'text-green-400' : 'text-gray-600'}">${p.paidDates} fechas</span>
-                </td>
-                <td class="py-3 px-4 text-center font-bold">${p.datePoints}</td>
-                <td class="py-3 px-4 text-center font-bold ${hasPayments ? 'text-yellow-400' : 'text-gray-600'}">${p.accumulatedPoints}</td>
-                <td class="py-3 px-4 text-center ${hasPayments ? 'text-green-400' : 'text-gray-600'} font-bold">${p.totalPrize.toFixed(2)} Bs</td>
-            </tr>
-        `;
-    }).join('');
-}
-
-function formatDateNice(dateStr) {
-    const months = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
-    let ds = dateStr;
-    if (ds && ds.includes('T') && !/Z|[+-]\d{2}:?\d{2}$/.test(ds)) ds += 'Z';
-    const date = new Date(ds);
-    const boliviaDate = new Date(date.toLocaleString('en-US', { timeZone: 'America/La_Paz' }));
-    return `${boliviaDate.getDate()} de ${months[boliviaDate.getMonth()]} ${boliviaDate.getFullYear()}`;
-}
-
 // ============================================
-// GESTIÓN DE PAGOS CON VERIFICACIÓN ADMIN
+// TOAST
 // ============================================
-async function togglePayment(playerId, date) {
-    try {
-        const existing = payments.find(p => p.player_id === playerId && p.match_date === date);
-        const player = players.find(p => p.id === playerId);
-        if (!player) {
-            showToast('Jugador no encontrado', 'error');
-            return;
-        }
-
-        if (existing && existing.status === 'paid' && existing.verified_at) {
-            // Ya está verificado - opción de invalidar
-            if (!confirm(`⚠️ ${player.name} tiene pago VERIFICADO para ${formatDateNice(date)}.\n\n¿Invalidar este pago?\n\n⚠️ ESTO HARÁ QUE SUS PRONÓSTICOS NO SUMEN PUNTOS.`)) {
-                return;
-            }
-            const { error } = await sb.from('payments').update({ 
-                status: 'pending',
-                verified_by: null,
-                verified_at: null
-            }).eq('id', existing.id);
-            if (error) throw error;
-            showToast(`Pago de ${player.name} invalidado`, 'info');
-            
-        } else if (existing && existing.status === 'paid' && !existing.verified_at) {
-            // Verificar pago pendiente
-            const { error } = await sb.from('payments').update({ 
-                verified_by: 'admin',
-                verified_at: new Date().toISOString()
-            }).eq('id', existing.id);
-            if (error) throw error;
-            showToast(`✅ Pago de ${player.name} verificado`, 'success');
-            
-        } else {
-            // Crear y verificar nuevo pago
-            const { error } = await sb.from('payments').upsert({
-                player_id: playerId,
-                match_date: date,
-                status: 'paid',
-                amount: 5.00,
-                verified_by: 'admin',
-                verified_at: new Date().toISOString()
-            }, { onConflict: 'player_id,match_date' });
-            if (error) throw error;
-            showToast(`✅ Pago de ${player.name} registrado y verificado`, 'success');
-        }
-
-        // Recargar datos
-        await loadData();
-
-    } catch (error) {
-        console.error('Error:', error);
-        showToast('Error al actualizar pago: ' + error.message, 'error');
-    }
-}
-
 function showToast(msg, type = 'info') {
     const toast = document.createElement('div');
     toast.className = `fixed bottom-4 right-4 px-6 py-3 rounded-lg shadow-lg z-50 ${type === 'error' ? 'bg-red-600' : type === 'success' ? 'bg-green-600' : 'bg-blue-600'}`;
@@ -357,21 +547,18 @@ document.addEventListener('DOMContentLoaded', loadData);
 <!-- HEADER -->
 <!-- ============================================ -->
 <header class="glass sticky top-0 z-40 border-b border-white/10">
-    <div class="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between">
+    <div class="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
         <div class="flex items-center gap-3">
             <div class="text-3xl">&#128176;</div>
             <div>
-                <h1 class="text-xl font-black gradient-text">FINANZAS - QUINIELA 2026</h1>
-                <p class="text-xs text-gray-400">Gestión de pagos, premios y bolsa acumulada</p>
+                <h1 class="text-xl font-black gradient-text">CENTRO DE CONTROL ECONÓMICO</h1>
+                <p class="text-xs text-gray-400">Quiniela Mundial 2026 — Finanzas y Premios</p>
             </div>
         </div>
         <div class="flex gap-2">
-            <button onclick="window.location.href='index.html'" class="bg-gray-700 hover:bg-gray-600 text-white px-4 py-2 rounded-lg text-sm transition">
-                &#8592; Volver a Quiniela
-            </button>
-            <button onclick="window.open('evaluaciones.html', '_blank')" class="bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2 rounded-lg text-sm transition">
-                &#128202; Evaluaciones
-            </button>
+            <button onclick="window.location.href='index.html'" class="bg-gray-700 hover:bg-gray-600 text-white px-4 py-2 rounded-lg text-sm transition">&#8592; Quiniela</button>
+            <button onclick="window.open('ganador-fecha.html','_blank')" class="bg-yellow-600 hover:bg-yellow-500 text-white px-4 py-2 rounded-lg text-sm transition">&#127942; Ganadores</button>
+            <button onclick="window.open('evaluaciones.html','_blank')" class="bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2 rounded-lg text-sm transition">&#128202; Evaluaciones</button>
         </div>
     </div>
 </header>
@@ -379,10 +566,10 @@ document.addEventListener('DOMContentLoaded', loadData);
 <!-- ============================================ -->
 <!-- CONTENIDO -->
 <!-- ============================================ -->
-<main class="max-w-6xl mx-auto px-4 mt-6 pb-20" id="mainContainer">
+<main class="max-w-7xl mx-auto px-4 mt-6 pb-20" id="mainContainer">
     <div class="glass rounded-2xl p-12 text-center">
-        <div class="w-12 h-12 border-4 border-yellow-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-        <p class="text-gray-400">Cargando datos financieros...</p>
+        <div class="loading-spinner"></div>
+        <p class="text-gray-400 mt-4">Cargando centro de control económico...</p>
     </div>
 </main>
 
