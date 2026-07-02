@@ -60,24 +60,24 @@ let payments = [];
 let paymentFees = [];
 let matchFilter = 'today';
 
-const ADMIN_CODE = 'Mundial2026*YEV';
+const ADMIN_CODE = 'MUNDIAL2026';
 
 const $ = id => document.getElementById(id);
 const formatDate = (dateStr) => {
+    // Los datos de Supabase ya vienen en hora Bolivia, NO convertir zona horaria
     const date = new Date(dateStr);
     const options = { 
         day: '2-digit', 
         month: 'short', 
         hour: '2-digit', 
-        minute: '2-digit',
-        timeZone: 'America/La_Paz'
+        minute: '2-digit'
     };
     return date.toLocaleString('es-BO', options).replace(',', '');
 };
 const isMatchOpen = (match) => {
     const matchDate = new Date(match.match_date);
     const now = new Date();
-    return matchDate > now && match.status === 'scheduled';
+    return matchDate.getTime() > now.getTime() && match.status === 'scheduled';
 };
 const isMatchFinished = (match) => match.status === 'finished';
 
@@ -523,16 +523,18 @@ function renderMatches() {
 }
 
 function getCountdown(dateStr) { 
+    // Los datos ya vienen en hora Bolivia, comparar timestamps directamente
     const matchDate = new Date(dateStr);
     const now = new Date();
-    const matchBolivia = new Date(matchDate.toLocaleString('en-US', { timeZone: 'America/La_Paz' }));
-    const nowBolivia = new Date(now.toLocaleString('en-US', { timeZone: 'America/La_Paz' }));
-    const diff = matchBolivia - nowBolivia; 
+    const diff = matchDate.getTime() - now.getTime(); 
     if (diff <= 0) return 'En juego'; 
-    const h = Math.floor(diff / 3600000); 
-    const m = Math.floor((diff % 3600000) / 60000); 
-    if (h > 24) return `${Math.floor(h/24)}d ${h%24}h`; 
-    return `${h}h ${m}m`; 
+    const totalMinutes = Math.floor(diff / 60000);
+    const h = Math.floor(totalMinutes / 60); 
+    const m = totalMinutes % 60; 
+    const d = Math.floor(h / 24);
+    if (d > 0) return `${d}d ${h % 24}h ${m}m`; 
+    if (h > 0) return `${h}h ${m}m`; 
+    return `${m}m`; 
 }
 
 async function saveSingleBet(matchId) {
