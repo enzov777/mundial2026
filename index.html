@@ -52,6 +52,88 @@ const SUPABASE_URL = 'https://dwcnwxrcwuicwxbtqpxs.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImR3Y253eHJjd3VpY3d4YnRxcHhzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODIxNDk4NDcsImV4cCI6MjA5NzcyNTg0N30.Xwa-18sv9YsodNG1AJeItmf3NdwiHanCE9m9Mka4dSE';
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
+// ============================================
+// FUNCIONES DE FECHA/HORA - ZONA BOLIVIA (UTC-4)
+// ============================================
+// Los datos de Supabase están en UTC correctamente.
+// Para mostrar hora Bolivia: restamos 4 horas al UTC.
+// Para comparar: todos los timestamps están en UTC.
+
+// Obtiene la hora actual en Bolivia como timestamp UTC
+// Ejemplo: si son las 3pm en Bolivia, devuelve timestamp de 19:00 UTC
+function getNowBolivia() {
+    try {
+        const formatter = new Intl.DateTimeFormat('en-US', {
+            timeZone: 'America/La_Paz',
+            year: 'numeric', month: '2-digit', day: '2-digit',
+            hour: '2-digit', minute: '2-digit', second: '2-digit',
+            hour12: false
+        });
+        const parts = formatter.formatToParts(new Date());
+        const y = parseInt(parts.find(p => p.type === 'year').value);
+        const m = parseInt(parts.find(p => p.type === 'month').value);
+        const d = parseInt(parts.find(p => p.type === 'day').value);
+        const h = parseInt(parts.find(p => p.type === 'hour').value);
+        const min = parseInt(parts.find(p => p.type === 'minute').value);
+        const s = parseInt(parts.find(p => p.type === 'second').value);
+        // Bolivia es UTC-4: sumamos 4 horas para obtener el equivalente UTC
+        return new Date(Date.UTC(y, m - 1, d, h + 4, min, s));
+    } catch (e) {
+        // Fallback: usar offset del navegador
+        const now = new Date();
+        return new Date(now.getTime() + now.getTimezoneOffset() * 60000 + 4 * 60 * 60000);
+    }
+}
+
+// Formatea fecha UTC para mostrar en hora Bolivia
+// Usa Intl.DateTimeFormat con timeZone para mostrar siempre en hora Bolivia
+// independientemente de la zona horaria del navegador del usuario
+function formatDateBolivia(dateStr) {
+    if (!dateStr) return '';
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return '';
+    try {
+        const formatter = new Intl.DateTimeFormat('es-BO', {
+            timeZone: 'America/La_Paz',
+            day: '2-digit',
+            month: 'short',
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: true
+        });
+        return formatter.format(d).replace(',', '');
+    } catch (e) {
+        // Fallback si Intl no soporta la zona horaria
+        const options = { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', hour12: true };
+        return d.toLocaleString('es-BO', options).replace(',', '');
+    }
+}
+
+// Calcula countdown hasta el partido (timestamps en UTC)
+function getCountdownBolivia(dateStr) {
+    const matchDate = new Date(dateStr); // Timestamp UTC del partido
+    const now = getNowBolivia(); // Timestamp UTC actual
+    if (isNaN(matchDate.getTime()) || !now) return '';
+    const diff = matchDate.getTime() - now.getTime();
+    if (diff <= 0) return 'En juego';
+    const totalMinutes = Math.floor(diff / 60000);
+    const h = Math.floor(totalMinutes / 60);
+    const m = totalMinutes % 60;
+    const d = Math.floor(h / 24);
+    if (d > 0) return `${d}d ${h % 24}h ${m}m`;
+    if (h > 0) return `${h}h ${m}m`;
+    return `${m}m`;
+}
+
+// Verifica si un partido está abierto para apostar (comparación UTC)
+function isMatchOpenBolivia(match) {
+    if (match.status !== 'scheduled') return false;
+    const matchDate = new Date(match.match_date); // Timestamp UTC
+    const now = getNowBolivia(); // Timestamp UTC
+    if (isNaN(matchDate.getTime()) || !now) return false;
+    return matchDate.getTime() > now.getTime();
+}
+
 let currentPlayer = null;
 let matches = [];
 let bets = [];
@@ -63,22 +145,8 @@ let matchFilter = 'today';
 const ADMIN_CODE = 'MUNDIAL2026';
 
 const $ = id => document.getElementById(id);
-const formatDate = (dateStr) => {
-    // Los datos de Supabase ya vienen en hora Bolivia, NO convertir zona horaria
-    const date = new Date(dateStr);
-    const options = { 
-        day: '2-digit', 
-        month: 'short', 
-        hour: '2-digit', 
-        minute: '2-digit'
-    };
-    return date.toLocaleString('es-BO', options).replace(',', '');
-};
-const isMatchOpen = (match) => {
-    const matchDate = new Date(match.match_date);
-    const now = new Date();
-    return matchDate.getTime() > now.getTime() && match.status === 'scheduled';
-};
+
+
 const isMatchFinished = (match) => match.status === 'finished';
 
 const countryCodes = {
@@ -502,14 +570,14 @@ function renderMatches() {
     let filteredMatches = matches;
     if (matchFilter === 'today') {
         const now = new Date();
-        filteredMatches = matches.filter(m => { const matchDate = new Date(m.match_date); const isOpen = isMatchOpen(m); const isTodayOrFuture = matchDate >= new Date(now.getFullYear(), now.getMonth(), now.getDate()); return isOpen || (isTodayOrFuture && m.status === 'scheduled'); });
+        filteredMatches = matches.filter(m => { const matchDate = new Date(m.match_date); const isOpen = isMatchOpenBolivia(m); const isTodayOrFuture = matchDate >= new Date(now.getFullYear(), now.getMonth(), now.getDate()); return isOpen || (isTodayOrFuture && m.status === 'scheduled'); });
         if (filteredMatches.length === 0) { container.innerHTML = '<div class="text-center text-gray-500 py-12">No hay partidos abiertos para apostar en este momento.</div>'; return; }
     }
     container.innerHTML = filteredMatches.map(match => {
-        const open = isMatchOpen(match); const finished = isMatchFinished(match);
+        const open = isMatchOpenBolivia(match); const finished = isMatchFinished(match);
         const myBet = bets.find(b => b.player_id === currentPlayer.id && b.match_id === match.id);
         const homeFlag = getFlagHTML(match.home_team); const awayFlag = getFlagHTML(match.away_team);
-        const countdown = getCountdown(match.match_date); const fee = getFeeForDate(match.match_date);
+        const countdown = getCountdownBolivia(match.match_date); const fee = getFeeForDate(match.match_date);
         let resultDisplay = '';
         if (finished) { resultDisplay = `<div class="text-center px-4 py-1 bg-green-500/20 rounded-lg border border-green-500/30"><span class="text-green-400 font-bold text-lg">${match.home_score} - ${match.away_score}</span></div>`; }
         else if (!open) { resultDisplay = `<div class="text-center px-4 py-1 bg-red-500/20 rounded-lg border border-red-500/30"><span class="text-red-400 text-xs font-bold">CERRADO</span></div>`; }
@@ -518,24 +586,11 @@ function renderMatches() {
         let feeBadge = '';
         if (fee.isFree) { feeBadge = `<span class="absolute -top-2 -left-2 bg-green-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">LIBRE</span>`; }
         else if (fee.amount !== 5) { feeBadge = `<span class="absolute -top-2 -left-2 bg-orange-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">${fee.amount} Bs</span>`; }
-        return `<div class="match-card glass rounded-xl p-4 relative ${finished ? 'opacity-80' : ''}" id="match-card-${match.id}">${pointsBadge}${feeBadge}<div class="flex items-center justify-between mb-3"><span class="text-xs text-gray-400 font-mono">${match.round || 'Fase de Grupos'}</span><span class="text-xs ${open ? 'text-yellow-400 pulse' : 'text-gray-500'}">${open ? 'Faltan: ' + countdown : finished ? 'Finalizado' : 'Cerrado'}</span></div><div class="flex items-center justify-between gap-2"><div class="flex-1 text-center"><div class="mb-1 flex justify-center">${homeFlag}</div><div class="text-sm font-semibold">${match.home_team}</div></div><div class="flex items-center gap-2">${open ? `<input type="number" min="0" max="20" id="bet-${match.id}-home" data-match="${match.id}" data-side="home" value="${myBet ? myBet.home_prediction : ''}" class="input-score w-14 h-12 text-center text-xl font-bold bg-white/10 border border-white/20 rounded-lg focus:border-yellow-500 focus:outline-none" placeholder="-"><span class="text-gray-500 font-bold">:</span><input type="number" min="0" max="20" id="bet-${match.id}-away" data-match="${match.id}" data-side="away" value="${myBet ? myBet.away_prediction : ''}" class="input-score w-14 h-12 text-center text-xl font-bold bg-white/10 border border-white/20 rounded-lg focus:border-yellow-500 focus:outline-none" placeholder="-">` : resultDisplay}</div><div class="flex-1 text-center"><div class="mb-1 flex justify-center">${awayFlag}</div><div class="text-sm font-semibold">${match.away_team}</div></div></div>${open ? `<div class="mt-3 text-xs text-center text-gray-500">${formatDate(match.match_date)} (Hora Bolivia)</div><div class="mt-2 text-center"><button onclick="saveSingleBet('${match.id}')" class="bg-gradient-to-r from-green-500 to-emerald-600 text-white font-bold px-6 py-2 rounded-lg hover:from-green-400 hover:to-emerald-500 transition text-sm shadow-lg">${myBet ? 'Actualizar Pronostico' : 'Guardar Pronostico'}</button></div>` : ''}${finished && myBet ? `<div class="mt-3 pt-3 border-t border-white/10 text-center text-sm"><span class="text-gray-400">Tu pronostico: </span><span class="font-bold ${pts > 0 ? 'text-green-400' : 'text-red-400'}">${myBet.home_prediction} - ${myBet.away_prediction}</span>${!hasVerifiedPayment(currentPlayer.id, match.match_date) ? `<span class="block text-xs text-red-400 mt-1">&#9888; Pago no verificado - puntos no contabilizados</span>` : ''}</div>` : ''}</div>`;
+        return `<div class="match-card glass rounded-xl p-4 relative ${finished ? 'opacity-80' : ''}" id="match-card-${match.id}">${pointsBadge}${feeBadge}<div class="flex items-center justify-between mb-3"><span class="text-xs text-gray-400 font-mono">${match.round || 'Fase de Grupos'}</span><span class="text-xs ${open ? 'text-yellow-400 pulse' : 'text-gray-500'}">${open ? 'Faltan: ' + countdown : finished ? 'Finalizado' : 'Cerrado'}</span></div><div class="flex items-center justify-between gap-2"><div class="flex-1 text-center"><div class="mb-1 flex justify-center">${homeFlag}</div><div class="text-sm font-semibold">${match.home_team}</div></div><div class="flex items-center gap-2">${open ? `<input type="number" min="0" max="20" id="bet-${match.id}-home" data-match="${match.id}" data-side="home" value="${myBet ? myBet.home_prediction : ''}" class="input-score w-14 h-12 text-center text-xl font-bold bg-white/10 border border-white/20 rounded-lg focus:border-yellow-500 focus:outline-none" placeholder="-"><span class="text-gray-500 font-bold">:</span><input type="number" min="0" max="20" id="bet-${match.id}-away" data-match="${match.id}" data-side="away" value="${myBet ? myBet.away_prediction : ''}" class="input-score w-14 h-12 text-center text-xl font-bold bg-white/10 border border-white/20 rounded-lg focus:border-yellow-500 focus:outline-none" placeholder="-">` : resultDisplay}</div><div class="flex-1 text-center"><div class="mb-1 flex justify-center">${awayFlag}</div><div class="text-sm font-semibold">${match.away_team}</div></div></div>${open ? `<div class="mt-3 text-xs text-center text-gray-500">${formatDateBolivia(match.match_date)} (Hora Bolivia)</div><div class="mt-2 text-center"><button onclick="saveSingleBet('${match.id}')" class="bg-gradient-to-r from-green-500 to-emerald-600 text-white font-bold px-6 py-2 rounded-lg hover:from-green-400 hover:to-emerald-500 transition text-sm shadow-lg">${myBet ? 'Actualizar Pronostico' : 'Guardar Pronostico'}</button></div>` : ''}${finished && myBet ? `<div class="mt-3 pt-3 border-t border-white/10 text-center text-sm"><span class="text-gray-400">Tu pronostico: </span><span class="font-bold ${pts > 0 ? 'text-green-400' : 'text-red-400'}">${myBet.home_prediction} - ${myBet.away_prediction}</span>${!hasVerifiedPayment(currentPlayer.id, match.match_date) ? `<span class="block text-xs text-red-400 mt-1">&#9888; Pago no verificado - puntos no contabilizados</span>` : ''}</div>` : ''}</div>`;
     }).join('');
 }
 
-function getCountdown(dateStr) { 
-    // Los datos ya vienen en hora Bolivia, comparar timestamps directamente
-    const matchDate = new Date(dateStr);
-    const now = new Date();
-    const diff = matchDate.getTime() - now.getTime(); 
-    if (diff <= 0) return 'En juego'; 
-    const totalMinutes = Math.floor(diff / 60000);
-    const h = Math.floor(totalMinutes / 60); 
-    const m = totalMinutes % 60; 
-    const d = Math.floor(h / 24);
-    if (d > 0) return `${d}d ${h % 24}h ${m}m`; 
-    if (h > 0) return `${h}h ${m}m`; 
-    return `${m}m`; 
-}
+
 
 async function saveSingleBet(matchId) {
     const homeInput = $(`bet-${matchId}-home`); const awayInput = $(`bet-${matchId}-away`);
@@ -543,7 +598,7 @@ async function saveSingleBet(matchId) {
     const homeScore = parseInt(homeInput.value); const awayScore = parseInt(awayInput.value);
     if (isNaN(homeScore) || isNaN(awayScore) || homeScore < 0 || awayScore < 0) { showToast('Completa ambos pronosticos', 'error'); return; }
     const match = matches.find(m => m.id === matchId);
-    if (!match || !isMatchOpen(match)) { showToast('Este partido ya no acepta apuestas', 'error'); return; }
+    if (!match || !isMatchOpenBolivia(match)) { showToast('Este partido ya no acepta apuestas', 'error'); return; }
     const existing = bets.find(b => b.player_id === currentPlayer.id && b.match_id === matchId);
     let error;
     if (existing) { const { error: err } = await sb.from('bets').update({ home_prediction: homeScore, away_prediction: awayScore }).eq('id', existing.id); error = err; }
@@ -556,7 +611,7 @@ async function saveAllBets() {
     const inputs = document.querySelectorAll('[data-match]'); const betsMap = {};
     inputs.forEach(input => { const matchId = input.dataset.match; const side = input.dataset.side; const val = parseInt(input.value); if (!isNaN(val) && val >= 0) { if (!betsMap[matchId]) betsMap[matchId] = {}; betsMap[matchId][side] = val; } });
     const promises = [];
-    for (const [matchId, scores] of Object.entries(betsMap)) { if (scores.home === undefined || scores.away === undefined) continue; const match = matches.find(m => m.id === matchId); if (!match || !isMatchOpen(match)) continue; const existing = bets.find(b => b.player_id === currentPlayer.id && b.match_id === matchId); if (existing) { promises.push(sb.from('bets').update({ home_prediction: scores.home, away_prediction: scores.away }).eq('id', existing.id)); } else { promises.push(sb.from('bets').insert({ player_id: currentPlayer.id, match_id: matchId, home_prediction: scores.home, away_prediction: scores.away })); } }
+    for (const [matchId, scores] of Object.entries(betsMap)) { if (scores.home === undefined || scores.away === undefined) continue; const match = matches.find(m => m.id === matchId); if (!match || !isMatchOpenBolivia(match)) continue; const existing = bets.find(b => b.player_id === currentPlayer.id && b.match_id === matchId); if (existing) { promises.push(sb.from('bets').update({ home_prediction: scores.home, away_prediction: scores.away }).eq('id', existing.id)); } else { promises.push(sb.from('bets').insert({ player_id: currentPlayer.id, match_id: matchId, home_prediction: scores.home, away_prediction: scores.away })); } }
     if (promises.length === 0) { showToast('Completa al menos un pronostico', 'error'); return; }
     await Promise.all(promises); await loadBets(); renderMatches(); renderLeaderboard(); showToast(`${promises.length} pronostico(s) guardado(s)`, 'success');
 }
@@ -771,7 +826,7 @@ function renderAdminMatches() {
         const finished = isMatchFinished(match);
         const homeFlag = getFlagHTML(match.home_team);
         const awayFlag = getFlagHTML(match.away_team);
-        return `<div class="flex flex-col md:flex-row items-start md:items-center gap-3 bg-white/5 rounded-lg p-3" id="admin-row-${match.id}"><div class="flex-1 min-w-0"><div class="flex items-center gap-2 mb-1"><span class="text-xs text-gray-500">${match.round}</span><span class="text-xs ${finished ? 'text-green-400' : 'text-yellow-400'}">${finished ? 'Finalizado' : 'Pendiente'}</span></div><div class="flex items-center gap-2 flex-wrap"><div class="flex items-center gap-2">${homeFlag}<input type="text" id="edit-home-${match.id}" value="${match.home_team}" class="admin-input"></div><span class="text-gray-500 font-bold">vs</span><div class="flex items-center gap-2">${awayFlag}<input type="text" id="edit-away-${match.id}" value="${match.away_team}" class="admin-input"></div></div><div class="text-xs text-gray-500 mt-1">${formatDate(match.match_date)}</div></div><div class="flex items-center gap-2"><input type="number" id="res-${match.id}-home" value="${match.home_score ?? ''}" class="w-12 text-center bg-white/10 border border-white/20 rounded px-2 py-1 text-sm" placeholder="L"><span class="text-gray-500">-</span><input type="number" id="res-${match.id}-away" value="${match.away_score ?? ''}" class="w-12 text-center bg-white/10 border border-white/20 rounded px-2 py-1 text-sm" placeholder="V"></div><div class="flex gap-2"><button onclick="updateResult('${match.id}')" class="btn-admin ${finished ? 'btn-save' : 'btn-edit'}">${finished ? 'Actualizar' : 'Guardar'}</button><button onclick="updateTeams('${match.id}')" class="btn-admin btn-edit" title="Actualizar nombres de equipos">Editar Equipos</button></div></div>`;
+        return `<div class="flex flex-col md:flex-row items-start md:items-center gap-3 bg-white/5 rounded-lg p-3" id="admin-row-${match.id}"><div class="flex-1 min-w-0"><div class="flex items-center gap-2 mb-1"><span class="text-xs text-gray-500">${match.round}</span><span class="text-xs ${finished ? 'text-green-400' : 'text-yellow-400'}">${finished ? 'Finalizado' : 'Pendiente'}</span></div><div class="flex items-center gap-2 flex-wrap"><div class="flex items-center gap-2">${homeFlag}<input type="text" id="edit-home-${match.id}" value="${match.home_team}" class="admin-input"></div><span class="text-gray-500 font-bold">vs</span><div class="flex items-center gap-2">${awayFlag}<input type="text" id="edit-away-${match.id}" value="${match.away_team}" class="admin-input"></div></div><div class="text-xs text-gray-500 mt-1">${formatDateBolivia(match.match_date)}</div></div><div class="flex items-center gap-2"><input type="number" id="res-${match.id}-home" value="${match.home_score ?? ''}" class="w-12 text-center bg-white/10 border border-white/20 rounded px-2 py-1 text-sm" placeholder="L"><span class="text-gray-500">-</span><input type="number" id="res-${match.id}-away" value="${match.away_score ?? ''}" class="w-12 text-center bg-white/10 border border-white/20 rounded px-2 py-1 text-sm" placeholder="V"></div><div class="flex gap-2"><button onclick="updateResult('${match.id}')" class="btn-admin ${finished ? 'btn-save' : 'btn-edit'}">${finished ? 'Actualizar' : 'Guardar'}</button><button onclick="updateTeams('${match.id}')" class="btn-admin btn-edit" title="Actualizar nombres de equipos">Editar Equipos</button></div></div>`;
     }).join('');
 }
 
