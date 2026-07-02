@@ -51,6 +51,7 @@
         .money-negative { color: #f87171; }
     </style>
 <base target="_blank">
+<base target="_blank">
 </head>
 <body class="text-white min-h-screen">
 
@@ -71,37 +72,84 @@ let realtimeChannel = null;
 let selectedDateForPoints = null;
 
 // ============================================
-// FUNCIONES AUXILIARES
+// FUNCIONES DE FECHA ROBUSTAS
 // ============================================
-const getBoliviaDateKey = (dateStr) => {
+
+// Extrae YYYY-MM-DD de cualquier string de fecha (ISO, date-only, etc.)
+function extractDateKey(dateStr) {
     if (!dateStr) return '';
-    const date = new Date(dateStr + 'T00:00:00');
-    const boliviaDate = new Date(date.toLocaleString('en-US', { timeZone: 'America/La_Paz' }));
-    const year = boliviaDate.getFullYear();
-    const month = String(boliviaDate.getMonth() + 1).padStart(2, '0');
-    const day = String(boliviaDate.getDate()).padStart(2, '0');
+    // Si ya es YYYY-MM-DD (10 chars)
+    if (typeof dateStr === 'string' && dateStr.length === 10 && dateStr.includes('-')) {
+        return dateStr;
+    }
+    // Si viene con hora, extraer solo la parte de fecha
+    if (typeof dateStr === 'string' && dateStr.includes('T')) {
+        return dateStr.split('T')[0];
+    }
+    // Intentar crear fecha y formatear
+    try {
+        const d = new Date(dateStr);
+        if (isNaN(d.getTime())) return '';
+        const year = d.getFullYear();
+        const month = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+    } catch (e) {
+        return '';
+    }
+}
+
+// Convierte a fecha en zona horaria de Bolivia
+function toBoliviaDate(dateStr) {
+    if (!dateStr) return null;
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return null;
+    // Convertir a string en zona Bolivia y parsear
+    const boliviaStr = d.toLocaleString('en-US', { timeZone: 'America/La_Paz' });
+    return new Date(boliviaStr);
+}
+
+function getBoliviaDateKey(dateStr) {
+    const dateKey = extractDateKey(dateStr);
+    if (dateKey) return dateKey;
+
+    const bd = toBoliviaDate(dateStr);
+    if (!bd) return '';
+    const year = bd.getFullYear();
+    const month = String(bd.getMonth() + 1).padStart(2, '0');
+    const day = String(bd.getDate()).padStart(2, '0');
     return `${year}-${month}-${day}`;
-};
+}
 
 function getFeeForDate(dateStr) {
-    const dateKey = getBoliviaDateKey(dateStr);
-    const fee = paymentFees.find(f => f.match_date === dateKey);
+    const dateKey = extractDateKey(dateStr);
+    if (!dateKey) return { amount: 5.00, isFree: false, notes: 'Valor por defecto' };
+
+    const fee = paymentFees.find(f => {
+        const feeDate = extractDateKey(f.match_date);
+        return feeDate === dateKey;
+    });
+
     if (fee && fee.is_free) return { amount: 0, isFree: true, notes: fee.notes || 'Fecha libre' };
-    if (fee) return { amount: fee.amount, isFree: false, notes: fee.notes || 'Inscripción pagada' };
+    if (fee) return { amount: parseFloat(fee.amount) || 5.00, isFree: false, notes: fee.notes || 'Inscripción pagada' };
     return { amount: 5.00, isFree: false, notes: 'Valor por defecto' };
 }
 
 function hasVerifiedPayment(playerId, matchDateStr) {
-    const dateKey = getBoliviaDateKey(matchDateStr);
+    const dateKey = extractDateKey(matchDateStr);
+    if (!dateKey) return false;
+
     const fee = getFeeForDate(matchDateStr);
     if (fee.isFree) return true;
-    const payment = payments.find(p =>
-        p.player_id === playerId &&
-        p.match_date === dateKey &&
-        p.status === 'paid' &&
-        p.verified_at !== null &&
-        p.verified_at !== undefined
-    );
+
+    const payment = payments.find(p => {
+        const payDate = extractDateKey(p.match_date);
+        return p.player_id === playerId && 
+               payDate === dateKey &&
+               p.status === 'paid' &&
+               p.verified_at !== null &&
+               p.verified_at !== undefined;
+    });
     return !!payment;
 }
 
@@ -119,20 +167,25 @@ const calculatePoints = (betHome, betAway, realHome, realAway) => {
 
 function formatDateNice(dateStr) {
     const months = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
-    const date = new Date(dateStr + 'T00:00:00');
-    const boliviaDate = new Date(date.toLocaleString('en-US', { timeZone: 'America/La_Paz' }));
-    return `${boliviaDate.getDate()} de ${months[boliviaDate.getMonth()]} ${boliviaDate.getFullYear()}`;
+    const dateKey = extractDateKey(dateStr);
+    if (!dateKey) return 'Fecha inválida';
+
+    const [year, month, day] = dateKey.split('-').map(Number);
+    if (!year || !month || !day) return 'Fecha inválida';
+
+    return `${day} de ${months[month - 1]} ${year}`;
 }
 
 function formatDateShort(dateStr) {
-    const date = new Date(dateStr + 'T00:00:00');
-    const boliviaDate = new Date(date.toLocaleString('en-US', { timeZone: 'America/La_Paz' }));
-    return `${String(boliviaDate.getDate()).padStart(2,'0')}/${String(boliviaDate.getMonth()+1).padStart(2,'0')}`;
+    const dateKey = extractDateKey(dateStr);
+    if (!dateKey) return '--/--';
+    const [year, month, day] = dateKey.split('-').map(Number);
+    return `${String(day).padStart(2,'0')}/${String(month).padStart(2,'0')}`;
 }
 
 function formatCurrency(amount) {
-    if (amount === undefined || amount === null) return '0.00';
-    return amount.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+    if (amount === undefined || amount === null || isNaN(amount)) return '0.00';
+    return Number(amount).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
 }
 
 function getInitials(name) {
@@ -158,11 +211,14 @@ async function loadData() {
         payments = paymentsData || [];
         paymentFees = feesData || [];
 
+        // Seleccionar la fecha más reciente por defecto
         const groupedMatches = {};
         matches.forEach(m => {
-            const dateKey = getBoliviaDateKey(m.match_date);
-            if (!groupedMatches[dateKey]) groupedMatches[dateKey] = [];
-            groupedMatches[dateKey].push(m);
+            const dateKey = extractDateKey(m.match_date);
+            if (dateKey) {
+                if (!groupedMatches[dateKey]) groupedMatches[dateKey] = [];
+                groupedMatches[dateKey].push(m);
+            }
         });
         const sortedDates = Object.keys(groupedMatches).sort();
         if (sortedDates.length > 0 && !selectedDateForPoints) {
@@ -184,7 +240,7 @@ async function loadData() {
 }
 
 // ============================================
-// REALTIME - ACTUALIZACIONES AUTOMÁTICAS
+// REALTIME
 // ============================================
 function setupRealtime() {
     if (realtimeChannel) {
@@ -192,32 +248,15 @@ function setupRealtime() {
     }
 
     realtimeChannel = sb.channel('finanzas-changes')
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'payments' }, (payload) => {
-            console.log('Realtime: payments cambió', payload);
-            handleRealtimeUpdate();
-        })
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'payment_fees' }, (payload) => {
-            console.log('Realtime: payment_fees cambió', payload);
-            handleRealtimeUpdate();
-        })
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'matches' }, (payload) => {
-            console.log('Realtime: matches cambió', payload);
-            handleRealtimeUpdate();
-        })
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'bets' }, (payload) => {
-            console.log('Realtime: bets cambió', payload);
-            handleRealtimeUpdate();
-        })
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'payments' }, () => handleRealtimeUpdate())
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'payment_fees' }, () => handleRealtimeUpdate())
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'matches' }, () => handleRealtimeUpdate())
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'bets' }, () => handleRealtimeUpdate())
         .subscribe((status) => {
             const indicator = document.getElementById('liveIndicator');
             if (indicator) {
-                if (status === 'SUBSCRIBED') {
-                    indicator.style.background = '#22c55e';
-                    indicator.title = 'Conectado en tiempo real';
-                } else {
-                    indicator.style.background = '#ef4444';
-                    indicator.title = 'Desconectado';
-                }
+                indicator.style.background = status === 'SUBSCRIBED' ? '#22c55e' : '#ef4444';
+                indicator.title = status === 'SUBSCRIBED' ? 'Conectado en tiempo real' : 'Desconectado';
             }
         });
 }
@@ -254,7 +293,10 @@ async function togglePayment(playerId, dateKey, currentStatus) {
             if (error) throw error;
             showToast('Verificación removida', 'info');
         } else {
-            const existing = payments.find(p => p.player_id === playerId && p.match_date === dateKey);
+            const existing = payments.find(p => {
+                const payDate = extractDateKey(p.match_date);
+                return p.player_id === playerId && payDate === dateKey;
+            });
             if (existing) {
                 const { error } = await sb.from('payments')
                     .update({ verified_at: new Date().toISOString(), status: 'paid' })
@@ -287,9 +329,11 @@ async function togglePayment(playerId, dateKey, currentStatus) {
 function calculateFinancials() {
     const groupedMatches = {};
     matches.forEach(m => {
-        const dateKey = getBoliviaDateKey(m.match_date);
-        if (!groupedMatches[dateKey]) groupedMatches[dateKey] = [];
-        groupedMatches[dateKey].push(m);
+        const dateKey = extractDateKey(m.match_date);
+        if (dateKey) {
+            if (!groupedMatches[dateKey]) groupedMatches[dateKey] = [];
+            groupedMatches[dateKey].push(m);
+        }
     });
 
     let totalIncome = 0;
@@ -302,13 +346,7 @@ function calculateFinancials() {
         const fee = getFeeForDate(date);
 
         const verifiedPlayers = players.filter(p => {
-            const payment = payments.find(pay =>
-                pay.player_id === p.id &&
-                pay.match_date === date &&
-                pay.status === 'paid' &&
-                pay.verified_at
-            );
-            return !!payment;
+            return hasVerifiedPayment(p.id, date);
         });
 
         const verifiedCount = verifiedPlayers.length;
@@ -359,9 +397,11 @@ function calculateFinancials() {
 function calculatePlayerStats() {
     const groupedMatches = {};
     matches.forEach(m => {
-        const dateKey = getBoliviaDateKey(m.match_date);
-        if (!groupedMatches[dateKey]) groupedMatches[dateKey] = [];
-        groupedMatches[dateKey].push(m);
+        const dateKey = extractDateKey(m.match_date);
+        if (dateKey) {
+            if (!groupedMatches[dateKey]) groupedMatches[dateKey] = [];
+            groupedMatches[dateKey].push(m);
+        }
     });
 
     const sortedDates = Object.keys(groupedMatches).sort();
@@ -377,7 +417,7 @@ function calculatePlayerStats() {
         let prizesByDate = {};
         let paidByDate = {};
 
-        // Contar pagos
+        // Contar pagos verificados
         payments.forEach(pay => {
             if (pay.player_id === player.id && pay.status === 'paid') {
                 totalPaymentsCount++;
@@ -389,17 +429,14 @@ function calculatePlayerStats() {
         sortedDates.forEach(date => {
             const dateMatches = groupedMatches[date];
             const fee = getFeeForDate(date);
+            const hasPayment = hasVerifiedPayment(player.id, date);
 
-            const hasPayment = hasVerifiedPayment(player.id, date + 'T00:00:00');
-            
             // Cuánto pagó este jugador en esta fecha
-            const playerPayment = payments.find(p => 
-                p.player_id === player.id && 
-                p.match_date === date && 
-                p.status === 'paid' && 
-                p.verified_at
-            );
-            const amountPaid = fee.isFree ? 0 : (playerPayment ? (playerPayment.amount || fee.amount) : 0);
+            const playerPayment = payments.find(p => {
+                const payDate = extractDateKey(p.match_date);
+                return p.player_id === player.id && payDate === date && p.status === 'paid' && p.verified_at;
+            });
+            const amountPaid = fee.isFree ? 0 : (playerPayment ? (parseFloat(playerPayment.amount) || fee.amount) : 0);
             paidByDate[date] = amountPaid;
 
             if (!hasPayment && !fee.isFree) {
@@ -437,7 +474,7 @@ function calculatePlayerStats() {
 
             const maxDatePoints = Math.max(...allPlayerScores.map(p => p.points), 0);
             if (datePoints === maxDatePoints && datePoints > 0) {
-                const verifiedCount = players.filter(p => hasVerifiedPayment(p.id, date + 'T00:00:00')).length;
+                const verifiedCount = players.filter(p => hasVerifiedPayment(p.id, date)).length;
                 const dateIncome = fee.isFree ? 0 : verifiedCount * fee.amount;
                 const datePrize = fee.isFree ? 0 : dateIncome * 0.8;
                 const winnersCount = allPlayerScores.filter(p => p.points === maxDatePoints).length;
@@ -449,15 +486,13 @@ function calculatePlayerStats() {
             }
         });
 
-        // Puntos de la fecha seleccionada
         const selectedDatePoints = selectedDateForPoints ? (pointsByDate[selectedDateForPoints] || 0) : 0;
 
-        // Dinero pagado (para balance) - usa el amount de la fee correspondiente
+        // Dinero pagado total
         let moneyPaid = 0;
         payments.forEach(pay => {
             if (pay.player_id === player.id && pay.status === 'paid' && pay.verified_at) {
-                const feeForThatDate = getFeeForDate(pay.match_date);
-                moneyPaid += pay.amount || feeForThatDate.amount;
+                moneyPaid += parseFloat(pay.amount) || 0;
             }
         });
 
@@ -487,7 +522,6 @@ function renderAll() {
     const { totalIncome, totalDistributed, totalAccumulated, dateResults } = calculateFinancials();
     const playerStats = calculatePlayerStats();
 
-    // Determinar posiciones con empates
     let currentRank = 1;
     let prevPoints = null;
     playerStats.forEach((p, i) => {
@@ -499,7 +533,6 @@ function renderAll() {
     });
 
     container.innerHTML = `
-        <!-- RESUMEN EJECUTIVO -->
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8 fade-in">
             <div class="income-card stat-card rounded-2xl p-6">
                 <div class="flex items-center gap-3 mb-3">
@@ -509,7 +542,6 @@ function renderAll() {
                 <div class="text-3xl font-black text-white">${formatCurrency(totalIncome)} Bs</div>
                 <div class="text-green-400/70 text-xs mt-2">Suma de todos los pagos verificados por fecha</div>
             </div>
-
             <div class="prize-card stat-card rounded-2xl p-6">
                 <div class="flex items-center gap-3 mb-3">
                     <span class="text-3xl">🏆</span>
@@ -518,7 +550,6 @@ function renderAll() {
                 <div class="text-3xl font-black text-white">${formatCurrency(totalDistributed)} Bs</div>
                 <div class="text-yellow-400/70 text-xs mt-2">80% repartido entre ganadores de cada fecha</div>
             </div>
-
             <div class="accumulated-card stat-card rounded-2xl p-6">
                 <div class="flex items-center gap-3 mb-3">
                     <span class="text-3xl">🎯</span>
@@ -527,7 +558,6 @@ function renderAll() {
                 <div class="text-3xl font-black text-white">${formatCurrency(totalAccumulated)} Bs</div>
                 <div class="text-indigo-400/70 text-xs mt-2">20% por fecha para premio final</div>
             </div>
-
             <div class="pending-card stat-card rounded-2xl p-6">
                 <div class="flex items-center gap-3 mb-3">
                     <span class="text-3xl">👥</span>
@@ -538,46 +568,29 @@ function renderAll() {
             </div>
         </div>
 
-        <!-- TABS -->
         <div class="flex border-b border-white/10 mb-6">
             <button class="tab-btn tab-active" onclick="switchTab('fechas')" id="tab-fechas">📅 Gestión por Fecha</button>
             <button class="tab-btn" onclick="switchTab('campeonato')" id="tab-campeonato">🏆 Campeonato</button>
             <button class="tab-btn" onclick="switchTab('distribucion')" id="tab-distribucion">📊 Distribución</button>
         </div>
 
-        <!-- TAB: GESTIÓN POR FECHA -->
-        <div id="panel-fechas" class="fade-in">
-            ${renderDateManagement(dateResults)}
-        </div>
-
-        <!-- TAB: CAMPEONATO -->
-        <div id="panel-campeonato" class="hidden fade-in">
-            ${renderChampionship(playerStats, dateResults)}
-        </div>
-
-        <!-- TAB: DISTRIBUCIÓN -->
-        <div id="panel-distribucion" class="hidden fade-in">
-            ${renderDistribution(totalIncome, totalDistributed, totalAccumulated)}
-        </div>
+        <div id="panel-fechas" class="fade-in">${renderDateManagement(dateResults)}</div>
+        <div id="panel-campeonato" class="hidden fade-in">${renderChampionship(playerStats, dateResults)}</div>
+        <div id="panel-distribucion" class="hidden fade-in">${renderDistribution(totalIncome, totalDistributed, totalAccumulated)}</div>
     `;
 }
 
 function renderDateManagement(dateResults) {
     if (dateResults.length === 0) {
-        return `
-            <div class="glass rounded-2xl p-8 text-center text-gray-500">
-                <p class="text-lg">Aún no hay fechas finalizadas</p>
-            </div>
-        `;
+        return `<div class="glass rounded-2xl p-8 text-center text-gray-500"><p class="text-lg">Aún no hay fechas finalizadas</p></div>`;
     }
 
     return dateResults.slice().reverse().map(dr => {
         const playersWithStatus = players.map(p => {
-            const payment = payments.find(pay =>
-                pay.player_id === p.id &&
-                pay.match_date === dr.date &&
-                pay.status === 'paid'
-            );
+            const payment = payments.find(pay => {
+                const payDate = extractDateKey(pay.match_date);
+                return pay.player_id === p.id && payDate === dr.date && pay.status === 'paid';
+            });
             const isVerified = payment && payment.verified_at;
             const isPending = payment && !payment.verified_at;
             return { ...p, payment, isVerified, isPending };
@@ -638,7 +651,6 @@ function renderDateManagement(dateResults) {
                     </div>
                 ` : '<div class="bg-gray-500/10 border border-gray-500/20 rounded-xl p-3 mb-4 text-center text-gray-400 text-sm">Sin ganadores esta fecha</div>'}
 
-                <!-- Lista de jugadores con botones de verificación -->
                 <div class="mt-4">
                     <h4 class="text-sm font-semibold text-gray-300 mb-3">Gestión de Pagos — Click para verificar/desverificar</h4>
                     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
@@ -648,7 +660,6 @@ function renderDateManagement(dateResults) {
                             const btnClass = p.isVerified ? 'btn-unverify' : 'btn-verify';
                             const btnText = p.isVerified ? 'Quitar verificación' : 'Verificar pago';
                             const statusColor = p.isVerified ? 'text-green-400' : p.isPending ? 'text-yellow-400' : 'text-red-400';
-
                             return `
                                 <div class="player-payment-row rounded-lg p-3 border ${statusClass} flex items-center justify-between gap-2">
                                     <div class="flex items-center gap-2 min-w-0">
@@ -674,7 +685,6 @@ function renderDateManagement(dateResults) {
 
 function renderChampionship(playerStats, dateResults) {
     const sortedDates = dateResults.map(d => d.date).sort();
-    const latestDate = sortedDates.length > 0 ? sortedDates[sortedDates.length - 1] : null;
 
     return `
         <div class="glass rounded-2xl p-6 mb-6">
@@ -688,9 +698,7 @@ function renderChampionship(playerStats, dateResults) {
                 <div class="flex items-center gap-2">
                     <label class="text-sm text-gray-400">Fecha para "Puntos Fecha":</label>
                     <select id="dateSelector" onchange="changeSelectedDate(this.value)" class="bg-gray-800 border border-gray-600 rounded-lg px-3 py-1.5 text-sm text-white focus:outline-none focus:border-yellow-500">
-                        ${sortedDates.map(d => `
-                            <option value="${d}" ${d === selectedDateForPoints ? 'selected' : ''}>${formatDateNice(d)}</option>
-                        `).join('')}
+                        ${sortedDates.map(d => `<option value="${d}" ${d === selectedDateForPoints ? 'selected' : ''}>${formatDateNice(d)}</option>`).join('')}
                     </select>
                 </div>
             </div>
@@ -699,15 +707,15 @@ function renderChampionship(playerStats, dateResults) {
                 <table class="w-full text-sm">
                     <thead>
                         <tr class="text-gray-400 text-xs uppercase tracking-wider border-b border-white/10">
-                            <th class="text-left py-3 px-3 cursor-pointer" onclick="sortTable('rank')">#</th>
+                            <th class="text-left py-3 px-3">#</th>
                             <th class="text-left py-3 px-3">Jugador</th>
-                            <th class="text-center py-3 px-3 cursor-pointer" onclick="sortTable('verifiedPayments')">Pagos Verif.</th>
-                            <th class="text-center py-3 px-3 cursor-pointer" onclick="sortTable('selectedDatePoints')">Puntos Fecha</th>
-                            <th class="text-center py-3 px-3 cursor-pointer" onclick="sortTable('totalValidPoints')">Puntos Acum.</th>
-                            <th class="text-center py-3 px-3 cursor-pointer" onclick="sortTable('exactos')">Exactos</th>
-                            <th class="text-center py-3 px-3 cursor-pointer" onclick="sortTable('moneyPaid')">Dinero Pagado</th>
-                            <th class="text-center py-3 px-3 cursor-pointer" onclick="sortTable('totalPrizeMoney')">Premios Ganados</th>
-                            <th class="text-center py-3 px-3 cursor-pointer" onclick="sortTable('balance')">Balance</th>
+                            <th class="text-center py-3 px-3">Pagos Verif.</th>
+                            <th class="text-center py-3 px-3">Puntos Fecha</th>
+                            <th class="text-center py-3 px-3">Puntos Acum.</th>
+                            <th class="text-center py-3 px-3">Exactos</th>
+                            <th class="text-center py-3 px-3">Dinero Pagado</th>
+                            <th class="text-center py-3 px-3">Premios Ganados</th>
+                            <th class="text-center py-3 px-3">Balance</th>
                             <th class="text-center py-3 px-3"></th>
                         </tr>
                     </thead>
@@ -717,7 +725,6 @@ function renderChampionship(playerStats, dateResults) {
                             const hasActivity = p.verifiedPaymentsCount > 0 || p.totalPrizeMoney > 0;
                             const balanceClass = p.balance >= 0 ? 'money-positive' : 'money-negative';
                             const balanceIcon = p.balance >= 0 ? '+' : '';
-
                             return `
                                 <tr class="player-row border-b border-white/5 ${isTop ? 'winner-row' : ''} ${!hasActivity ? 'opacity-50' : ''}" onclick="toggleDetails('${p.id}')">
                                     <td class="py-3 px-3 font-bold ${isTop ? 'text-yellow-400' : 'text-gray-500'}">${p.rank}</td>
@@ -755,20 +762,23 @@ function renderChampionship(playerStats, dateResults) {
                                 <tr id="details-${p.id}" class="detail-row bg-black/20">
                                     <td colspan="11" class="py-4 px-6">
                                         <div class="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
-                                            ${Object.keys(p.prizesByDate).map(date => {
-                                                const prize = p.prizesByDate[date];
-                                                const paid = p.paidByDate[date];
-                                                const points = p.pointsByDate[date];
-                                                if (prize === 0 && paid === 0) return '';
-                                                return `
-                                                    <div class="bg-white/5 rounded-lg p-2 ${prize > 0 ? 'border border-yellow-500/30' : ''}">
-                                                        <div class="text-gray-400 font-semibold">${formatDateShort(date)}</div>
-                                                        <div class="text-white">${points} pts</div>
-                                                        ${paid > 0 ? `<div class="text-red-400">-${formatCurrency(paid)} Bs</div>` : ''}
-                                                        ${prize > 0 ? `<div class="text-green-400 font-bold">+${formatCurrency(prize)} Bs 🏆</div>` : ''}
-                                                    </div>
-                                                `;
-                                            }).join('') || '<div class="text-gray-500 col-span-4 text-center">Sin actividad registrada</div>'}
+                                            ${Object.keys(p.prizesByDate).length > 0 || Object.keys(p.paidByDate).length > 0 
+                                                ? Object.keys(p.prizesByDate).map(date => {
+                                                    const prize = p.prizesByDate[date] || 0;
+                                                    const paid = p.paidByDate[date] || 0;
+                                                    const points = p.pointsByDate[date] || 0;
+                                                    if (prize === 0 && paid === 0) return '';
+                                                    return `
+                                                        <div class="bg-white/5 rounded-lg p-2 ${prize > 0 ? 'border border-yellow-500/30' : ''}">
+                                                            <div class="text-gray-400 font-semibold">${formatDateNice(date)}</div>
+                                                            <div class="text-white">${points} pts</div>
+                                                            ${paid > 0 ? `<div class="text-red-400">-${formatCurrency(paid)} Bs</div>` : ''}
+                                                            ${prize > 0 ? `<div class="text-green-400 font-bold">+${formatCurrency(prize)} Bs 🏆</div>` : ''}
+                                                        </div>
+                                                    `;
+                                                }).join('')
+                                                : '<div class="text-gray-500 col-span-4 text-center">Sin actividad registrada</div>'
+                                            }
                                         </div>
                                     </td>
                                 </tr>
@@ -797,8 +807,7 @@ function renderDistribution(totalIncome, totalDistributed, totalAccumulated) {
                     <div class="relative w-32 h-32 mx-auto mb-4">
                         <svg viewBox="0 0 36 36" class="w-full h-full transform -rotate-90">
                             <path d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="#1e293b" stroke-width="3" />
-                            <path d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="#22c55e" stroke-width="3"
-                                stroke-dasharray="${incomePct}, 100" />
+                            <path d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="#22c55e" stroke-width="3" stroke-dasharray="${incomePct}, 100" />
                         </svg>
                         <div class="absolute inset-0 flex items-center justify-center">
                             <span class="text-lg font-bold text-green-400">${incomePct}%</span>
@@ -807,13 +816,11 @@ function renderDistribution(totalIncome, totalDistributed, totalAccumulated) {
                     <div class="text-green-400 font-bold">Ingresos</div>
                     <div class="text-gray-500 text-xs">${formatCurrency(totalIncome)} Bs</div>
                 </div>
-
                 <div class="text-center">
                     <div class="relative w-32 h-32 mx-auto mb-4">
                         <svg viewBox="0 0 36 36" class="w-full h-full transform -rotate-90">
                             <path d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="#1e293b" stroke-width="3" />
-                            <path d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="#fbbf24" stroke-width="3"
-                                stroke-dasharray="${prizePct}, 100" />
+                            <path d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="#fbbf24" stroke-width="3" stroke-dasharray="${prizePct}, 100" />
                         </svg>
                         <div class="absolute inset-0 flex items-center justify-center">
                             <span class="text-lg font-bold text-yellow-400">${prizePct}%</span>
@@ -822,13 +829,11 @@ function renderDistribution(totalIncome, totalDistributed, totalAccumulated) {
                     <div class="text-yellow-400 font-bold">Premios</div>
                     <div class="text-gray-500 text-xs">${formatCurrency(totalDistributed)} Bs</div>
                 </div>
-
                 <div class="text-center">
                     <div class="relative w-32 h-32 mx-auto mb-4">
                         <svg viewBox="0 0 36 36" class="w-full h-full transform -rotate-90">
                             <path d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="#1e293b" stroke-width="3" />
-                            <path d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="#818cf8" stroke-width="3"
-                                stroke-dasharray="${accPct}, 100" />
+                            <path d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="#818cf8" stroke-width="3" stroke-dasharray="${accPct}, 100" />
                         </svg>
                         <div class="absolute inset-0 flex items-center justify-center">
                             <span class="text-lg font-bold text-indigo-400">${accPct}%</span>
@@ -838,7 +843,6 @@ function renderDistribution(totalIncome, totalDistributed, totalAccumulated) {
                     <div class="text-gray-500 text-xs">${formatCurrency(totalAccumulated)} Bs</div>
                 </div>
             </div>
-
             <div class="mt-8 p-4 bg-white/5 rounded-xl">
                 <h3 class="text-sm font-semibold text-gray-300 mb-3">Resumen de Reglas Financieras</h3>
                 <ul class="text-sm text-gray-400 space-y-2">
@@ -855,9 +859,6 @@ function renderDistribution(totalIncome, totalDistributed, totalAccumulated) {
     `;
 }
 
-// ============================================
-// NAVEGACIÓN DE TABS
-// ============================================
 function switchTab(tabName) {
     document.querySelectorAll('.tab-btn').forEach(btn => {
         btn.classList.remove('tab-active');
@@ -865,7 +866,6 @@ function switchTab(tabName) {
         btn.style.borderBottomColor = 'transparent';
     });
     document.querySelectorAll('[id^="panel-"]').forEach(panel => panel.classList.add('hidden'));
-
     document.getElementById('tab-' + tabName).classList.add('tab-active');
     document.getElementById('panel-' + tabName).classList.remove('hidden');
 }
@@ -887,25 +887,6 @@ function toggleDetails(playerId) {
     }
 }
 
-// ============================================
-// ORDENAR TABLA
-// ============================================
-let sortColumn = 'totalValidPoints';
-let sortDirection = 'desc';
-
-function sortTable(column) {
-    if (sortColumn === column) {
-        sortDirection = sortDirection === 'asc' ? 'desc' : 'asc';
-    } else {
-        sortColumn = column;
-        sortDirection = 'desc';
-    }
-    renderAll();
-}
-
-// ============================================
-// TOAST
-// ============================================
 function showToast(msg, type = 'info') {
     const toast = document.createElement('div');
     toast.className = `fixed bottom-4 right-4 px-6 py-3 rounded-lg shadow-lg z-50 fade-in ${type === 'error' ? 'bg-red-600' : type === 'success' ? 'bg-green-600' : 'bg-blue-600'}`;
@@ -918,22 +899,13 @@ function showToast(msg, type = 'info') {
     }, 3000);
 }
 
-// ============================================
-// INICIALIZACIÓN
-// ============================================
 document.addEventListener('DOMContentLoaded', loadData);
 
-// Cleanup al salir de la página
 window.addEventListener('beforeunload', () => {
-    if (realtimeChannel) {
-        sb.removeChannel(realtimeChannel);
-    }
+    if (realtimeChannel) sb.removeChannel(realtimeChannel);
 });
 </script>
 
-<!-- ============================================ -->
-<!-- HEADER -->
-<!-- ============================================ -->
 <header class="glass sticky top-0 z-40 border-b border-white/10">
     <div class="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
         <div class="flex items-center gap-3">
@@ -955,9 +927,6 @@ window.addEventListener('beforeunload', () => {
     </div>
 </header>
 
-<!-- ============================================ -->
-<!-- CONTENIDO -->
-<!-- ============================================ -->
 <main class="max-w-7xl mx-auto px-4 mt-6 pb-20" id="mainContainer">
     <div class="glass rounded-2xl p-12 text-center">
         <div class="loading-spinner"></div>
