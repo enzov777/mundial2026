@@ -302,7 +302,7 @@ function renderPhaseFilters() {
     container.innerHTML = allPhases.map(phase => {
         const label = phase === 'all' ? 'Todas' : phase;
         const isActive = currentPhaseFilter === phase;
-        return `<button onclick="setPhaseFilter('${phase}')" id="phase-${phase.replace(/\s+/g, '-'}" class="filter-chip ${isActive ? 'active' : ''}">${label}</button>`;
+        return `<button onclick="setPhaseFilter('${phase}')" id="phase-${phase.replace(/\s+/g, '-')}" class="filter-chip ${isActive ? 'active' : ''}">${label}</button>`;
     }).join('');
 }
 
