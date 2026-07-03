@@ -1,0 +1,425 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin - Alícuotas | Quiniela Mundial 2026</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.39.0/dist/umd/supabase.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; background: #0f172a; }
+        .glass { background: rgba(255,255,255,0.05); backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,0.1); }
+        .gradient-text { background: linear-gradient(135deg, #fbbf24, #f59e0b); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        .fee-free { background: linear-gradient(135deg, rgba(34, 197, 94, 0.2), rgba(34, 197, 94, 0.1)); border: 1px solid rgba(34, 197, 94, 0.4); color: #4ade80; }
+        .fee-normal { background: rgba(251, 191, 36, 0.1); border: 1px solid rgba(251, 191, 36, 0.3); color: #fbbf24; }
+        .fee-high { background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.3); color: #f87171; }
+        .nav-btn { padding: 10px 20px; border-radius: 8px; font-size: 0.9rem; font-weight: 600; transition: all 0.2s; border: 1px solid rgba(255,255,255,0.1); background: rgba(255,255,255,0.05); color: #94a3b8; text-decoration: none; display: inline-flex; align-items: center; gap: 6px; }
+        .nav-btn:hover { background: rgba(255,255,255,0.1); color: #e2e8f0; }
+        .nav-btn.active { background: rgba(251, 191, 36, 0.15); color: #fbbf24; border-color: rgba(251, 191, 36, 0.4); }
+        .scroll-smooth { scroll-behavior: smooth; }
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: rgba(255,255,255,0.05); }
+        ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.3); }
+    </style>
+</head>
+<body class="text-white min-h-screen">
+
+<!-- HEADER -->
+<header class="glass sticky top-0 z-40 border-b border-white/10">
+    <div class="max-w-5xl mx-auto px-4 py-4">
+        <div class="flex items-center justify-between mb-4">
+            <div class="flex items-center gap-3">
+                <div class="text-3xl">&#9917;</div>
+                <div>
+                    <h1 class="text-xl font-black gradient-text">PANEL ADMIN</h1>
+                    <p class="text-xs text-gray-400">Quiniela Mundial 2026</p>
+                </div>
+            </div>
+            <a href="index.html" class="text-sm text-gray-400 hover:text-white flex items-center gap-1">&#8592; Volver al Inicio</a>
+        </div>
+        <nav class="flex gap-3 overflow-x-auto pb-2">
+            <a href="admin-alicuotas.html" class="nav-btn active">&#128176; Alícuotas</a>
+            <a href="admin-pagos.html" class="nav-btn">&#9989; Validar Pagos</a>
+            <a href="admin-resultados.html" class="nav-btn">&#9881; Resultados</a>
+        </nav>
+    </div>
+</header>
+
+<main class="max-w-5xl mx-auto px-4 mt-6 pb-20">
+    <div class="glass rounded-2xl p-6">
+        <h2 class="text-xl font-bold mb-2">Administración de Alícuotas</h2>
+        <p class="text-sm text-gray-400 mb-6">Configura el costo por fecha de la quiniela. Las fechas "Libres" no requieren pago.</p>
+
+        <!-- NAVEGACIÓN RÁPIDA -->
+        <div class="bg-gradient-to-r from-yellow-500/10 to-amber-500/10 rounded-xl p-4 mb-4 border border-yellow-500/20">
+            <div class="flex flex-col md:flex-row gap-3 items-end">
+                <div class="flex-1 min-w-0">
+                    <label class="text-xs text-yellow-400 font-semibold block mb-1">&#128197; Ir a fecha</label>
+                    <select id="fee-jump-to" onchange="jumpToFeeDate(this.value)" 
+                        class="w-full bg-gray-800 border border-yellow-500/30 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-yellow-500">
+                        <option value="">Seleccionar fecha...</option>
+                    </select>
+                </div>
+                <button onclick="jumpToFeeToday()" 
+                    class="bg-yellow-600 hover:bg-yellow-500 text-white px-4 py-2 rounded-lg text-sm font-bold transition whitespace-nowrap">
+                    &#128205; Ir a Hoy
+                </button>
+                <button onclick="toggleFeeFilters()" 
+                    class="bg-gray-700 hover:bg-gray-600 text-white px-4 py-2 rounded-lg text-sm font-semibold transition whitespace-nowrap">
+                    &#128269; Filtros
+                </button>
+            </div>
+        </div>
+
+        <!-- PANEL DE FILTROS -->
+        <div id="fee-filters-panel" class="hidden bg-white/5 rounded-xl p-4 mb-4 border border-white/10">
+            <div class="flex flex-col md:flex-row gap-3 items-end">
+                <div class="flex-1 min-w-0">
+                    <label class="text-xs text-gray-400 block mb-1">Buscar fecha</label>
+                    <input type="text" id="fee-search-text" placeholder="Ej: 16, julio, 2026..." 
+                        class="w-full bg-white/10 border border-white/20 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-yellow-500"
+                        oninput="filterAdminFees()">
+                </div>
+                <div class="flex-1 min-w-0">
+                    <label class="text-xs text-gray-400 block mb-1">Desde</label>
+                    <input type="date" id="fee-filter-from" 
+                        class="w-full bg-white/10 border border-white/20 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-yellow-500"
+                        onchange="filterAdminFees()">
+                </div>
+                <div class="flex-1 min-w-0">
+                    <label class="text-xs text-gray-400 block mb-1">Hasta</label>
+                    <input type="date" id="fee-filter-to" 
+                        class="w-full bg-white/10 border border-white/20 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-yellow-500"
+                        onchange="filterAdminFees()">
+                </div>
+                <button onclick="clearFeeFilters()" 
+                    class="bg-gray-700 hover:bg-gray-600 text-white px-4 py-2 rounded-lg text-sm font-semibold transition whitespace-nowrap">
+                    &#128465; Limpiar
+                </button>
+            </div>
+            <div class="mt-2 text-xs text-gray-500">
+                Mostrando <span id="fee-count">0</span> fechas
+            </div>
+        </div>
+
+        <!-- LISTA DE FECHAS -->
+        <div id="fee-list-container" class="space-y-3 max-h-[600px] overflow-y-auto pr-2 scroll-smooth">
+            <p class="text-gray-500 text-sm text-center py-8">Cargando alícuotas...</p>
+        </div>
+
+        <!-- AGREGAR NUEVA FECHA -->
+        <div class="mt-6 pt-4 border-t border-white/10">
+            <h4 class="text-sm font-bold text-gray-400 mb-3">&#10133; Agregar/Editar Fecha Manual</h4>
+            <div class="flex flex-col md:flex-row gap-3 items-end">
+                <div class="flex-1 min-w-0">
+                    <label class="text-xs text-gray-500 block mb-1">Fecha</label>
+                    <input type="date" id="new-fee-date" class="w-full bg-white/10 border border-white/20 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-yellow-500">
+                </div>
+                <div class="w-32">
+                    <label class="text-xs text-gray-500 block mb-1">Monto (Bs)</label>
+                    <input type="number" id="new-fee-amount" value="5" min="0" step="0.5" class="w-full bg-white/10 border border-white/20 rounded-lg px-3 py-2 text-sm text-center text-white focus:outline-none focus:border-yellow-500">
+                </div>
+                <label class="flex items-center gap-2 text-sm cursor-pointer bg-white/5 px-4 py-2 rounded-lg h-[38px] mt-5">
+                    <input type="checkbox" id="new-fee-free" class="accent-green-500 w-4 h-4">
+                    <span class="text-gray-300">Fecha Libre</span>
+                </label>
+                <button onclick="addNewFee()" class="bg-green-600 hover:bg-green-500 text-white px-6 py-2 rounded-lg text-sm font-bold transition h-[38px]">&#10133; Agregar</button>
+            </div>
+        </div>
+    </div>
+</main>
+
+<script>
+const SUPABASE_URL = 'https://dwcnwxrcwuicwxbtqpxs.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImR3Y253eHJjd3VpY3d4YnRxcHhzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODIxNDk4NDcsImV4cCI6MjA5NzcyNTg0N30.Xwa-18sv9YsodNG1AJeItmf3NdwiHanCE9m9Mka4dSE';
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+let matches = [];
+let players = [];
+let bets = [];
+let payments = [];
+let paymentFees = [];
+
+const $ = id => document.getElementById(id);
+
+function showToast(msg, type = 'info') {
+    const toast = document.createElement('div');
+    toast.className = `fixed bottom-4 right-4 px-6 py-3 rounded-lg shadow-lg z-50 ${type === 'error' ? 'bg-red-600' : type === 'success' ? 'bg-green-600' : 'bg-blue-600'}`;
+    toast.innerHTML = msg;
+    document.body.appendChild(toast);
+    setTimeout(() => toast.remove(), 3000);
+}
+
+function getNowBolivia() {
+    try {
+        const formatter = new Intl.DateTimeFormat('en-US', {
+            timeZone: 'America/La_Paz',
+            year: 'numeric', month: '2-digit', day: '2-digit',
+            hour: '2-digit', minute: '2-digit', second: '2-digit',
+            hour12: false
+        });
+        const parts = formatter.formatToParts(new Date());
+        const y = parseInt(parts.find(p => p.type === 'year').value);
+        const m = parseInt(parts.find(p => p.type === 'month').value);
+        const d = parseInt(parts.find(p => p.type === 'day').value);
+        const h = parseInt(parts.find(p => p.type === 'hour').value);
+        const min = parseInt(parts.find(p => p.type === 'minute').value);
+        const s = parseInt(parts.find(p => p.type === 'second').value);
+        return new Date(Date.UTC(y, m - 1, d, h + 4, min, s));
+    } catch (e) {
+        const now = new Date();
+        return new Date(now.getTime() + now.getTimezoneOffset() * 60000 + 4 * 60 * 60000);
+    }
+}
+
+function formatDateBolivia(dateStr) {
+    if (!dateStr) return '';
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return '';
+    try {
+        const formatter = new Intl.DateTimeFormat('es-BO', {
+            timeZone: 'America/La_Paz',
+            day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', hour12: true
+        });
+        return formatter.format(d).replace(',', '');
+    } catch (e) {
+        const options = { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', hour12: true };
+        return d.toLocaleString('es-BO', options).replace(',', '');
+    }
+}
+
+function getFeeForDate(dateStr) {
+    const date = new Date(dateStr);
+    const boliviaDate = new Date(date.toLocaleString('en-US', { timeZone: 'America/La_Paz' }));
+    const year = boliviaDate.getFullYear();
+    const month = String(boliviaDate.getMonth() + 1).padStart(2, '0');
+    const day = String(boliviaDate.getDate()).padStart(2, '0');
+    const dateKey = `${year}-${month}-${day}`;
+    const fee = paymentFees.find(f => f.match_date === dateKey);
+    if (fee && fee.is_free) return { amount: 0, isFree: true, notes: fee.notes };
+    if (fee) return { amount: fee.amount, isFree: false, notes: fee.notes };
+    return { amount: 5.00, isFree: false, notes: 'Valor por defecto' };
+}
+
+function hasVerifiedPayment(playerId, matchDateStr) {
+    const date = new Date(matchDateStr);
+    const boliviaDate = new Date(date.toLocaleString('en-US', { timeZone: 'America/La_Paz' }));
+    const year = boliviaDate.getFullYear();
+    const month = String(boliviaDate.getMonth() + 1).padStart(2, '0');
+    const day = String(boliviaDate.getDate()).padStart(2, '0');
+    const dateKey = `${year}-${month}-${day}`;
+    const fee = getFeeForDate(matchDateStr);
+    if (fee.isFree) return true;
+    const payment = payments.find(p => p.player_id === playerId && p.match_date === dateKey && p.status === 'paid' && p.verified_at !== null && p.verified_at !== undefined);
+    return !!payment;
+}
+
+async function loadMatches() { const { data } = await sb.from('matches').select('*').order('match_date'); matches = data || []; }
+async function loadPlayers() { const { data } = await sb.from('players').select('*'); players = data || []; }
+async function loadBets() { const { data } = await sb.from('bets').select('*'); bets = data || []; }
+async function loadPayments() { const { data } = await sb.from('payments').select('*'); payments = data || []; }
+async function loadPaymentFees() { const { data } = await sb.from('payment_fees').select('*'); paymentFees = data || []; }
+
+async function init() {
+    await Promise.all([loadMatches(), loadPlayers(), loadBets(), loadPayments(), loadPaymentFees()]);
+    renderAdminFees();
+    subscribeToChanges();
+}
+
+function subscribeToChanges() {
+    sb.channel('quiniela-admin-fees')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'matches' }, async () => { await loadMatches(); renderAdminFees(); })
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'payment_fees' }, async () => { await loadPaymentFees(); renderAdminFees(); })
+        .subscribe();
+}
+
+// ============================================
+// RENDER ALICUOTAS
+// ============================================
+async function renderAdminFees() {
+    const container = $('fee-list-container');
+    if (!container) return;
+    try {
+        const matchDates = [...new Set(matches.map(m => m.match_date.split('T')[0]))].sort();
+        const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/La_Paz' });
+
+        // Actualizar selector de navegación
+        const jumpSelect = $('fee-jump-to');
+        if (jumpSelect) {
+            const currentVal = jumpSelect.value;
+            jumpSelect.innerHTML = '<option value="">Seleccionar fecha...</option>' + 
+                matchDates.map((date, i) => {
+                    const dateObj = new Date(date + 'T00:00:00');
+                    const label = dateObj.toLocaleDateString('es-BO', { day: 'numeric', month: 'long', year: 'numeric' });
+                    const isToday = date === today;
+                    return `<option value="${date}" ${isToday ? 'selected' : ''}>${isToday ? '&#128205; ' : ''}${label}${isToday ? ' (Hoy)' : ''}</option>`;
+                }).join('');
+            if (currentVal) jumpSelect.value = currentVal;
+        }
+
+        if (matchDates.length === 0) {
+            container.innerHTML = '<p class="text-gray-500 text-sm text-center py-8">No hay fechas de partidos cargadas.</p>';
+            $('fee-count').textContent = '0';
+            return;
+        }
+
+        container.innerHTML = matchDates.map(date => renderFeeRow(date)).join('');
+        $('fee-count').textContent = matchDates.length;
+
+        // Auto-scroll a hoy
+        setTimeout(() => jumpToFeeToday(), 100);
+    } catch (error) { 
+        container.innerHTML = `<p class="text-red-400 text-sm text-center py-8">Error: ${error.message}</p>`; 
+    }
+}
+
+function renderFeeRow(date) {
+    const fee = getFeeForDate(date);
+    const dateObj = new Date(date + 'T00:00:00');
+    const formatted = dateObj.toLocaleDateString('es-BO', { day: 'numeric', month: 'long', year: 'numeric' });
+    const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/La_Paz' });
+    const isToday = date === today;
+    return `
+        <div class="fee-row flex flex-col md:flex-row items-start md:items-center justify-between bg-white/5 rounded-lg p-3 border border-transparent transition-all" data-date="${date}">
+            <div class="flex items-center gap-3 mb-2 md:mb-0">
+                <div class="w-12 h-10 rounded-lg ${fee.isFree ? 'fee-free' : fee.amount > 5 ? 'fee-high' : 'fee-normal'} flex items-center justify-center text-sm font-bold shrink-0">
+                    ${fee.isFree ? 'LIBRE' : fee.amount + ' Bs'}
+                </div>
+                <div>
+                    <div class="font-semibold text-sm ${isToday ? 'text-yellow-400' : ''}">${formatted} ${isToday ? '&#128205; (Hoy)' : ''}</div>
+                    <div class="text-xs text-gray-400">${fee.isFree ? 'Fecha libre - sin costo' : fee.amount === 5 ? 'Valor por defecto' : 'Alicuota especial'}</div>
+                </div>
+            </div>
+            <div class="flex items-center gap-2 w-full md:w-auto">
+                <input type="number" id="fee-amount-${date}" value="${fee.amount}" min="0" step="0.5" 
+                    class="w-20 bg-white/10 border border-white/20 rounded px-2 py-1 text-sm text-center text-white focus:outline-none focus:border-yellow-500" ${fee.isFree ? 'disabled' : ''}>
+                <label class="flex items-center gap-1 text-xs cursor-pointer bg-white/5 px-3 py-1 rounded-lg">
+                    <input type="checkbox" id="fee-free-${date}" ${fee.isFree ? 'checked' : ''} onchange="toggleFeeFree('${date}')" class="accent-green-500">
+                    <span class="text-gray-300">Libre</span>
+                </label>
+                <button onclick="updateFee('${date}')" class="bg-blue-600 hover:bg-blue-500 text-white px-3 py-1 rounded text-xs font-bold transition">Guardar</button>
+            </div>
+        </div>
+    `;
+}
+
+function toggleFeeFilters() {
+    const panel = $('fee-filters-panel');
+    if (panel) panel.classList.toggle('hidden');
+}
+
+function jumpToFeeDate(dateStr) {
+    if (!dateStr) return;
+    const row = document.querySelector(`.fee-row[data-date="${dateStr}"]`);
+    const container = $('fee-list-container');
+    if (row && container) {
+        row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        row.style.borderColor = '#fbbf24';
+        row.style.backgroundColor = 'rgba(251, 191, 36, 0.1)';
+        setTimeout(() => { row.style.borderColor = ''; row.style.backgroundColor = ''; }, 2000);
+    }
+}
+
+function jumpToFeeToday() {
+    const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/La_Paz' });
+    const rows = document.querySelectorAll('.fee-row');
+    let closestRow = null;
+    let closestDiff = Infinity;
+    rows.forEach(row => {
+        const date = row.getAttribute('data-date');
+        if (date) {
+            const diff = Math.abs(new Date(date) - new Date(today));
+            if (diff < closestDiff) { closestDiff = diff; closestRow = row; }
+        }
+    });
+    if (closestRow) {
+        closestRow.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        closestRow.style.borderColor = '#fbbf24';
+        closestRow.style.backgroundColor = 'rgba(251, 191, 36, 0.1)';
+        setTimeout(() => { closestRow.style.borderColor = ''; closestRow.style.backgroundColor = ''; }, 2000);
+    }
+}
+
+function filterAdminFees() {
+    const searchText = ($('fee-search-text')?.value || '').toLowerCase();
+    const fromDate = $('fee-filter-from')?.value || '';
+    const toDate = $('fee-filter-to')?.value || '';
+    const rows = document.querySelectorAll('.fee-row');
+    let visibleCount = 0;
+    rows.forEach(row => {
+        const date = row.getAttribute('data-date');
+        const dateObj = new Date(date + 'T00:00:00');
+        const formatted = dateObj.toLocaleDateString('es-BO', { day: 'numeric', month: 'long', year: 'numeric' }).toLowerCase();
+        let visible = true;
+        if (searchText && !formatted.includes(searchText) && !date.includes(searchText)) visible = false;
+        if (fromDate && date < fromDate) visible = false;
+        if (toDate && date > toDate) visible = false;
+        row.style.display = visible ? '' : 'none';
+        if (visible) visibleCount++;
+    });
+    const countEl = $('fee-count');
+    if (countEl) countEl.textContent = visibleCount;
+}
+
+function clearFeeFilters() {
+    if ($('fee-search-text')) $('fee-search-text').value = '';
+    if ($('fee-filter-from')) $('fee-filter-from').value = '';
+    if ($('fee-filter-to')) $('fee-filter-to').value = '';
+    filterAdminFees();
+}
+
+async function updateFee(date) {
+    const amountInput = $(`fee-amount-${date}`);
+    const freeCheckbox = $(`fee-free-${date}`);
+    const amount = parseFloat(amountInput?.value) || 5;
+    const isFree = freeCheckbox?.checked || false;
+
+    const { error } = await sb.from('payment_fees').upsert({
+        match_date: date,
+        amount: isFree ? 0 : amount,
+        is_free: isFree,
+        notes: isFree ? 'Fecha libre' : `Alicuota: ${amount} Bs`
+    }, { onConflict: 'match_date' });
+
+    if (error) { showToast('Error: ' + error.message, 'error'); return; }
+    await loadPaymentFees();
+    renderAdminFees();
+    showToast(`Alicuota actualizada: ${date} - ${isFree ? 'LIBRE' : amount + ' Bs'}`, 'success');
+}
+
+function toggleFeeFree(date) {
+    const freeCheckbox = $(`fee-free-${date}`);
+    const amountInput = $(`fee-amount-${date}`);
+    if (amountInput) {
+        amountInput.disabled = freeCheckbox.checked;
+        if (freeCheckbox.checked) amountInput.value = 0;
+    }
+}
+
+async function addNewFee() {
+    const dateInput = $('new-fee-date');
+    const amountInput = $('new-fee-amount');
+    const freeCheckbox = $('new-fee-free');
+    if (!dateInput.value) { showToast('Selecciona una fecha', 'error'); return; }
+
+    const { error } = await sb.from('payment_fees').upsert({
+        match_date: dateInput.value,
+        amount: freeCheckbox.checked ? 0 : (parseFloat(amountInput.value) || 5),
+        is_free: freeCheckbox.checked,
+        notes: freeCheckbox.checked ? 'Fecha libre' : `Alicuota: ${amountInput.value} Bs`
+    }, { onConflict: 'match_date' });
+
+    if (error) { showToast('Error: ' + error.message, 'error'); return; }
+    dateInput.value = ''; amountInput.value = '5'; freeCheckbox.checked = false;
+    await loadPaymentFees();
+    renderAdminFees();
+    showToast('Alicuota agregada', 'success');
+}
+
+document.addEventListener('DOMContentLoaded', init);
+</script>
+
+</body>
+</html>
