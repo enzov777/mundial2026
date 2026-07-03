@@ -39,7 +39,13 @@
         .fee-free { background: linear-gradient(135deg, rgba(34, 197, 94, 0.2), rgba(34, 197, 94, 0.1)); border: 1px solid rgba(34, 197, 94, 0.4); color: #4ade80; }
         .fee-normal { background: rgba(251, 191, 36, 0.1); border: 1px solid rgba(251, 191, 36, 0.3); color: #fbbf24; }
         .fee-high { background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.3); color: #f87171; }
-    </style>
+    
+        /* Admin tabs */
+        .admin-tab-btn { cursor: pointer; padding: 10px 16px; font-weight: 600; color: #94a3b8; border-bottom: 3px solid transparent; transition: all 0.2s; background: none; border-top: none; border-left: none; border-right: none; }
+        .admin-tab-btn:hover { color: #e2e8f0; }
+        .admin-tab-active { border-bottom: 3px solid #3b82f6; color: #3b82f6; }
+        .admin-panel { animation: fadeIn 0.3s ease; }
+</style>
 <base target="_blank">
 <base target="_blank">
 <base target="_blank">
@@ -438,46 +444,40 @@ function getPaymentStatus(playerId, matchDateStr) {
 <!-- ADMIN -->
 <section id="section-admin" class="hidden-section max-w-4xl mx-auto px-4 mt-6 pb-20">
     <div class="glass rounded-2xl p-6 mb-6">
-        <h2 class="text-xl font-bold mb-4">Panel de Administracion</h2>
-        <p class="text-sm text-gray-400 mb-4">Carga resultados, gestiona pagos, alicuotas y edita equipos</p>
+        <h2 class="text-xl font-bold mb-2">Panel de Administracion</h2>
+        <p class="text-sm text-gray-400 mb-6">Selecciona una sección para gestionar la quiniela. Cada módulo se abre en su propia página para una mejor experiencia.</p>
 
-        <!-- ALICUOTAS -->
-        <div class="bg-gray-900/50 rounded-xl p-4 mb-4 border border-blue-500/20">
-            <h3 class="text-blue-400 font-bold mb-3 flex items-center gap-2">&#128176; Configurar Alicuotas de Pago por Fecha</h3>
-            <p class="text-xs text-gray-400 mb-3">Define el costo por fecha. Las fechas "Libres" no requieren pago para sumar puntos.</p>
-            <div id="admin-fees-container" class="space-y-3">
-                <p class="text-gray-500 text-sm">Cargando alicuotas...</p>
-            </div>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <!-- Tarjeta Alícuotas -->
+            <a href="admin-alicuotas.html" class="group block bg-gradient-to-br from-blue-500/10 to-blue-600/5 border border-blue-500/20 rounded-xl p-6 hover:border-blue-500/40 hover:bg-blue-500/10 transition-all">
+                <div class="text-3xl mb-3">&#128176;</div>
+                <h3 class="text-lg font-bold text-blue-400 mb-1 group-hover:text-blue-300">Alícuotas</h3>
+                <p class="text-sm text-gray-400">Configura el costo por fecha de la quiniela. Define fechas libres y alícuotas especiales.</p>
+                <div class="mt-4 text-xs text-blue-400 font-semibold flex items-center gap-1">
+                    Abrir p&#225;gina &#8594;
+                </div>
+            </a>
+
+            <!-- Tarjeta Pagos -->
+            <a href="admin-pagos.html" class="group block bg-gradient-to-br from-yellow-500/10 to-amber-600/5 border border-yellow-500/20 rounded-xl p-6 hover:border-yellow-500/40 hover:bg-yellow-500/10 transition-all">
+                <div class="text-3xl mb-3">&#9989;</div>
+                <h3 class="text-lg font-bold text-yellow-400 mb-1 group-hover:text-yellow-300">Validar Pagos</h3>
+                <p class="text-sm text-gray-400">Verifica los pagos de los jugadores por fecha. Solo los verificados acumulan puntos.</p>
+                <div class="mt-4 text-xs text-yellow-400 font-semibold flex items-center gap-1">
+                    Abrir p&#225;gina &#8594;
+                </div>
+            </a>
+
+            <!-- Tarjeta Resultados -->
+            <a href="admin-resultados.html" class="group block bg-gradient-to-br from-green-500/10 to-emerald-600/5 border border-green-500/20 rounded-xl p-6 hover:border-green-500/40 hover:bg-green-500/10 transition-all">
+                <div class="text-3xl mb-3">&#9881;</div>
+                <h3 class="text-lg font-bold text-green-400 mb-1 group-hover:text-green-300">Resultados</h3>
+                <p class="text-sm text-gray-400">Registra y edita resultados oficiales. Sincroniza con la API del Mundial 2026.</p>
+                <div class="mt-4 text-xs text-green-400 font-semibold flex items-center gap-1">
+                    Abrir p&#225;gina &#8594;
+                </div>
+            </a>
         </div>
-
-        <!-- PAGOS -->
-        <div class="bg-gray-900/50 rounded-xl p-4 mb-4 border border-yellow-500/20">
-            <h3 class="text-yellow-400 font-bold mb-3 flex items-center gap-2">&#9989; Validacion de Pagos por Fecha</h3>
-            <p class="text-xs text-gray-400 mb-3">Los pagos deben ser verificados para que los pronosticos sean validos (excepto fechas libres).</p>
-            <div id="admin-payments-container" class="space-y-3">
-                <p class="text-gray-500 text-sm">Cargando pagos...</p>
-            </div>
-
-        </div>
-
-        <div id="admin-matches-container" class="space-y-3"></div>
-    </div>
-
-    <div class="glass rounded-2xl p-6 mb-6">
-        <h3 class="text-lg font-bold mb-4">&#128260; Sincronizacion Automatica</h3>
-        <p class="text-sm text-gray-400 mb-4">Actualiza resultados automaticamente desde la API del Mundial 2026</p>
-        <button onclick="syncResults()" class="w-full bg-gradient-to-r from-green-500 to-emerald-600 text-white font-bold py-3 rounded-lg hover:from-green-400 hover:to-emerald-500 transition">&#128260; Sincronizar Resultados Ahora</button>
-        <p class="text-xs text-gray-500 mt-2 text-center">Se ejecuta automaticamente cada 15 minutos</p>
-    </div>
-
-    <div class="glass rounded-2xl p-6">
-        <h3 class="text-lg font-bold mb-4">Agregar Partido</h3>
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
-            <input type="text" id="new-home" placeholder="Equipo Local" class="bg-white/5 border border-white/10 rounded-lg px-4 py-2 focus:outline-none focus:border-yellow-500">
-            <input type="text" id="new-away" placeholder="Equipo Visitante" class="bg-white/5 border border-white/10 rounded-lg px-4 py-2 focus:outline-none focus:border-yellow-500">
-            <input type="datetime-local" id="new-date" class="bg-white/5 border border-white/10 rounded-lg px-4 py-2 focus:outline-none focus:border-yellow-500 text-white">
-        </div>
-        <button onclick="addMatch()" class="mt-3 w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-2 rounded-lg transition">Agregar Partido</button>
     </div>
 </section>
 
@@ -546,6 +546,42 @@ function showSection(section) {
     $(`tab-${section}`)?.classList.add('tab-active'); $(`tab-${section}`)?.classList.remove('text-gray-400');
     if (section === 'posiciones') renderLeaderboard(); if (section === 'qr') renderQR(); if (section === 'admin') renderAdminPanel();
 }
+
+// ============================================
+// NAVEGACIÓN DE TABS DEL ADMIN
+// ============================================
+function switchAdminTab(tabName) {
+    // Quitar clase active de todos los tabs
+    document.querySelectorAll('.admin-tab-btn').forEach(btn => {
+        btn.classList.remove('admin-tab-active');
+        btn.classList.add('text-gray-400');
+    });
+    // Ocultar todos los paneles
+    document.querySelectorAll('[id^="admin-panel-"]').forEach(panel => {
+        panel.classList.add('hidden');
+        panel.classList.remove('block');
+    });
+
+    // Activar tab seleccionado
+    const activeTab = document.getElementById('admin-tab-' + tabName);
+    if (activeTab) {
+        activeTab.classList.add('admin-tab-active');
+        activeTab.classList.remove('text-gray-400');
+    }
+
+    // Mostrar panel seleccionado
+    const activePanel = document.getElementById('admin-panel-' + tabName);
+    if (activePanel) {
+        activePanel.classList.remove('hidden');
+        activePanel.classList.add('block');
+    }
+
+    // Renderizar contenido específico del tab
+    if (tabName === 'alicuotas') renderAdminFees();
+    if (tabName === 'pagos') renderAdminPayments();
+    if (tabName === 'resultados') renderAdminMatches();
+}
+
 
 async function loadMatches() { const { data } = await sb.from('matches').select('*').order('match_date'); matches = data || []; }
 async function loadPlayers() { const { data } = await sb.from('players').select('*'); players = data || []; }
@@ -663,13 +699,235 @@ async function renderAdminFees() {
     if (!container) return;
     try {
         const matchDates = [...new Set(matches.map(m => m.match_date.split('T')[0]))].sort();
-        container.innerHTML = `<div class="space-y-3">${matchDates.map(date => {
-            const fee = getFeeForDate(date);
-            const dateObj = new Date(date + 'T00:00:00');
-            const formatted = dateObj.toLocaleDateString('es-BO', { day: 'numeric', month: 'long', year: 'numeric' });
-            return `<div class="flex items-center justify-between bg-white/5 rounded-lg p-3"><div class="flex items-center gap-3"><div class="w-10 h-10 rounded-lg ${fee.isFree ? 'fee-free' : fee.amount > 5 ? 'fee-high' : 'fee-normal'} flex items-center justify-center text-lg font-bold">${fee.isFree ? '&#127381;' : fee.amount + ' Bs'}</div><div><div class="font-semibold text-sm">${formatted}</div><div class="text-xs text-gray-400">${fee.isFree ? 'Fecha libre - sin costo' : fee.amount === 5 ? 'Valor por defecto' : 'Alicuota especial'}</div></div></div><div class="flex items-center gap-2"><input type="number" id="fee-amount-${date}" value="${fee.amount}" min="0" step="0.5" class="w-20 bg-white/10 border border-white/20 rounded px-2 py-1 text-sm text-center" ${fee.isFree ? 'disabled' : ''}><label class="flex items-center gap-1 text-xs cursor-pointer"><input type="checkbox" id="fee-free-${date}" ${fee.isFree ? 'checked' : ''} onchange="toggleFeeFree('${date}')" class="accent-green-500"><span>Libre</span></label><button onclick="updateFee('${date}')" class="bg-blue-600 hover:bg-blue-500 text-white px-3 py-1 rounded text-xs font-bold transition">Guardar</button></div></div>`;
-        }).join('')}</div><div class="mt-4 pt-4 border-t border-white/10"><h4 class="text-sm font-bold text-gray-400 mb-2">Agregar/Editar Fecha Manual</h4><div class="flex gap-2"><input type="date" id="new-fee-date" class="bg-white/10 border border-white/20 rounded-lg px-3 py-2 text-sm"><input type="number" id="new-fee-amount" value="5" min="0" step="0.5" class="w-24 bg-white/10 border border-white/20 rounded-lg px-3 py-2 text-sm text-center"><label class="flex items-center gap-1 text-xs cursor-pointer bg-white/5 px-3 rounded-lg"><input type="checkbox" id="new-fee-free" class="accent-green-500"><span>Libre</span></label><button onclick="addNewFee()" class="bg-green-600 hover:bg-green-500 text-white px-4 py-2 rounded-lg text-sm font-bold transition">+ Agregar</button></div></div>`;
-    } catch (error) { container.innerHTML = `<p class="text-red-400 text-sm">Error: ${error.message}</p>`; }
+
+        // Fecha de hoy en formato YYYY-MM-DD
+        const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/La_Paz' });
+
+        // Encontrar el índice de la fecha más cercana a hoy
+        let todayIndex = matchDates.findIndex(d => d >= today);
+        if (todayIndex === -1) todayIndex = matchDates.length - 1;
+        if (todayIndex < 0) todayIndex = 0;
+
+        // HTML del panel de navegación + filtros + lista
+        container.innerHTML = `
+            <!-- NAVEGACIÓN RÁPIDA -->
+            <div class="bg-gradient-to-r from-yellow-500/10 to-amber-500/10 rounded-xl p-4 mb-4 border border-yellow-500/20">
+                <div class="flex flex-col md:flex-row gap-3 items-end">
+                    <div class="flex-1 min-w-0">
+                        <label class="text-xs text-yellow-400 font-semibold block mb-1">📅 Ir a fecha</label>
+                        <select id="fee-jump-to" onchange="jumpToFeeDate(this.value)" 
+                            class="w-full bg-gray-800 border border-yellow-500/30 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-yellow-500">
+                            <option value="">Seleccionar fecha...</option>
+                            ${matchDates.map((date, i) => {
+                                const dateObj = new Date(date + 'T00:00:00');
+                                const label = dateObj.toLocaleDateString('es-BO', { day: 'numeric', month: 'long', year: 'numeric' });
+                                const isToday = date === today;
+                                return `<option value="${date}" ${i === todayIndex ? 'selected' : ''}>${isToday ? '📍 ' : ''}${label}${isToday ? ' (Hoy)' : ''}</option>`;
+                            }).join('')}
+                        </select>
+                    </div>
+                    <button onclick="jumpToFeeToday()" 
+                        class="bg-yellow-600 hover:bg-yellow-500 text-white px-4 py-2 rounded-lg text-sm font-bold transition whitespace-nowrap">
+                        📍 Ir a Hoy
+                    </button>
+                    <button onclick="toggleFeeFilters()" 
+                        class="bg-gray-700 hover:bg-gray-600 text-white px-4 py-2 rounded-lg text-sm font-semibold transition whitespace-nowrap">
+                        🔍 Filtros
+                    </button>
+                </div>
+            </div>
+
+            <!-- PANEL DE FILTROS (colapsable) -->
+            <div id="fee-filters-panel" class="hidden bg-white/5 rounded-xl p-4 mb-4 border border-white/10">
+                <div class="flex flex-col md:flex-row gap-3 items-end">
+                    <div class="flex-1 min-w-0">
+                        <label class="text-xs text-gray-400 block mb-1">Buscar fecha</label>
+                        <input type="text" id="fee-search-text" placeholder="Ej: 16, julio, 2026..." 
+                            class="w-full bg-white/10 border border-white/20 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-yellow-500"
+                            oninput="filterAdminFees()">
+                    </div>
+                    <div class="flex-1 min-w-0">
+                        <label class="text-xs text-gray-400 block mb-1">Desde</label>
+                        <input type="date" id="fee-filter-from" 
+                            class="w-full bg-white/10 border border-white/20 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-yellow-500"
+                            onchange="filterAdminFees()">
+                    </div>
+                    <div class="flex-1 min-w-0">
+                        <label class="text-xs text-gray-400 block mb-1">Hasta</label>
+                        <input type="date" id="fee-filter-to" 
+                            class="w-full bg-white/10 border border-white/20 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-yellow-500"
+                            onchange="filterAdminFees()">
+                    </div>
+                    <button onclick="clearFeeFilters()" 
+                        class="bg-gray-700 hover:bg-gray-600 text-white px-4 py-2 rounded-lg text-sm font-semibold transition whitespace-nowrap">
+                        🗑️ Limpiar
+                    </button>
+                </div>
+                <div class="mt-2 text-xs text-gray-500">
+                    Mostrando <span id="fee-count">${matchDates.length}</span> de ${matchDates.length} fechas
+                </div>
+            </div>
+
+            <!-- LISTA DE FECHAS -->
+            <div id="fee-list-container" class="space-y-3 max-h-[600px] overflow-y-auto pr-2 scroll-smooth">
+                ${matchDates.map(date => renderFeeRow(date)).join('')}
+            </div>
+
+            <!-- AGREGAR NUEVA FECHA -->
+            <div class="mt-4 pt-4 border-t border-white/10">
+                <h4 class="text-sm font-bold text-gray-400 mb-2">Agregar/Editar Fecha Manual</h4>
+                <div class="flex gap-2">
+                    <input type="date" id="new-fee-date" class="bg-white/10 border border-white/20 rounded-lg px-3 py-2 text-sm text-white">
+                    <input type="number" id="new-fee-amount" value="5" min="0" step="0.5" class="w-24 bg-white/10 border border-white/20 rounded-lg px-3 py-2 text-sm text-center text-white">
+                    <label class="flex items-center gap-1 text-xs cursor-pointer bg-white/5 px-3 rounded-lg">
+                        <input type="checkbox" id="new-fee-free" class="accent-green-500">
+                        <span class="text-gray-300">Libre</span>
+                    </label>
+                    <button onclick="addNewFee()" class="bg-green-600 hover:bg-green-500 text-white px-4 py-2 rounded-lg text-sm font-bold transition">+ Agregar</button>
+                </div>
+            </div>
+        `;
+
+        // Auto-scroll a la fecha de hoy después de renderizar
+        setTimeout(() => jumpToFeeToday(), 100);
+
+    } catch (error) { 
+        container.innerHTML = `<p class="text-red-400 text-sm">Error: ${error.message}</p>`; 
+    }
+}
+
+// Función auxiliar para renderizar una fila de alícuota
+
+// Navegación rápida en alícuotas
+function toggleFeeFilters() {
+    const panel = document.getElementById('fee-filters-panel');
+    if (panel) {
+        panel.classList.toggle('hidden');
+    }
+}
+
+function jumpToFeeDate(dateStr) {
+    if (!dateStr) return;
+    const row = document.querySelector(`.fee-row[data-date="${dateStr}"]`);
+    const container = document.getElementById('fee-list-container');
+    if (row && container) {
+        row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        // Resaltar temporalmente
+        row.style.borderColor = '#fbbf24';
+        row.style.backgroundColor = 'rgba(251, 191, 36, 0.1)';
+        setTimeout(() => {
+            row.style.borderColor = '';
+            row.style.backgroundColor = '';
+        }, 2000);
+    }
+}
+
+function jumpToFeeToday() {
+    const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/La_Paz' });
+    const rows = document.querySelectorAll('.fee-row');
+    let closestRow = null;
+    let closestDiff = Infinity;
+
+    rows.forEach(row => {
+        const date = row.getAttribute('data-date');
+        if (date) {
+            const diff = Math.abs(new Date(date) - new Date(today));
+            if (diff < closestDiff) {
+                closestDiff = diff;
+                closestRow = row;
+            }
+        }
+    });
+
+    if (closestRow) {
+        closestRow.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        closestRow.style.borderColor = '#fbbf24';
+        closestRow.style.backgroundColor = 'rgba(251, 191, 36, 0.1)';
+        setTimeout(() => {
+            closestRow.style.borderColor = '';
+            closestRow.style.backgroundColor = '';
+        }, 2000);
+    }
+}
+
+function renderFeeRow(date) {
+    const fee = getFeeForDate(date);
+    const dateObj = new Date(date + 'T00:00:00');
+    const formatted = dateObj.toLocaleDateString('es-BO', { day: 'numeric', month: 'long', year: 'numeric' });
+    return `
+        <div class="fee-row flex items-center justify-between bg-white/5 rounded-lg p-3" data-date="${date}">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-lg ${fee.isFree ? 'fee-free' : fee.amount > 5 ? 'fee-high' : 'fee-normal'} flex items-center justify-center text-lg font-bold">
+                    ${fee.isFree ? '🆓' : fee.amount + ' Bs'}
+                </div>
+                <div>
+                    <div class="font-semibold text-sm">${formatted}</div>
+                    <div class="text-xs text-gray-400">${fee.isFree ? 'Fecha libre - sin costo' : fee.amount === 5 ? 'Valor por defecto' : 'Alicuota especial'}</div>
+                </div>
+            </div>
+            <div class="flex items-center gap-2">
+                <input type="number" id="fee-amount-${date}" value="${fee.amount}" min="0" step="0.5" 
+                    class="w-20 bg-white/10 border border-white/20 rounded px-2 py-1 text-sm text-center text-white" ${fee.isFree ? 'disabled' : ''}>
+                <label class="flex items-center gap-1 text-xs cursor-pointer">
+                    <input type="checkbox" id="fee-free-${date}" ${fee.isFree ? 'checked' : ''} onchange="toggleFeeFree('${date}')" class="accent-green-500">
+                    <span class="text-gray-300">Libre</span>
+                </label>
+                <button onclick="updateFee('${date}')" class="bg-blue-600 hover:bg-blue-500 text-white px-3 py-1 rounded text-xs font-bold transition">Guardar</button>
+            </div>
+        </div>
+    `;
+}
+
+// Filtrar fechas en el panel admin
+function filterAdminFees() {
+    const searchText = document.getElementById('fee-search-text')?.value.toLowerCase() || '';
+    const fromDate = document.getElementById('fee-filter-from')?.value || '';
+    const toDate = document.getElementById('fee-filter-to')?.value || '';
+
+    const rows = document.querySelectorAll('.fee-row');
+    let visibleCount = 0;
+
+    rows.forEach(row => {
+        const date = row.getAttribute('data-date');
+        const dateObj = new Date(date + 'T00:00:00');
+        const formatted = dateObj.toLocaleDateString('es-BO', { day: 'numeric', month: 'long', year: 'numeric' }).toLowerCase();
+
+        let visible = true;
+
+        // Filtro por texto
+        if (searchText && !formatted.includes(searchText) && !date.includes(searchText)) {
+            visible = false;
+        }
+
+        // Filtro desde
+        if (fromDate && date < fromDate) {
+            visible = false;
+        }
+
+        // Filtro hasta
+        if (toDate && date > toDate) {
+            visible = false;
+        }
+
+        row.style.display = visible ? '' : 'none';
+        if (visible) visibleCount++;
+    });
+
+    const countEl = document.getElementById('fee-count');
+    if (countEl) countEl.textContent = visibleCount;
+}
+
+// Limpiar filtros
+function clearFeeFilters() {
+    const searchInput = document.getElementById('fee-search-text');
+    const fromInput = document.getElementById('fee-filter-from');
+    const toInput = document.getElementById('fee-filter-to');
+
+    if (searchInput) searchInput.value = '';
+    if (fromInput) fromInput.value = '';
+    if (toInput) toInput.value = '';
+
+    filterAdminFees();
 }
 
 async function updateFee(date) {
@@ -817,7 +1075,19 @@ function formatDateNice(dateStr) {
     return `${parseInt(day)} de ${months[parseInt(month)-1]} ${year}`;
 }
 
-function renderAdminPanel() { renderAdminFees(); renderAdminPayments(); renderAdminMatches(); }
+function renderAdminPanel() { 
+    // Determinar qué pestaña está activa y renderizar solo esa
+    const activeTab = document.querySelector('.admin-tab-active');
+    if (activeTab) {
+        const tabId = activeTab.id.replace('admin-tab-', '');
+        if (tabId === 'alicuotas') renderAdminFees();
+        else if (tabId === 'pagos') renderAdminPayments();
+        else if (tabId === 'resultados') renderAdminMatches();
+    } else {
+        // Por defecto, renderizar alícuotas
+        renderAdminFees();
+    }
+}
 
 function renderAdminMatches() {
     const container = $('admin-matches-container');
