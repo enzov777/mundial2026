@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin - Validar Pagos | Quiniela Mundial 2026</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.39.0/dist/umd/supabase.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; background: #0f172a; }
+        .glass { background: rgba(255,255,255,0.05); backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,0.1); }
+        .gradient-text { background: linear-gradient(135deg, #fbbf24, #f59e0b); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        .verified-badge { background: rgba(34, 197, 94, 0.2); color: #4ade80; border: 1px solid rgba(34, 197, 94, 0.3); }
+        .pending-badge { background: rgba(251, 191, 36, 0.2); color: #fbbf24; border: 1px solid rgba(251, 191, 36, 0.3); }
+        .no-payment-badge { background: rgba(71, 85, 105, 0.2); color: #94a3b8; border: 1px solid rgba(71, 85, 105, 0.3); }
+        .nav-btn { padding: 10px 20px; border-radius: 8px; font-size: 0.9rem; font-weight: 600; transition: all 0.2s; border: 1px solid rgba(255,255,255,0.1); background: rgba(255,255,255,0.05); color: #94a3b8; text-decoration: none; display: inline-flex; align-items: center; gap: 6px; }
+        .nav-btn:hover { background: rgba(255,255,255,0.1); color: #e2e8f0; }
+        .nav-btn.active { background: rgba(251, 191, 36, 0.15); color: #fbbf24; border-color: rgba(251, 191, 36, 0.4); }
+        .player-card { transition: all 0.2s; }
+        .player-card:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.3); }
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: rgba(255,255,255,0.05); }
+        ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.3); }
+    </style>
+</head>
+<body class="text-white min-h-screen">
+
+<!-- HEADER -->
+<header class="glass sticky top-0 z-40 border-b border-white/10">
+    <div class="max-w-5xl mx-auto px-4 py-4">
+        <div class="flex items-center justify-between mb-4">
+            <div class="flex items-center gap-3">
+                <div class="text-3xl">&#9917;</div>
+                <div>
+                    <h1 class="text-xl font-black gradient-text">PANEL ADMIN</h1>
+                    <p class="text-xs text-gray-400">Quiniela Mundial 2026</p>
+                </div>
+            </div>
+            <a href="index.html" class="text-sm text-gray-400 hover:text-white flex items-center gap-1">&#8592; Volver al Inicio</a>
+        </div>
+        <nav class="flex gap-3 overflow-x-auto pb-2">
+            <a href="admin-alicuotas.html" class="nav-btn">&#128176; Alícuotas</a>
+            <a href="admin-pagos.html" class="nav-btn active">&#9989; Validar Pagos</a>
+            <a href="admin-resultados.html" class="nav-btn">&#9881; Resultados</a>
+        </nav>
+    </div>
+</header>
+
+<main class="max-w-5xl mx-auto px-4 mt-6 pb-20">
+    <div class="glass rounded-2xl p-6">
+        <h2 class="text-xl font-bold mb-2">Validación de Pagos</h2>
+        <p class="text-sm text-gray-400 mb-6">Gestiona y verifica los pagos de los jugadores por fecha. Solo los pagos verificados permiten acumular puntos.</p>
+
+        <!-- RESUMEN Y FILTRO DE FECHA -->
+        <div class="bg-gradient-to-r from-yellow-500/10 to-amber-500/10 rounded-xl p-4 mb-6 border border-yellow-500/20">
+            <div class="flex flex-col md:flex-row gap-3 items-end">
+                <div class="flex-1 min-w-0">
+                    <label class="text-xs text-yellow-400 font-semibold block mb-1">&#128197; Fecha a gestionar</label>
+                    <input type="date" id="payment-date" 
+                        class="w-full bg-gray-800 border border-yellow-500/30 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-yellow-500"
+                        onchange="renderAdminPayments()">
+                </div>
+                <div class="flex gap-2">
+                    <button onclick="setTodayPayment()" class="bg-yellow-600 hover:bg-yellow-500 text-white px-4 py-2 rounded-lg text-sm font-bold transition">&#128205; Hoy</button>
+                    <button onclick="setTomorrowPayment()" class="bg-gray-700 hover:bg-gray-600 text-white px-4 py-2 rounded-lg text-sm font-semibold transition">&#128198; Mañana</button>
+                </div>
+            </div>
+            <div id="payment-summary" class="mt-3 flex flex-wrap gap-2"></div>
+        </div>
+
+        <!-- ESTADO DE ALICUOTA -->
+        <div id="fee-status-banner" class="mb-6"></div>
+
+        <!-- GRID DE JUGADORES -->
+        <div id="admin-payments-grid" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+            <p class="text-gray-500 text-sm col-span-full text-center py-8">Cargando jugadores...</p>
+        </div>
+    </div>
+</main>
+
+<script>
+const SUPABASE_URL = 'https://dwcnwxrcwuicwxbtqpxs.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImR3Y253eHJjd3VpY3d4YnRxcHhzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODIxNDk4NDcsImV4cCI6MjA5NzcyNTg0N30.Xwa-18sv9YsodNG1AJeItmf3NdwiHanCE9m9Mka4dSE';
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+let matches = [];
+let players = [];
+let bets = [];
+let payments = [];
+let paymentFees = [];
+
+const $ = id => document.getElementById(id);
+
+function showToast(msg, type = 'info') {
+    const toast = document.createElement('div');
+    toast.className = `fixed bottom-4 right-4 px-6 py-3 rounded-lg shadow-lg z-50 ${type === 'error' ? 'bg-red-600' : type === 'success' ? 'bg-green-600' : 'bg-blue-600'}`;
+    toast.innerHTML = msg;
+    document.body.appendChild(toast);
+    setTimeout(() => toast.remove(), 3000);
+}
+
+function getNowBolivia() {
+    try {
+        const formatter = new Intl.DateTimeFormat('en-US', {
+            timeZone: 'America/La_Paz',
+            year: 'numeric', month: '2-digit', day: '2-digit',
+            hour: '2-digit', minute: '2-digit', second: '2-digit',
+            hour12: false
+        });
+        const parts = formatter.formatToParts(new Date());
+        const y = parseInt(parts.find(p => p.type === 'year').value);
+        const m = parseInt(parts.find(p => p.type === 'month').value);
+        const d = parseInt(parts.find(p => p.type === 'day').value);
+        const h = parseInt(parts.find(p => p.type === 'hour').value);
+        const min = parseInt(parts.find(p => p.type === 'minute').value);
+        const s = parseInt(parts.find(p => p.type === 'second').value);
+        return new Date(Date.UTC(y, m - 1, d, h + 4, min, s));
+    } catch (e) {
+        const now = new Date();
+        return new Date(now.getTime() + now.getTimezoneOffset() * 60000 + 4 * 60 * 60000);
+    }
+}
+
+function getFeeForDate(dateStr) {
+    const date = new Date(dateStr);
+    const boliviaDate = new Date(date.toLocaleString('en-US', { timeZone: 'America/La_Paz' }));
+    const year = boliviaDate.getFullYear();
+    const month = String(boliviaDate.getMonth() + 1).padStart(2, '0');
+    const day = String(boliviaDate.getDate()).padStart(2, '0');
+    const dateKey = `${year}-${month}-${day}`;
+    const fee = paymentFees.find(f => f.match_date === dateKey);
+    if (fee && fee.is_free) return { amount: 0, isFree: true, notes: fee.notes };
+    if (fee) return { amount: fee.amount, isFree: false, notes: fee.notes };
+    return { amount: 5.00, isFree: false, notes: 'Valor por defecto' };
+}
+
+function formatDateNice(dateStr) {
+    const months = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+    const [year, month, day] = dateStr.split('-');
+    return `${parseInt(day)} de ${months[parseInt(month)-1]} ${year}`;
+}
+
+async function loadMatches() { const { data } = await sb.from('matches').select('*').order('match_date'); matches = data || []; }
+async function loadPlayers() { const { data } = await sb.from('players').select('*'); players = data || []; }
+async function loadBets() { const { data } = await sb.from('bets').select('*'); bets = data || []; }
+async function loadPayments() { const { data } = await sb.from('payments').select('*'); payments = data || []; }
+async function loadPaymentFees() { const { data } = await sb.from('payment_fees').select('*'); paymentFees = data || []; }
+
+async function init() {
+    await Promise.all([loadMatches(), loadPlayers(), loadBets(), loadPayments(), loadPaymentFees()]);
+    setTodayPayment();
+    subscribeToChanges();
+}
+
+function subscribeToChanges() {
+    sb.channel('quiniela-admin-payments')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'payments' }, async () => { await loadPayments(); renderAdminPayments(); })
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'players' }, async () => { await loadPlayers(); renderAdminPayments(); })
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'payment_fees' }, async () => { await loadPaymentFees(); renderAdminPayments(); })
+        .subscribe();
+}
+
+function setTodayPayment() {
+    const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/La_Paz' });
+    $('payment-date').value = today;
+    renderAdminPayments();
+}
+
+function setTomorrowPayment() {
+    const tomorrow = new Date(getNowBolivia().getTime() + 24 * 60 * 60 * 1000);
+    const year = tomorrow.getFullYear();
+    const month = String(tomorrow.getMonth() + 1).padStart(2, '0');
+    const day = String(tomorrow.getDate()).padStart(2, '0');
+    $('payment-date').value = `${year}-${month}-${day}`;
+    renderAdminPayments();
+}
+
+async function renderAdminPayments() {
+    const container = $('admin-payments-grid');
+    const summary = $('payment-summary');
+    const banner = $('fee-status-banner');
+    if (!container) return;
+
+    try {
+        const selectedDate = $('payment-date').value;
+        if (!selectedDate) {
+            container.innerHTML = '<p class="text-gray-500 text-sm col-span-full text-center py-8">Selecciona una fecha</p>';
+            return;
+        }
+
+        const fee = getFeeForDate(selectedDate);
+        const datePayments = payments.filter(p => p.match_date === selectedDate);
+        const verifiedCount = datePayments.filter(p => p.status === 'paid' && p.verified_at).length;
+        const pendingCount = datePayments.filter(p => p.status === 'paid' && !p.verified_at).length;
+        const notPaidCount = players.length - datePayments.filter(p => p.status === 'paid').length;
+
+        // Banner de alícuota
+        if (fee.isFree) {
+            banner.innerHTML = `<div class="p-4 bg-green-500/10 border border-green-500/20 rounded-lg text-center">
+                <p class="text-green-400 font-bold text-lg">&#127381; FECHA LIBRE</p>
+                <p class="text-green-300 text-sm">No se requiere pago. Todos los pronósticos sumarán puntos automáticamente.</p>
+            </div>`;
+        } else {
+            banner.innerHTML = `<div class="p-4 bg-yellow-500/10 border border-yellow-500/20 rounded-lg text-center">
+                <p class="text-yellow-400 font-bold text-lg">${fee.amount} Bs por jugador</p>
+                <p class="text-yellow-300 text-sm">Los jugadores deben tener pago verificado para que sus pronósticos sumen puntos.</p>
+            </div>`;
+        }
+
+        // Resumen
+        summary.innerHTML = `
+            <span class="text-xs bg-green-500/20 text-green-400 px-3 py-1 rounded-full font-semibold">&#9989; ${verifiedCount} Verificados</span>
+            <span class="text-xs bg-yellow-500/20 text-yellow-400 px-3 py-1 rounded-full font-semibold">&#9200; ${pendingCount} Pendientes</span>
+            <span class="text-xs bg-gray-700 text-gray-400 px-3 py-1 rounded-full font-semibold">&#128179; ${notPaidCount} Sin pago</span>
+            <span class="text-xs bg-blue-500/20 text-blue-400 px-3 py-1 rounded-full font-semibold">${players.length} Total jugadores</span>
+        `;
+
+        if (fee.isFree) {
+            container.innerHTML = `<div class="col-span-full text-center py-8 text-green-400">
+                <div class="text-4xl mb-2">&#127381;</div>
+                <p class="font-semibold">Esta fecha es LIBRE</p>
+                <p class="text-sm text-gray-400">No es necesario gestionar pagos</p>
+            </div>`;
+            return;
+        }
+
+        if (!players.length) {
+            container.innerHTML = '<p class="text-gray-500 text-sm col-span-full text-center py-8">No hay jugadores registrados</p>';
+            return;
+        }
+
+        container.innerHTML = players.map(p => {
+            const payment = datePayments.find(pay => pay.player_id === p.id);
+            const isVerified = payment?.status === 'paid' && payment?.verified_at;
+            const isPending = payment?.status === 'paid' && !payment?.verified_at;
+            const verifiedTime = payment?.verified_at ? new Date(payment.verified_at).toLocaleString('es-BO', { hour: '2-digit', minute: '2-digit' }) : '';
+
+            return `<button onclick="verifyPlayerPayment('${p.id}', '${selectedDate}')" 
+                class="player-card p-4 rounded-xl text-left w-full ${isVerified ? 'verified-badge' : isPending ? 'pending-badge' : 'no-payment-badge'}">
+                <div class="flex items-center justify-between mb-2">
+                    <div class="font-bold text-sm truncate">${p.name}</div>
+                    <div class="text-lg">${isVerified ? '&#9989;' : isPending ? '&#9200;' : '&#128179;'}</div>
+                </div>
+                <div class="text-xs ${isVerified ? 'text-green-300' : isPending ? 'text-yellow-300' : 'text-gray-400'}">
+                    ${isVerified ? 'Verificado' + (verifiedTime ? ' a las ' + verifiedTime : '') : isPending ? 'Pendiente de verificación' : 'Sin pago registrado'}
+                </div>
+                <div class="text-[10px] mt-2 opacity-70">
+                    ${isVerified ? 'Click para invalidar' : 'Click para verificar'}
+                </div>
+            </button>`;
+        }).join('');
+
+    } catch (error) { 
+        container.innerHTML = `<p class="text-red-400 text-sm col-span-full text-center py-8">Error: ${error.message}</p>`; 
+    }
+}
+
+async function verifyPlayerPayment(playerId, date) {
+    try {
+        const { data: existing, error: fetchError } = await sb.from('payments')
+            .select('*')
+            .eq('player_id', playerId)
+            .eq('match_date', date)
+            .maybeSingle();
+
+        if (fetchError) throw fetchError;
+
+        const player = players.find(p => p.id === playerId);
+        if (!player) { showToast('Jugador no encontrado', 'error'); return; }
+
+        if (existing && existing.status === 'paid' && existing.verified_at) {
+            if (!confirm(`&#9888; ${player.name} tiene pago VERIFICADO para ${formatDateNice(date)}.\n\n&#191;Invalidar este pago?\n\n&#9888; ESTO HAR&#193; QUE SUS PRON&#211;STICOS NO SUMEN PUNTOS.`)) {
+                return;
+            }
+            const { error } = await sb.from('payments')
+                .update({ status: 'pending', verified_by: null, verified_at: null })
+                .eq('id', existing.id);
+            if (error) throw error;
+            showToast(`Pago de ${player.name} invalidado`, 'info');
+
+        } else if (existing && existing.status === 'paid' && !existing.verified_at) {
+            const { error } = await sb.from('payments')
+                .update({ verified_by: 'admin', verified_at: new Date().toISOString() })
+                .eq('id', existing.id);
+            if (error) throw error;
+            showToast(`&#9989; Pago de ${player.name} verificado`, 'success');
+
+        } else {
+            const { error } = await sb.from('payments').upsert({
+                player_id: playerId,
+                match_date: date,
+                status: 'paid',
+                amount: 5.00,
+                verified_by: 'admin',
+                verified_at: new Date().toISOString()
+            }, { onConflict: 'player_id,match_date' });
+            if (error) throw error;
+            showToast(`&#9989; Pago de ${player.name} registrado y verificado`, 'success');
+        }
+
+        await loadPayments();
+        renderAdminPayments();
+    } catch (error) {
+        console.error('Error en verifyPlayerPayment:', error);
+        showToast('Error: ' + error.message, 'error');
+    }
+}
+
+document.addEventListener('DOMContentLoaded', init);
+</script>
+
+</body>
+</html>
