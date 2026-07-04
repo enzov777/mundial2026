@@ -492,16 +492,43 @@ function getPaymentStatus(playerId, matchDateStr) {
             </div>
         </div>
 
-        <div class="flex flex-wrap justify-center gap-2 mb-6" id="bonus-status-bar">
-            <div class="flex items-center gap-2 bg-white/5 rounded-full px-4 py-2 text-sm">
-                <span id="bonus-status-dot" class="w-2 h-2 rounded-full bg-green-400 animate-pulse"></span>
-                <span>Estado: <span id="bonus-status-text" class="text-yellow-400 font-bold">ABIERTO</span></span>
+        <div class="mb-8" id="bonus-status-bar">
+            <!-- Cuenta Regresiva Grande -->
+            <div id="bonus-countdown-container" class="text-center mb-6">
+                <div class="text-xs text-gray-400 uppercase tracking-widest mb-3">&#9200; Tiempo restante para cerrar</div>
+                <div class="flex justify-center gap-3 md:gap-4">
+                    <div class="bg-gradient-to-b from-yellow-500/20 to-yellow-600/10 border border-yellow-500/30 rounded-2xl px-4 py-3 md:px-6 md:py-4 min-w-[70px] md:min-w-[90px]">
+                        <div id="countdown-days" class="text-3xl md:text-5xl font-black text-yellow-400 leading-none">--</div>
+                        <div class="text-[10px] md:text-xs text-yellow-500/70 uppercase mt-1 tracking-wider">Días</div>
+                    </div>
+                    <div class="text-2xl md:text-4xl font-black text-yellow-500/30 self-center">:</div>
+                    <div class="bg-gradient-to-b from-yellow-500/20 to-yellow-600/10 border border-yellow-500/30 rounded-2xl px-4 py-3 md:px-6 md:py-4 min-w-[70px] md:min-w-[90px]">
+                        <div id="countdown-hours" class="text-3xl md:text-5xl font-black text-yellow-400 leading-none">--</div>
+                        <div class="text-[10px] md:text-xs text-yellow-500/70 uppercase mt-1 tracking-wider">Horas</div>
+                    </div>
+                    <div class="text-2xl md:text-4xl font-black text-yellow-500/30 self-center">:</div>
+                    <div class="bg-gradient-to-b from-yellow-500/20 to-yellow-600/10 border border-yellow-500/30 rounded-2xl px-4 py-3 md:px-6 md:py-4 min-w-[70px] md:min-w-[90px]">
+                        <div id="countdown-minutes" class="text-3xl md:text-5xl font-black text-yellow-400 leading-none">--</div>
+                        <div class="text-[10px] md:text-xs text-yellow-500/70 uppercase mt-1 tracking-wider">Min</div>
+                    </div>
+                    <div class="text-2xl md:text-4xl font-black text-yellow-500/30 self-center">:</div>
+                    <div class="bg-gradient-to-b from-red-500/20 to-red-600/10 border border-red-500/30 rounded-2xl px-4 py-3 md:px-6 md:py-4 min-w-[70px] md:min-w-[90px]">
+                        <div id="countdown-seconds" class="text-3xl md:text-5xl font-black text-red-400 leading-none">--</div>
+                        <div class="text-[10px] md:text-xs text-red-500/70 uppercase mt-1 tracking-wider">Seg</div>
+                    </div>
+                </div>
+                <div id="countdown-label" class="mt-3 text-sm text-yellow-400/80 font-medium">Cierra: dom 5 jul, 16:00 (Hora Bolivia)</div>
             </div>
-            <div class="flex items-center gap-2 bg-white/5 rounded-full px-4 py-2 text-sm">
-                <span>&#9200; Cierra: <span id="bonus-deadline-text" class="text-yellow-400 font-bold">Primer 8vo</span></span>
-            </div>
-            <div class="flex items-center gap-2 bg-white/5 rounded-full px-4 py-2 text-sm">
-                <span>&#128221; Completados: <span id="bonus-completed" class="text-yellow-400 font-bold">0/8</span></span>
+
+            <!-- Pills de estado -->
+            <div class="flex flex-wrap justify-center gap-2">
+                <div class="flex items-center gap-2 bg-white/5 rounded-full px-4 py-2 text-sm">
+                    <span id="bonus-status-dot" class="w-2 h-2 rounded-full bg-green-400 animate-pulse"></span>
+                    <span>Estado: <span id="bonus-status-text" class="text-green-400 font-bold">ABIERTO</span></span>
+                </div>
+                <div class="flex items-center gap-2 bg-white/5 rounded-full px-4 py-2 text-sm">
+                    <span>&#128221; Completados: <span id="bonus-completed" class="text-yellow-400 font-bold">0/8</span></span>
+                </div>
             </div>
         </div>
 
@@ -860,7 +887,7 @@ const BONUS_CATEGORIES = [
     { key: 'juego_limpio', name: 'Premio al Juego Limpio', sub: 'Equipo con mejor Fair Play', icon: '&#128330;', points: 15 }
 ];
 
-const BONUS_DEADLINE = new Date('2026-07-05T22:00:00'); // Ajustar fecha real del primer 8vo
+const BONUS_DEADLINE = new Date('2026-07-05T20:00:00'); // 16:00 Bolivia (UTC-4) // Ajustar fecha real del primer 8vo
 
 async function loadBonusData() {
     try {
@@ -882,9 +909,9 @@ function checkBonusDeadline() {
 
     const dot = document.getElementById('bonus-status-dot');
     const text = document.getElementById('bonus-status-text');
-    const deadlineText = document.getElementById('bonus-deadline-text');
     const formContainer = document.getElementById('bonus-form-container');
     const closedMsg = document.getElementById('bonus-closed-msg');
+    const countdownContainer = document.getElementById('bonus-countdown-container');
 
     if (!dot || !text) return;
 
@@ -893,20 +920,59 @@ function checkBonusDeadline() {
         text.textContent = 'ABIERTO';
         text.className = 'text-green-400 font-bold';
 
-        const days = Math.floor(diff / (1000 * 60 * 60 * 24));
-        const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-        deadlineText.textContent = `${days}d ${hours}h rest.`;
-
         if (formContainer) formContainer.classList.remove('hidden');
         if (closedMsg) closedMsg.classList.add('hidden');
+        if (countdownContainer) countdownContainer.classList.remove('hidden');
+
+        // Actualizar cuenta regresiva visual
+        updateCountdownDisplay(diff);
+
+        // Actualizar cada segundo
+        if (window.bonusCountdownInterval) clearInterval(window.bonusCountdownInterval);
+        window.bonusCountdownInterval = setInterval(() => {
+            const newDiff = BONUS_DEADLINE - new Date();
+            if (newDiff <= 0) {
+                clearInterval(window.bonusCountdownInterval);
+                checkBonusDeadline(); // Recheck para cerrar
+                return;
+            }
+            updateCountdownDisplay(newDiff);
+        }, 1000);
+
     } else {
         dot.className = 'w-2 h-2 rounded-full bg-red-500';
         text.textContent = 'CERRADO';
         text.className = 'text-red-400 font-bold';
-        deadlineText.textContent = 'Plazo finalizado';
 
         if (formContainer) formContainer.classList.add('hidden');
         if (closedMsg) closedMsg.classList.remove('hidden');
+        if (countdownContainer) countdownContainer.classList.add('hidden');
+
+        if (window.bonusCountdownInterval) clearInterval(window.bonusCountdownInterval);
+    }
+}
+
+function updateCountdownDisplay(diff) {
+    const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+    const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+    const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+    const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+
+    const elDays = document.getElementById('countdown-days');
+    const elHours = document.getElementById('countdown-hours');
+    const elMinutes = document.getElementById('countdown-minutes');
+    const elSeconds = document.getElementById('countdown-seconds');
+
+    if (elDays) elDays.textContent = String(days).padStart(2, '0');
+    if (elHours) elHours.textContent = String(hours).padStart(2, '0');
+    if (elMinutes) elMinutes.textContent = String(minutes).padStart(2, '0');
+    if (elSeconds) elSeconds.textContent = String(seconds).padStart(2, '0');
+
+    // Efecto de urgencia cuando queda poco tiempo
+    if (days === 0 && hours < 6) {
+        [elHours, elMinutes, elSeconds].forEach(el => {
+            if (el) el.classList.add('animate-pulse');
+        });
     }
 }
 
