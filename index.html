@@ -302,6 +302,25 @@ function getFeeForDate(dateStr) {
     return { amount: 5.00, isFree: false, notes: 'Valor por defecto' };
 }
 
+function isRealTeam(teamName) {
+    if (!teamName || teamName.trim() === '') return false;
+    const placeholderPatterns = [
+        /^ganador\s+p?\d+/i,
+        /^w\d+/i,
+        /^ru\d+/i,
+        /^p\d+/i,
+        /^partido\s+\d+/i,
+        /^winner\s+/i,
+        /^loser\s+/i,
+        /^tbd$/i,
+        /^por\s+definir/i,
+        /^undefined$/,
+        /^null$/
+    ];
+    return !placeholderPatterns.some(pattern => pattern.test(teamName.trim()));
+}
+
+
 function hasVerifiedPayment(playerId, matchDateStr) {
     const date = new Date(matchDateStr);
     const boliviaDate = new Date(date.toLocaleString('en-US', { timeZone: 'America/La_Paz' }));
@@ -733,10 +752,13 @@ function setFilter(filter) { matchFilter = filter; $('filter-today').classList.t
 function renderMatches() {
     const container = $('matches-container');
     if (!matches.length) { container.innerHTML = '<div class="text-center text-gray-500 py-12">No hay partidos cargados aun</div>'; return; }
-    let filteredMatches = matches;
+
+    // Filtrar partidos con equipos reales (no placeholders)
+    let filteredMatches = matches.filter(m => isRealTeam(m.home_team) && isRealTeam(m.away_team));
+
     if (matchFilter === 'today') {
         const now = new Date();
-        filteredMatches = matches.filter(m => { const matchDate = new Date(m.match_date); const isOpen = isMatchOpenBolivia(m); const isTodayOrFuture = matchDate >= new Date(now.getFullYear(), now.getMonth(), now.getDate()); return isOpen || (isTodayOrFuture && m.status === 'scheduled'); });
+        filteredMatches = filteredMatches.filter(m => { const matchDate = new Date(m.match_date); const isOpen = isMatchOpenBolivia(m); const isTodayOrFuture = matchDate >= new Date(now.getFullYear(), now.getMonth(), now.getDate()); return isOpen || (isTodayOrFuture && m.status === 'scheduled'); });
         if (filteredMatches.length === 0) { container.innerHTML = '<div class="text-center text-gray-500 py-12">No hay partidos abiertos para apostar en este momento.</div>'; return; }
     }
     container.innerHTML = filteredMatches.map(match => {
