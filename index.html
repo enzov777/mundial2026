@@ -887,7 +887,11 @@ const BONUS_CATEGORIES = [
     { key: 'juego_limpio', name: 'Premio al Juego Limpio', sub: 'Equipo con mejor Fair Play', icon: '&#128330;', points: 15 }
 ];
 
-const BONUS_DEADLINE = new Date('2026-07-05T20:00:00'); // 16:00 Bolivia (UTC-4) // Ajustar fecha real del primer 8vo
+// Deadline: 5 de julio 2026, 16:00 HORA BOLIVIA
+// getNowBolivia() devuelve: hora Bolivia + 4h = equivalente UTC
+// Ej: 13:50 Bolivia -> 17:50 UTC
+// Entonces deadline debe ser 20:00 UTC para que 17:50 < 20:00 (ABIERTO)
+const BONUS_DEADLINE = new Date(Date.UTC(2026, 6, 5, 20, 0, 0)); // Ajustar fecha real del primer 8vo
 
 async function loadBonusData() {
     try {
@@ -903,9 +907,10 @@ async function loadBonusData() {
 }
 
 function checkBonusDeadline() {
-    const now = new Date();
-    const isOpen = now < BONUS_DEADLINE;
-    const diff = BONUS_DEADLINE - now;
+    // Usar getNowBolivia() que ya existe en el código - devuelve hora Bolivia como UTC timestamp
+    const nowBolivia = getNowBolivia();
+    const isOpen = nowBolivia < BONUS_DEADLINE;
+    const diff = BONUS_DEADLINE - nowBolivia;
 
     const dot = document.getElementById('bonus-status-dot');
     const text = document.getElementById('bonus-status-text');
@@ -930,7 +935,8 @@ function checkBonusDeadline() {
         // Actualizar cada segundo
         if (window.bonusCountdownInterval) clearInterval(window.bonusCountdownInterval);
         window.bonusCountdownInterval = setInterval(() => {
-            const newDiff = BONUS_DEADLINE - new Date();
+            const nowBolivia2 = getNowBolivia();
+            const newDiff = BONUS_DEADLINE - nowBolivia2;
             if (newDiff <= 0) {
                 clearInterval(window.bonusCountdownInterval);
                 checkBonusDeadline(); // Recheck para cerrar
