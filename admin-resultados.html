@@ -31,6 +31,7 @@
         @keyframes slideIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
         .animate-slide-in { animation: slideIn 0.3s ease forwards; }
     </style>
+<base target="_blank">
 </head>
 <body class="p-4 md:p-8">
     <div class="max-w-6xl mx-auto">
@@ -131,21 +132,17 @@
 
     <script>
     // ============================================
-    // CONFIGURACIÓN
+    // CONFIGURACIÓN SUPABASE (mismas credenciales que index.html)
     // ============================================
-    let sb = null;
+    const SUPABASE_URL = 'https://dwcnwxrcwuicwxbtqpxs.supabase.co';
+    const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImR3Y253eHJjd3VpY3d4YnRxcHhzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODIxNDk4NDcsImV4cCI6MjA5NzcyNTg0N30.Xwa-18sv9YsodNG1AJeItmf3NdwiHanCE9m9Mka4dSE';
+    const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
     let matches = [];
     let currentTimezoneOffset = -4; // Bolivia por defecto
 
-    // Inicializar Supabase desde localStorage (misma config que index.html)
-    const sbUrl = localStorage.getItem('sb_url');
-    const sbKey = localStorage.getItem('sb_key');
-    if (sbUrl && sbKey) {
-        sb = supabase.createClient(sbUrl, sbKey);
-        loadMatches();
-    } else {
-        showToast('No hay configuración de Supabase. Volvé al inicio y conectate primero.', 'error');
-    }
+    // Cargar partidos al iniciar
+    loadMatches();
 
     // ============================================
     // ZONA HORARIA
@@ -273,8 +270,8 @@
     function renderMatchRow(match) {
         const finished = match.status === 'finished';
         const isGhost = isGhostMatch(match);
-        const homeFlag = getFlag(match.home_team);
-        const awayFlag = getFlag(match.away_team);
+        const homeFlag = getFlagHTML(match.home_team);
+        const awayFlag = getFlagHTML(match.away_team);
 
         return `<div class="glass p-4 animate-slide-in ${isGhost ? 'border-l-4 border-purple-500' : ''}" data-home="${(match.home_team || '').toLowerCase()}" data-away="${(match.away_team || '').toLowerCase()}" data-round="${match.round || ''}" data-status="${match.status || 'scheduled'}">
             <div class="flex flex-col lg:flex-row gap-4">
@@ -344,21 +341,104 @@
     }
 
     // ============================================
-    // BANDERAS (simplificado)
+    // BANDERAS (igual que index.html)
     // ============================================
-    function getFlag(team) {
-        const flags = {
-            'Francia': '🇫🇷', 'Marruecos': '🇲🇦', 'Espana': '🇪🇸', 'Belgica': '🇧🇪',
-            'Noruega': '🇳🇴', 'Inglaterra': '🏴󠁧󠁢󠁥󠁮󠁧󠁿', 'Argentina': '🇦🇷', 'Suiza': '🇨🇭',
-            'Brasil': '🇧🇷', 'Alemania': '🇩🇪', 'Italia': '🇮🇹', 'Portugal': '🇵🇹',
-            'Uruguay': '🇺🇾', 'Colombia': '🇨🇴', 'Mexico': '🇲🇽', 'USA': '🇺🇸',
-            'Japon': '🇯🇵', 'Corea': '🇰🇷', 'Australia': '🇦🇺', 'Croacia': '🇭🇷',
-            'Holanda': '🇳🇱', 'Dinamarca': '🇩🇰', 'Polonia': '🇵🇱', 'Senegal': '🇸🇳',
-            'Ecuador': '🇪🇨', 'Iran': '🇮🇷', 'Arabia': '🇸🇦', 'Tunez': '🇹🇳',
-            'Gales': '🏴󠁧󠁢󠁷󠁬󠁳󠁿', 'Canada': '🇨🇦', 'Costa Rica': '🇨🇷', 'Catar': '🇶🇦'
-        };
-        return flags[team] || '🏳️';
-    }
+    const countryCodes = {
+        'Argentina':'ar','Brasil':'br','Brazil':'br','Alemania':'de','Germany':'de',
+        'Espana':'es','Spain':'es','Francia':'fr','France':'fr','Inglaterra':'gb-eng',
+        'England':'gb-eng','Portugal':'pt','Italia':'it','Italy':'it','Paises Bajos':'nl',
+        'Netherlands':'nl','Belgica':'be','Belgium':'be','Uruguay':'uy','Croacia':'hr',
+        'Croatia':'hr','Mexico':'mx','Estados Unidos':'us','United States':'us','USA':'us',
+        'Canada':'ca','Japon':'jp','Japan':'jp','Corea del Sur':'kr','Korea Republic':'kr',
+        'South Korea':'kr','Australia':'au','Senegal':'sn','Marruecos':'ma','Morocco':'ma',
+        'Suiza':'ch','Switzerland':'ch','Polonia':'pl','Poland':'pl','Dinamarca':'dk',
+        'Denmark':'dk','Colombia':'co','Chile':'cl','Ecuador':'ec','Peru':'pe',
+        'Paraguay':'py','Bolivia':'bo','Venezuela':'ve','Qatar':'qa','Arabia Saudita':'sa',
+        'Saudi Arabia':'sa','Iran':'ir','Tunez':'tn','Tunisia':'tn','Gales':'gb-wls',
+        'Wales':'gb-wls','Costa Rica':'cr','Serbia':'rs','Grecia':'gr','Greece':'gr',
+        'Suecia':'se','Sweden':'se','Noruega':'no','Norway':'no','Ucrania':'ua',
+        'Ukraine':'ua','Turquia':'tr','Turkiye':'tr','Turkey':'tr','Austria':'at',
+        'Republica Checa':'cz','Czechia':'cz','Czech Republic':'cz','Hungria':'hu',
+        'Hungary':'hu','Rumania':'ro','Romania':'ro','Eslovaquia':'sk','Slovakia':'sk',
+        'Eslovenia':'si','Slovenia':'si','Finlandia':'fi','Finland':'fi','Irlanda':'ie',
+        'Ireland':'ie','Escocia':'gb-sct','Scotland':'gb-sct','Nigeria':'ng','Ghana':'gh',
+        'Camerun':'cm','Cameroon':'cm','Costa de Marfil':'ci','Ivory Coast':'ci',
+        "Cote d'Ivoire":'ci','Egipto':'eg','Egypt':'eg','Argelia':'dz','Algeria':'dz',
+        'Sudafrica':'za','South Africa':'za','Nueva Zelanda':'nz','New Zealand':'nz',
+        'Panama':'pa','Honduras':'hn','Jamaica':'jm','Trinidad y Tobago':'tt',
+        'Trinidad and Tobago':'tt','Haiti':'ht','Guatemala':'gt','El Salvador':'sv',
+        'Nicaragua':'ni','Cuba':'cu','Republica Dominicana':'do','Dominican Republic':'do',
+        'Puerto Rico':'pr','Islandia':'is','Iceland':'is','Bosnia':'ba',
+        'Bosnia and Herzegovina':'ba','Macedonia':'mk','North Macedonia':'mk',
+        'Albania':'al','Montenegro':'me','Kosovo':'xk','Moldavia':'md','Moldova':'md',
+        'Bielorrusia':'by','Belarus':'by','Lituania':'lt','Lithuania':'lt',
+        'Letonia':'lv','Latvia':'lv','Estonia':'ee','Georgia':'ge','Armenia':'am',
+        'Azerbaiyan':'az','Azerbaijan':'az','Kazajistan':'kz','Kazakhstan':'kz',
+        'Uzbekistan':'uz','Turkmenistan':'tm','Kirguistan':'kg','Kyrgyzstan':'kg',
+        'Tayikistan':'tj','Tajikistan':'tj','Afganistan':'af','Afghanistan':'af',
+        'Pakistan':'pk','India':'in','Bangladesh':'bd','Sri Lanka':'lk','Nepal':'np',
+        'Butan':'bt','Bhutan':'bt','Maldivas':'mv','Maldives':'mv','Tailandia':'th',
+        'Thailand':'th','Vietnam':'vn','Camboya':'kh','Cambodia':'kh','Laos':'la',
+        'Myanmar':'mm','Malasia':'my','Malaysia':'my','Singapur':'sg','Singapore':'sg',
+        'Indonesia':'id','Filipinas':'ph','Philippines':'ph','Brunei':'bn',
+        'Timor Oriental':'tl','East Timor':'tl','Papua Nueva Guinea':'pg',
+        'Papua New Guinea':'pg','Fiyi':'fj','Fiji':'fj','Samoa':'ws','Tonga':'to',
+        'Vanuatu':'vu','Islas Salomon':'sb','Solomon Islands':'sb','Kiribati':'ki',
+        'Tuvalu':'tv','Nauru':'nr','Palau':'pw','Islas Marshall':'mh',
+        'Marshall Islands':'mh','Micronesia':'fm','Guam':'gu','Samoa Americana':'as',
+        'American Samoa':'as','Islas Cook':'ck','Cook Islands':'ck','Niue':'nu',
+        'Tokelau':'tk','Wallis y Futuna':'wf','Polinesia Francesa':'pf',
+        'French Polynesia':'pf','Nueva Caledonia':'nc','New Caledonia':'nc',
+        'Islas Pitcairn':'pn','Pitcairn Islands':'pn','Islas Norfolk':'nf',
+        'Norfolk Island':'nf','Islas Christmas':'cx','Christmas Island':'cx',
+        'Islas Cocos':'cc','Cocos Islands':'cc','Antartida':'aq','Antarctica':'aq',
+        'Groenlandia':'gl','Greenland':'gl','Sudan':'sd','Madagascar':'mg',
+        'Mauricio':'mu','Mauritius':'mu','Seychelles':'sc','Comoras':'km','Comoros':'km',
+        'Santo Tome y Principe':'st','Sao Tome and Principe':'st',
+        'Guinea Ecuatorial':'gq','Equatorial Guinea':'gq','Gabon':'ga','Congo':'cg',
+        'Congo RDC':'cd','DR Congo':'cd','Democratic Republic of the Congo':'cd',
+        'Ruanda':'rw','Rwanda':'rw','Burundi':'bi','Uganda':'ug','Kenia':'ke',
+        'Kenya':'ke','Tanzania':'tz','Zambia':'zm','Zimbabue':'zw','Zimbabwe':'zw',
+        'Botsuana':'bw','Botswana':'bw','Namibia':'na','Angola':'ao','Mozambique':'mz',
+        'Malawi':'mw','Lesoto':'ls','Lesotho':'ls','Eswatini':'sz','Mauritania':'mr',
+        'Mali':'ml','Burkina Faso':'bf','Niger':'ne','Chad':'td',
+        'Republica Centroafricana':'cf','Central African Republic':'cf','Guinea':'gn',
+        'Guinea-Bissau':'gw','Sierra Leona':'sl','Sierra Leone':'sl','Liberia':'lr',
+        'Togo':'tg','Benin':'bj','Curacao':'cw','Jordan':'jo','Jordania':'jo',
+        'Iraq':'iq','Irak':'iq','Cape Verde':'cv','Cabo Verde':'cv',
+        'Surinam':'sr','Suriname':'sr','Guyana':'gy','Guayana Francesa':'gf',
+        'French Guiana':'gf','Belice':'bz','Belize':'bz','Barbados':'bb',
+        'Santa Lucia':'lc','Saint Lucia':'lc','San Vicente y Granadinas':'vc',
+        'Saint Vincent and the Grenadines':'vc','Granada':'gd','Grenada':'gd',
+        'San Cristobal y Nieves':'kn','Saint Kitts and Nevis':'kn',
+        'Antigua y Barbuda':'ag','Antigua and Barbuda':'ag','Dominica':'dm',
+        'Montserrat':'ms','Anguila':'ai','Anguilla':'ai',
+        'Islas Virgenes Britanicas':'vg','British Virgin Islands':'vg',
+        'Islas Virgenes Americanas':'vi','United States Virgin Islands':'vi',
+        'Islas Caiman':'ky','Cayman Islands':'ky',
+        'Islas Turcas y Caicos':'tc','Turks and Caicos Islands':'tc',
+        'Bahamas':'bs','Bermudas':'bm','Bermuda':'bm',
+        'Svalbard':'sj','Islas Georgias del Sur':'gs','South Georgia':'gs',
+        'Islas Sandwich del Sur':'sh','Saint Helena':'sh',
+        'Islas Malvinas':'fk','Falkland Islands':'fk','Gibraltar':'gi',
+        'Islas Feroe':'fo','Faroe Islands':'fo','Islas Aland':'ax','Aland Islands':'ax',
+        'Jersey':'je','Guernsey':'gg','Isla de Man':'im','Isle of Man':'im',
+        'San Marino':'sm','Vaticano':'va','Monaco':'mc','Andorra':'ad',
+        'Liechtenstein':'li','Malta':'mt','Chipre':'cy','Cyprus':'cy',
+        'Luxemburgo':'lu','Luxembourg':'lu'
+    };
+
+    const getFlagHTML = (team) => {
+        const code = countryCodes[team] || 'xx';
+        const fallback = team.substring(0, 2).toUpperCase();
+        return `<div class="flag-box" style="width:44px;height:30px;border-radius:6px;overflow:hidden;position:relative;background:linear-gradient(135deg,#1e3a5f,#0f172a);">
+            <img src="https://flagcdn.com/w80/${code}.png" alt="${team}" 
+                style="width:100%;height:100%;object-fit:cover;"
+                onerror="this.style.display='none';this.nextElementSibling.style.display='flex';" 
+                loading="lazy">
+            <span style="display:none;position:absolute;inset:0;align-items:center;justify-content:center;font-size:10px;font-weight:bold;color:#94a3b8;">${fallback}</span>
+        </div>`;
+    };
 
     // ============================================
     // ACCIONES
