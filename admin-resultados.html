@@ -3,446 +3,500 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Admin - Resultados | Quiniela Mundial 2026</title>
+    <title>⚙️ Admin Resultados - Quiniela Mundial 2026</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.39.0/dist/umd/supabase.min.js"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     <style>
-        body { font-family: 'Inter', sans-serif; background: #0f172a; }
-        .glass { background: rgba(255,255,255,0.05); backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,0.1); }
-        .gradient-text { background: linear-gradient(135deg, #fbbf24, #f59e0b); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
-        .flag-box { width: 44px; height: 30px; border-radius: 4px; display: flex; align-items: center; justify-content: center; font-size: 0.65rem; font-weight: 800; color: white; text-shadow: 0 1px 2px rgba(0,0,0,0.5); box-shadow: 0 2px 6px rgba(0,0,0,0.3); overflow: hidden; position: relative; }
-        .flag-box img { width: 100%; height: 100%; object-fit: cover; }
-        .flag-box .flag-fallback { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 0.6rem; }
-        .admin-input { background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15); border-radius: 6px; padding: 4px 8px; color: white; font-size: 0.85rem; width: 120px; }
-        .admin-input:focus { outline: none; border-color: #fbbf24; }
-        .btn-admin { padding: 4px 12px; border-radius: 6px; font-size: 0.75rem; font-weight: 600; cursor: pointer; transition: all 0.2s; border: none; }
-        .btn-save { background: #22c55e; color: white; }
-        .btn-save:hover { background: #16a34a; }
-        .btn-edit { background: #3b82f6; color: white; }
-        .btn-edit:hover { background: #2563eb; }
-        .btn-danger { background: #ef4444; color: white; }
-        .btn-danger:hover { background: #dc2626; }
-        .match-row { transition: all 0.2s; }
-        .match-row:hover { background: rgba(255,255,255,0.08); }
-        .nav-btn { padding: 10px 20px; border-radius: 8px; font-size: 0.9rem; font-weight: 600; transition: all 0.2s; border: 1px solid rgba(255,255,255,0.1); background: rgba(255,255,255,0.05); color: #94a3b8; text-decoration: none; display: inline-flex; align-items: center; gap: 6px; }
-        .nav-btn:hover { background: rgba(255,255,255,0.1); color: #e2e8f0; }
-        .nav-btn.active { background: rgba(251, 191, 36, 0.15); color: #fbbf24; border-color: rgba(251, 191, 36, 0.4); }
-        .filter-chip { padding: 6px 14px; border-radius: 20px; font-size: 0.8rem; font-weight: 600; cursor: pointer; transition: all 0.2s; border: 1px solid rgba(255,255,255,0.1); background: rgba(255,255,255,0.05); color: #94a3b8; }
-        .filter-chip:hover { background: rgba(255,255,255,0.1); }
-        .filter-chip.active { background: #fbbf24; color: #0f172a; border-color: #fbbf24; }
-        ::-webkit-scrollbar { width: 8px; }
-        ::-webkit-scrollbar-track { background: rgba(255,255,255,0.05); }
-        ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); border-radius: 4px; }
-        ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.3); }
+        :root { --bg-primary: #0f172a; --bg-secondary: #1e293b; --accent: #f59e0b; --accent-glow: rgba(245,158,11,0.3); --success: #22c55e; --danger: #ef4444; --info: #3b82f6; }
+        body { font-family: 'Inter', sans-serif; background: var(--bg-primary); color: #f1f5f9; min-height: 100vh; }
+        .font-mono { font-family: 'JetBrains Mono', monospace; }
+        .glass { background: rgba(30,41,59,0.7); backdrop-filter: blur(20px); border: 1px solid rgba(255,255,255,0.06); border-radius: 16px; }
+        .admin-input { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; padding: 6px 12px; color: #f1f5f9; font-size: 0.85rem; }
+        .admin-input:focus { outline: none; border-color: var(--accent); background: rgba(245,158,11,0.05); }
+        .btn-admin { padding: 6px 14px; border-radius: 8px; font-size: 0.8rem; font-weight: 600; transition: all 0.2s; border: none; cursor: pointer; }
+        .btn-edit { background: rgba(59,130,246,0.2); color: #60a5fa; }
+        .btn-edit:hover { background: rgba(59,130,246,0.3); }
+        .btn-save { background: rgba(34,197,94,0.2); color: #4ade80; }
+        .btn-save:hover { background: rgba(34,197,94,0.3); }
+        .badge { display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px; border-radius: 20px; font-size: 0.7rem; font-weight: 600; }
+        .badge-success { background: rgba(34,197,94,0.15); color: #4ade80; border: 1px solid rgba(34,197,94,0.25); }
+        .badge-warning { background: rgba(245,158,11,0.15); color: #fbbf24; border: 1px solid rgba(245,158,11,0.25); }
+        .badge-danger { background: rgba(239,68,68,0.15); color: #f87171; border: 1px solid rgba(239,68,68,0.25); }
+        .badge-info { background: rgba(6,182,212,0.15); color: #67e8f9; border: 1px solid rgba(6,182,212,0.25); }
+        .badge-ghost { background: rgba(168,85,247,0.15); color: #c084fc; border: 1px solid rgba(168,85,247,0.25); }
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 3px; }
+        @keyframes slideIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        .animate-slide-in { animation: slideIn 0.3s ease forwards; }
     </style>
 </head>
-<body class="text-white min-h-screen">
+<body class="p-4 md:p-8">
+    <div class="max-w-6xl mx-auto">
+        <!-- Header -->
+        <div class="flex items-center justify-between mb-6">
+            <div>
+                <h1 class="text-2xl font-bold text-white">⚙️ Resultados</h1>
+                <p class="text-sm text-gray-400">Registra y edita resultados oficiales</p>
+            </div>
+            <a href="index.html" class="text-sm text-gray-400 hover:text-white transition">
+                <i class="fas fa-arrow-left mr-1"></i> Volver al inicio
+            </a>
+        </div>
 
-<!-- HEADER -->
-<header class="glass sticky top-0 z-40 border-b border-white/10">
-    <div class="max-w-5xl mx-auto px-4 py-4">
-        <div class="flex items-center justify-between mb-4">
-            <div class="flex items-center gap-3">
-                <div class="text-3xl">&#9917;</div>
-                <div>
-                    <h1 class="text-xl font-black gradient-text">PANEL ADMIN</h1>
-                    <p class="text-xs text-gray-400">Quiniela Mundial 2026</p>
+        <!-- CONFIGURADOR DE ZONA HORARIA -->
+        <div class="glass p-4 mb-6 border-l-4 border-blue-500">
+            <div class="flex flex-col md:flex-row items-start md:items-center gap-4">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-xl bg-blue-500/20 flex items-center justify-center text-blue-400">
+                        <i class="fas fa-globe"></i>
+                    </div>
+                    <div>
+                        <h3 class="font-bold text-sm">Zona Horaria de Referencia</h3>
+                        <p class="text-xs text-gray-400">Los horarios se guardan en UTC y se muestran en la zona seleccionada</p>
+                    </div>
+                </div>
+                <div class="flex-1 flex items-center gap-3 flex-wrap">
+                    <select id="timezone-select" onchange="changeTimezone()" class="admin-input">
+                        <option value="-4" selected>🇧🇴 Bolivia (GMT-4)</option>
+                        <option value="-5">🇺🇸 EST New York (GMT-5)</option>
+                        <option value="-6">🇺🇸 CST Chicago (GMT-6)</option>
+                        <option value="-7">🇺🇸 MST Denver (GMT-7)</option>
+                        <option value="-8">🇺🇸 PST Los Angeles (GMT-8)</option>
+                        <option value="0">🌍 UTC (GMT+0)</option>
+                        <option value="+1">🇪🇪 CET Europa (GMT+1)</option>
+                        <option value="+2">🇷🇴 EET (GMT+2)</option>
+                    </select>
+                    <div class="text-xs text-gray-500 bg-white/5 px-3 py-1.5 rounded-lg">
+                        <i class="fas fa-clock mr-1"></i>
+                        Hora actual: <span id="current-time-display" class="font-mono text-blue-400">--:--</span>
+                    </div>
                 </div>
             </div>
-            <a href="index.html" class="text-sm text-gray-400 hover:text-white flex items-center gap-1">&#8592; Volver al Inicio</a>
         </div>
-        <nav class="flex gap-3 overflow-x-auto pb-2">
-            <a href="admin-alicuotas.html" class="nav-btn">&#128176; Alícuotas</a>
-            <a href="admin-pagos.html" class="nav-btn">&#9989; Validar Pagos</a>
-            <a href="admin-resultados.html" class="nav-btn active">&#9881; Resultados</a>
-        </nav>
-    </div>
-</header>
 
-<main class="max-w-5xl mx-auto px-4 mt-6 pb-20">
-    <!-- SINCRONIZACIÓN -->
-    <div class="glass rounded-2xl p-6 mb-6">
-        <h2 class="text-xl font-bold mb-2">Resultados de Partidos</h2>
-        <p class="text-sm text-gray-400 mb-4">Registra y edita los resultados oficiales. Los cambios se reflejan automáticamente en la tabla de posiciones.</p>
-
-        <div class="bg-gradient-to-r from-green-500/10 to-emerald-500/10 rounded-xl p-4 mb-6 border border-green-500/20">
-            <div class="flex flex-col md:flex-row items-center gap-4">
-                <div class="flex-1">
-                    <h3 class="text-green-400 font-bold mb-1">&#128260; Sincronización Automática</h3>
-                    <p class="text-sm text-gray-400">Actualiza resultados desde la API del Mundial 2026</p>
+        <!-- Filtros -->
+        <div class="glass p-4 mb-4">
+            <div class="flex flex-col md:flex-row gap-3">
+                <div class="flex-1 relative">
+                    <i class="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm"></i>
+                    <input type="text" id="search-input" placeholder="Buscar equipo, fecha, ronda..." 
+                        class="w-full admin-input pl-10" oninput="filterMatches()">
                 </div>
-                <button onclick="syncResults()" id="sync-btn" class="bg-gradient-to-r from-green-500 to-emerald-600 text-white font-bold px-6 py-3 rounded-lg hover:from-green-400 hover:to-emerald-500 transition whitespace-nowrap">
-                    &#128260; Sincronizar Ahora
+                <select id="status-filter" onchange="filterMatches()" class="admin-input">
+                    <option value="">Todos los estados</option>
+                    <option value="scheduled">📅 Programados</option>
+                    <option value="finished">✅ Finalizados</option>
+                </select>
+                <select id="round-filter" onchange="filterMatches()" class="admin-input">
+                    <option value="">Todas las rondas</option>
+                </select>
+                <button onclick="clearFilters()" class="btn-admin btn-edit">
+                    <i class="fas fa-undo mr-1"></i> Limpiar
                 </button>
             </div>
-            <p class="text-xs text-gray-500 mt-2 text-center md:text-left">Se ejecuta automáticamente cada 15 minutos</p>
-        </div>
-
-        <!-- FILTRO POR FASE -->
-        <div class="mb-4">
-            <label class="text-xs text-gray-400 font-semibold block mb-2">&#127942; Filtrar por fase del torneo</label>
-            <div id="phase-filters" class="flex flex-wrap gap-2">
-                <button onclick="setPhaseFilter('all')" id="phase-all" class="filter-chip active">Todas</button>
+            <div class="mt-3 flex items-center justify-between text-xs text-gray-500">
+                <span id="match-count">Cargando...</span>
+                <span id="timezone-indicator" class="text-blue-400">Zona: GMT-4</span>
             </div>
         </div>
 
-        <!-- LISTA DE PARTIDOS -->
-        <div id="admin-matches-container" class="space-y-3">
-            <p class="text-gray-500 text-sm text-center py-8">Cargando partidos...</p>
+        <!-- Lista de partidos -->
+        <div id="matches-list" class="space-y-3">
+            <div class="text-center py-12 text-gray-500">Cargando partidos...</div>
+        </div>
+
+        <!-- Agregar partido -->
+        <div class="glass p-4 mt-6 border-t border-white/10">
+            <h4 class="text-sm font-bold text-gray-400 mb-3">➕ Agregar Nuevo Partido</h4>
+            <div class="grid grid-cols-1 md:grid-cols-5 gap-2">
+                <input type="text" id="new-home" placeholder="Equipo Local" class="admin-input">
+                <input type="text" id="new-away" placeholder="Equipo Visitante" class="admin-input">
+                <input type="datetime-local" id="new-date" class="admin-input">
+                <input type="text" id="new-round" placeholder="Ronda (ej: Cuartos)" class="admin-input">
+                <button onclick="addMatch()" class="btn-admin bg-green-600 hover:bg-green-500 text-white font-bold">
+                    <i class="fas fa-plus mr-1"></i> Agregar
+                </button>
+            </div>
+            <p class="text-xs text-gray-500 mt-2">
+                <i class="fas fa-info-circle mr-1"></i>
+                La fecha se ingresa en <strong id="input-timezone-label">hora Bolivia (GMT-4)</strong> y se convierte automáticamente a UTC.
+            </p>
         </div>
     </div>
 
-    <!-- AGREGAR NUEVO PARTIDO -->
-    <div class="glass rounded-2xl p-6">
-        <h3 class="text-lg font-bold mb-4 text-blue-400">&#10133; Agregar Nuevo Partido</h3>
-        <div class="grid grid-cols-1 md:grid-cols-4 gap-3">
-            <input type="text" id="new-home" placeholder="Equipo Local" class="bg-white/5 border border-white/10 rounded-lg px-4 py-3 focus:outline-none focus:border-yellow-500 text-white">
-            <input type="text" id="new-away" placeholder="Equipo Visitante" class="bg-white/5 border border-white/10 rounded-lg px-4 py-3 focus:outline-none focus:border-yellow-500 text-white">
-            <input type="datetime-local" id="new-date" class="bg-white/5 border border-white/10 rounded-lg px-4 py-3 focus:outline-none focus:border-yellow-500 text-white">
-            <select id="new-round" class="bg-white/5 border border-white/10 rounded-lg px-4 py-3 focus:outline-none focus:border-yellow-500 text-white">
-                <option value="Fase de Grupos">Fase de Grupos</option>
-                <option value="Octavos de Final">Octavos de Final</option>
-                <option value="Cuartos de Final">Cuartos de Final</option>
-                <option value="Semifinal">Semifinal</option>
-                <option value="Tercer Puesto">Tercer Puesto</option>
-                <option value="Final">Final</option>
-            </select>
-        </div>
-        <button onclick="addMatch()" class="mt-4 w-full md:w-auto bg-blue-600 hover:bg-blue-500 text-white font-bold px-8 py-3 rounded-lg transition">Agregar Partido</button>
-    </div>
-</main>
+    <!-- Toast -->
+    <div id="toast-container" class="fixed bottom-4 right-4 z-50"></div>
 
-<script>
-const SUPABASE_URL = 'https://dwcnwxrcwuicwxbtqpxs.supabase.co';
-const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImR3Y253eHJjd3VpY3d4YnRxcHhzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODIxNDk4NDcsImV4cCI6MjA5NzcyNTg0N30.Xwa-18sv9YsodNG1AJeItmf3NdwiHanCE9m9Mka4dSE';
-const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+    <script>
+    // ============================================
+    // CONFIGURACIÓN
+    // ============================================
+    let sb = null;
+    let matches = [];
+    let currentTimezoneOffset = -4; // Bolivia por defecto
 
-let matches = [];
-let players = [];
-let bets = [];
-let payments = [];
-let paymentFees = [];
-let currentPhaseFilter = 'all';
+    // Inicializar Supabase desde localStorage (misma config que index.html)
+    const sbUrl = localStorage.getItem('sb_url');
+    const sbKey = localStorage.getItem('sb_key');
+    if (sbUrl && sbKey) {
+        sb = supabase.createClient(sbUrl, sbKey);
+        loadMatches();
+    } else {
+        showToast('No hay configuración de Supabase. Volvé al inicio y conectate primero.', 'error');
+    }
 
-const $ = id => document.getElementById(id);
+    // ============================================
+    // ZONA HORARIA
+    // ============================================
+    function getTimezoneLabel() {
+        const labels = {
+            '-4': 'Bolivia (GMT-4)', '-5': 'EST (GMT-5)', '-6': 'CST (GMT-6)',
+            '-7': 'MST (GMT-7)', '-8': 'PST (GMT-8)', '0': 'UTC (GMT+0)',
+            '+1': 'CET (GMT+1)', '+2': 'EET (GMT+2)'
+        };
+        return labels[currentTimezoneOffset.toString()] || `GMT${currentTimezoneOffset >= 0 ? '+' : ''}${currentTimezoneOffset}`;
+    }
 
-const countryCodes = {
-    'Argentina':'ar','Brasil':'br','Brazil':'br','Alemania':'de','Germany':'de',
-    'Espana':'es','Spain':'es','Francia':'fr','France':'fr','Inglaterra':'gb-eng',
-    'England':'gb-eng','Portugal':'pt','Italia':'it','Italy':'it','Paises Bajos':'nl',
-    'Netherlands':'nl','Belgica':'be','Belgium':'be','Uruguay':'uy','Croacia':'hr',
-    'Croatia':'hr','Mexico':'mx','Estados Unidos':'us','United States':'us','USA':'us',
-    'Canada':'ca','Japon':'jp','Japan':'jp','Corea del Sur':'kr','Korea Republic':'kr',
-    'South Korea':'kr','Australia':'au','Senegal':'sn','Marruecos':'ma','Morocco':'ma',
-    'Suiza':'ch','Switzerland':'ch','Polonia':'pl','Poland':'pl','Dinamarca':'dk',
-    'Denmark':'dk','Colombia':'co','Chile':'cl','Ecuador':'ec','Peru':'pe',
-    'Paraguay':'py','Bolivia':'bo','Venezuela':'ve','Qatar':'qa','Arabia Saudita':'sa',
-    'Saudi Arabia':'sa','Iran':'ir','Tunez':'tn','Tunisia':'tn','Gales':'gb-wls',
-    'Wales':'gb-wls','Costa Rica':'cr','Serbia':'rs','Grecia':'gr','Greece':'gr',
-    'Suecia':'se','Sweden':'se','Noruega':'no','Norway':'no','Ucrania':'ua',
-    'Ukraine':'ua','Turquia':'tr','Turkiye':'tr','Turkey':'tr','Austria':'at',
-    'Republica Checa':'cz','Czechia':'cz','Czech Republic':'cz','Hungria':'hu',
-    'Hungary':'hu','Rumania':'ro','Romania':'ro','Eslovaquia':'sk','Slovakia':'sk',
-    'Eslovenia':'si','Slovenia':'si','Finlandia':'fi','Finland':'fi','Irlanda':'ie',
-    'Ireland':'ie','Escocia':'gb-sct','Scotland':'gb-sct','Nigeria':'ng','Ghana':'gh',
-    'Camerun':'cm','Cameroon':'cm','Costa de Marfil':'ci','Ivory Coast':'ci',
-    "Cote d'Ivoire":'ci','Egipto':'eg','Egypt':'eg','Argelia':'dz','Algeria':'dz',
-    'Sudafrica':'za','South Africa':'za','Nueva Zelanda':'nz','New Zealand':'nz',
-    'Panama':'pa','Honduras':'hn','Jamaica':'jm','Trinidad y Tobago':'tt',
-    'Trinidad and Tobago':'tt','Haiti':'ht','Guatemala':'gt','El Salvador':'sv',
-    'Nicaragua':'ni','Cuba':'cu','Republica Dominicana':'do','Dominican Republic':'do',
-    'Puerto Rico':'pr','Islandia':'is','Iceland':'is','Bosnia':'ba',
-    'Bosnia and Herzegovina':'ba','Macedonia':'mk','North Macedonia':'mk',
-    'Albania':'al','Montenegro':'me','Kosovo':'xk','Moldavia':'md','Moldova':'md',
-    'Bielorrusia':'by','Belarus':'by','Lituania':'lt','Lithuania':'lt',
-    'Letonia':'lv','Latvia':'lv','Estonia':'ee','Georgia':'ge','Armenia':'am',
-    'Azerbaiyan':'az','Azerbaijan':'az','Kazajistan':'kz','Kazakhstan':'kz',
-    'Uzbekistan':'uz','Turkmenistan':'tm','Kirguistan':'kg','Kyrgyzstan':'kg',
-    'Tayikistan':'tj','Tajikistan':'tj','Afganistan':'af','Afghanistan':'af',
-    'Pakistan':'pk','India':'in','Bangladesh':'bd','Sri Lanka':'lk','Nepal':'np',
-    'Butan':'bt','Bhutan':'bt','Maldivas':'mv','Maldives':'mv','Tailandia':'th',
-    'Thailand':'th','Vietnam':'vn','Camboya':'kh','Cambodia':'kh','Laos':'la',
-    'Myanmar':'mm','Malasia':'my','Malaysia':'my','Singapur':'sg','Singapore':'sg',
-    'Indonesia':'id','Filipinas':'ph','Philippines':'ph','Brunei':'bn',
-    'Timor Oriental':'tl','East Timor':'tl','Papua Nueva Guinea':'pg',
-    'Papua New Guinea':'pg','Fiyi':'fj','Fiji':'fj','Samoa':'ws','Tonga':'to',
-    'Vanuatu':'vu','Islas Salomon':'sb','Solomon Islands':'sb','Kiribati':'ki',
-    'Tuvalu':'tv','Nauru':'nr','Palau':'pw','Islas Marshall':'mh',
-    'Marshall Islands':'mh','Micronesia':'fm','Guam':'gu','Samoa Americana':'as',
-    'American Samoa':'as','Islas Cook':'ck','Cook Islands':'ck','Niue':'nu',
-    'Tokelau':'tk','Wallis y Futuna':'wf','Polinesia Francesa':'pf',
-    'French Polynesia':'pf','Nueva Caledonia':'nc','New Caledonia':'nc',
-    'Islas Pitcairn':'pn','Pitcairn Islands':'pn','Islas Norfolk':'nf',
-    'Norfolk Island':'nf','Islas Christmas':'cx','Christmas Island':'cx',
-    'Islas Cocos':'cc','Cocos Islands':'cc','Antartida':'aq','Antarctica':'aq',
-    'Groenlandia':'gl','Greenland':'gl','Sudan':'sd','Madagascar':'mg',
-    'Mauricio':'mu','Mauritius':'mu','Seychelles':'sc','Comoras':'km','Comoros':'km',
-    'Santo Tome y Principe':'st','Sao Tome and Principe':'st',
-    'Guinea Ecuatorial':'gq','Equatorial Guinea':'gq','Gabon':'ga','Congo':'cg',
-    'Congo RDC':'cd','DR Congo':'cd','Democratic Republic of the Congo':'cd',
-    'Ruanda':'rw','Rwanda':'rw','Burundi':'bi','Uganda':'ug','Kenia':'ke',
-    'Kenya':'ke','Tanzania':'tz','Zambia':'zm','Zimbabue':'zw','Zimbabwe':'zw',
-    'Botsuana':'bw','Botswana':'bw','Namibia':'na','Angola':'ao','Mozambique':'mz',
-    'Malawi':'mw','Lesoto':'ls','Lesotho':'ls','Eswatini':'sz','Mauritania':'mr',
-    'Mali':'ml','Burkina Faso':'bf','Niger':'ne','Chad':'td',
-    'Republica Centroafricana':'cf','Central African Republic':'cf','Guinea':'gn',
-    'Guinea-Bissau':'gw','Sierra Leona':'sl','Sierra Leone':'sl','Liberia':'lr',
-    'Togo':'tg','Benin':'bj','Curacao':'cw','Jordan':'jo','Jordania':'jo',
-    'Iraq':'iq','Irak':'iq','Cape Verde':'cv','Cabo Verde':'cv',
-    'Surinam':'sr','Suriname':'sr','Guyana':'gy','Guayana Francesa':'gf',
-    'French Guiana':'gf','Belice':'bz','Belize':'bz','Barbados':'bb',
-    'Santa Lucia':'lc','Saint Lucia':'lc','San Vicente y Granadinas':'vc',
-    'Saint Vincent and the Grenadines':'vc','Granada':'gd','Grenada':'gd',
-    'San Cristobal y Nieves':'kn','Saint Kitts and Nevis':'kn',
-    'Antigua y Barbuda':'ag','Antigua and Barbuda':'ag','Dominica':'dm',
-    'Montserrat':'ms','Anguila':'ai','Anguilla':'ai',
-    'Islas Virgenes Britanicas':'vg','British Virgin Islands':'vg',
-    'Islas Virgenes Americanas':'vi','United States Virgin Islands':'vi',
-    'Islas Caiman':'ky','Cayman Islands':'ky',
-    'Islas Turcas y Caicos':'tc','Turks and Caicos Islands':'tc',
-    'Bahamas':'bs','Bermudas':'bm','Bermuda':'bm',
-    'Svalbard':'sj','Islas Georgias del Sur':'gs','South Georgia':'gs',
-    'Islas Sandwich del Sur':'sh','Saint Helena':'sh',
-    'Islas Malvinas':'fk','Falkland Islands':'fk','Gibraltar':'gi',
-    'Islas Feroe':'fo','Faroe Islands':'fo','Islas Aland':'ax','Aland Islands':'ax',
-    'Jersey':'je','Guernsey':'gg','Isla de Man':'im','Isle of Man':'im',
-    'San Marino':'sm','Vaticano':'va','Monaco':'mc','Andorra':'ad',
-    'Liechtenstein':'li','Malta':'mt','Chipre':'cy','Cyprus':'cy',
-    'Luxemburgo':'lu','Luxembourg':'lu'
-};
+    function changeTimezone() {
+        const select = document.getElementById('timezone-select');
+        currentTimezoneOffset = parseInt(select.value);
+        document.getElementById('timezone-indicator').textContent = 'Zona: ' + getTimezoneLabel();
+        document.getElementById('input-timezone-label').textContent = 'hora ' + getTimezoneLabel();
+        showToast('Zona horaria cambiada a ' + getTimezoneLabel(), 'success');
+        renderMatches();
+    }
 
-const getFlagHTML = (team) => {
-    const code = countryCodes[team] || 'xx';
-    const fallback = team.substring(0, 2).toUpperCase();
-    return `<div class="flag-box" style="background: linear-gradient(135deg, #1e3a5f, #0f172a);">
-        <img src="https://flagcdn.com/w80/${code}.png" alt="${team}" 
-            onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';" 
-            loading="lazy">
-        <span class="flag-fallback" style="display:none;">${fallback}</span>
-    </div>`;
-};
-
-const isMatchFinished = (match) => match.status === 'finished';
-
-function showToast(msg, type = 'info') {
-    const toast = document.createElement('div');
-    toast.className = `fixed bottom-4 right-4 px-6 py-3 rounded-lg shadow-lg z-50 ${type === 'error' ? 'bg-red-600' : type === 'success' ? 'bg-green-600' : 'bg-blue-600'}`;
-    toast.innerHTML = msg;
-    document.body.appendChild(toast);
-    setTimeout(() => toast.remove(), 3000);
-}
-
-function getNowBolivia() {
-    try {
-        const formatter = new Intl.DateTimeFormat('en-US', {
-            timeZone: 'America/La_Paz',
-            year: 'numeric', month: '2-digit', day: '2-digit',
-            hour: '2-digit', minute: '2-digit', second: '2-digit',
-            hour12: false
-        });
-        const parts = formatter.formatToParts(new Date());
-        const y = parseInt(parts.find(p => p.type === 'year').value);
-        const m = parseInt(parts.find(p => p.type === 'month').value);
-        const d = parseInt(parts.find(p => p.type === 'day').value);
-        const h = parseInt(parts.find(p => p.type === 'hour').value);
-        const min = parseInt(parts.find(p => p.type === 'minute').value);
-        const s = parseInt(parts.find(p => p.type === 'second').value);
-        return new Date(Date.UTC(y, m - 1, d, h + 4, min, s));
-    } catch (e) {
+    function updateCurrentTime() {
         const now = new Date();
-        return new Date(now.getTime() + now.getTimezoneOffset() * 60000 + 4 * 60 * 60000);
+        const utc = now.getTime() + (now.getTimezoneOffset() * 60000);
+        const localTime = new Date(utc + (currentTimezoneOffset * 3600000));
+        const timeStr = localTime.toLocaleTimeString('es-BO', { hour: '2-digit', minute: '2-digit' });
+        document.getElementById('current-time-display').textContent = timeStr;
     }
-}
+    setInterval(updateCurrentTime, 1000);
+    updateCurrentTime();
 
-function formatDateBolivia(dateStr) {
-    if (!dateStr) return '';
-    const d = new Date(dateStr);
-    if (isNaN(d.getTime())) return '';
-    try {
-        const formatter = new Intl.DateTimeFormat('es-BO', {
-            timeZone: 'America/La_Paz',
-            day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', hour12: true
+    // ============================================
+    // CONVERSIÓN DE FECHAS
+    // ============================================
+    // De UTC (BD) a hora local seleccionada
+    function toLocalTime(isoString) {
+        if (!isoString) return null;
+        const date = new Date(isoString);
+        const utc = date.getTime() + (date.getTimezoneOffset() * 60000);
+        return new Date(utc + (currentTimezoneOffset * 3600000));
+    }
+
+    // De hora local seleccionada a UTC (para guardar en BD)
+    function fromLocalTime(dateString) {
+        if (!dateString) return null;
+        const date = new Date(dateString);
+        const utc = date.getTime() - (currentTimezoneOffset * 3600000);
+        return new Date(utc).toISOString();
+    }
+
+    // Formatear para input datetime-local (en hora local)
+    function formatDateTimeLocal(isoString) {
+        if (!isoString) return '';
+        const local = toLocalTime(isoString);
+        const y = local.getFullYear();
+        const m = String(local.getMonth() + 1).padStart(2, '0');
+        const d = String(local.getDate()).padStart(2, '0');
+        const h = String(local.getHours()).padStart(2, '0');
+        const min = String(local.getMinutes()).padStart(2, '0');
+        return `${y}-${m}-${d}T${h}:${min}`;
+    }
+
+    // Formatear para mostrar al usuario
+    function formatDisplay(isoString) {
+        if (!isoString) return 'Fecha no definida';
+        const local = toLocalTime(isoString);
+        return local.toLocaleString('es-BO', {
+            weekday: 'short', day: 'numeric', month: 'short',
+            hour: '2-digit', minute: '2-digit', hour12: true
+        }) + ' (' + getTimezoneLabel().split(' ')[0] + ')';
+    }
+
+    // ============================================
+    // CARGAR DATOS
+    // ============================================
+    async function loadMatches() {
+        try {
+            const { data, error } = await sb.from('matches').select('*').order('match_date', { ascending: true });
+            if (error) throw error;
+            matches = data || [];
+            populateRoundFilter();
+            renderMatches();
+        } catch (err) {
+            showToast('Error cargando partidos: ' + err.message, 'error');
+        }
+    }
+
+    function populateRoundFilter() {
+        const select = document.getElementById('round-filter');
+        const rounds = [...new Set(matches.map(m => m.round).filter(r => r))];
+        select.innerHTML = '<option value="">Todas las rondas</option>' + 
+            rounds.map(r => `<option value="${r}">${r}</option>`).join('');
+    }
+
+    // ============================================
+    // RENDERIZAR PARTIDOS
+    // ============================================
+    function renderMatches() {
+        const container = document.getElementById('matches-list');
+        const search = document.getElementById('search-input')?.value.toLowerCase() || '';
+        const statusFilter = document.getElementById('status-filter')?.value || '';
+        const roundFilter = document.getElementById('round-filter')?.value || '';
+
+        let filtered = matches.filter(m => {
+            const home = (m.home_team || '').toLowerCase();
+            const away = (m.away_team || '').toLowerCase();
+            const round = (m.round || '').toLowerCase();
+            const matchesSearch = !search || home.includes(search) || away.includes(search) || round.includes(search);
+            const matchesStatus = !statusFilter || m.status === statusFilter;
+            const matchesRound = !roundFilter || m.round === roundFilter;
+            return matchesSearch && matchesStatus && matchesRound;
         });
-        return formatter.format(d).replace(',', '');
-    } catch (e) {
-        const options = { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', hour12: true };
-        return d.toLocaleString('es-BO', options).replace(',', '');
-    }
-}
 
-async function loadMatches() { const { data } = await sb.from('matches').select('*').order('match_date'); matches = data || []; }
-async function loadPlayers() { const { data } = await sb.from('players').select('*'); players = data || []; }
-async function loadBets() { const { data } = await sb.from('bets').select('*'); bets = data || []; }
-async function loadPayments() { const { data } = await sb.from('payments').select('*'); payments = data || []; }
-async function loadPaymentFees() { const { data } = await sb.from('payment_fees').select('*'); paymentFees = data || []; }
+        document.getElementById('match-count').textContent = `Mostrando ${filtered.length} de ${matches.length} partidos`;
 
-async function init() {
-    await Promise.all([loadMatches(), loadPlayers(), loadBets(), loadPayments(), loadPaymentFees()]);
-    renderPhaseFilters();
-    renderAdminMatches();
-    subscribeToChanges();
-}
+        if (!filtered.length) {
+            container.innerHTML = '<div class="text-center py-12 text-gray-500">No hay partidos que coincidan con los filtros</div>';
+            return;
+        }
 
-function subscribeToChanges() {
-    sb.channel('quiniela-admin-results')
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'matches' }, async () => { await loadMatches(); renderAdminMatches(); renderPhaseFilters(); })
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'bets' }, async () => { await loadBets(); })
-        .subscribe();
-}
-
-// ============================================
-// FILTRO POR FASE
-// ============================================
-function renderPhaseFilters() {
-    const container = $('phase-filters');
-    const phases = [...new Set(matches.map(m => m.round || 'Fase de Grupos'))].sort();
-    const allPhases = ['all', ...phases];
-
-    container.innerHTML = allPhases.map(phase => {
-        const label = phase === 'all' ? 'Todas' : phase;
-        const isActive = currentPhaseFilter === phase;
-        return `<button onclick="setPhaseFilter('${phase}')" id="phase-${phase.replace(/\s+/g, '-')}" class="filter-chip ${isActive ? 'active' : ''}">${label}</button>`;
-    }).join('');
-}
-
-function setPhaseFilter(phase) {
-    currentPhaseFilter = phase;
-    document.querySelectorAll('.filter-chip').forEach(btn => btn.classList.remove('active'));
-    const btn = $(`phase-${phase.replace(/\s+/g, '-')}`);
-    if (btn) btn.classList.add('active');
-    renderAdminMatches();
-}
-
-// ============================================
-// RENDER PARTIDOS
-// ============================================
-function renderAdminMatches() {
-    const container = $('admin-matches-container');
-    if (!matches.length) { 
-        container.innerHTML = '<div class="text-gray-500 text-center py-8">No hay partidos cargados</div>'; 
-        return; 
+        container.innerHTML = filtered.map(match => renderMatchRow(match)).join('');
     }
 
-    let filtered = matches;
-    if (currentPhaseFilter !== 'all') {
-        filtered = matches.filter(m => (m.round || 'Fase de Grupos') === currentPhaseFilter);
-    }
+    function renderMatchRow(match) {
+        const finished = match.status === 'finished';
+        const isGhost = isGhostMatch(match);
+        const homeFlag = getFlag(match.home_team);
+        const awayFlag = getFlag(match.away_team);
 
-    if (!filtered.length) {
-        container.innerHTML = `<div class="text-gray-500 text-center py-8">No hay partidos en esta fase</div>`;
-        return;
-    }
-
-    container.innerHTML = filtered.map(match => {
-        const finished = isMatchFinished(match);
-        const homeFlag = getFlagHTML(match.home_team);
-        const awayFlag = getFlagHTML(match.away_team);
-        return `
-        <div class="match-row flex flex-col md:flex-row items-start md:items-center gap-3 bg-white/5 rounded-xl p-4 border border-white/5" id="admin-row-${match.id}">
-            <div class="flex-1 min-w-0 w-full">
-                <div class="flex items-center gap-2 mb-2">
-                    <span class="text-xs text-gray-500 bg-white/5 px-2 py-0.5 rounded">${match.round || 'Fase de Grupos'}</span>
-                    <span class="text-xs ${finished ? 'text-green-400' : 'text-yellow-400'}">${finished ? '&#9989; Finalizado' : '&#9200; Pendiente'}</span>
-                </div>
-                <div class="flex items-center gap-3 flex-wrap">
-                    <div class="flex items-center gap-2 flex-1 min-w-[140px]">
-                        ${homeFlag}
-                        <input type="text" id="edit-home-${match.id}" value="${match.home_team}" class="admin-input flex-1">
+        return `<div class="glass p-4 animate-slide-in ${isGhost ? 'border-l-4 border-purple-500' : ''}" data-home="${(match.home_team || '').toLowerCase()}" data-away="${(match.away_team || '').toLowerCase()}" data-round="${match.round || ''}" data-status="${match.status || 'scheduled'}">
+            <div class="flex flex-col lg:flex-row gap-4">
+                <!-- Info del partido -->
+                <div class="flex-1">
+                    <div class="flex items-center gap-2 mb-2 flex-wrap">
+                        <span class="text-xs text-gray-500">${match.round || 'Fase de Grupos'}</span>
+                        ${finished ? '<span class="badge badge-success">✅ Finalizado</span>' : '<span class="badge badge-warning">📅 Programado</span>'}
+                        ${isGhost ? '<span class="badge badge-ghost">👻 Fantasma</span>' : ''}
                     </div>
-                    <span class="text-gray-500 font-bold px-2">VS</span>
-                    <div class="flex items-center gap-2 flex-1 min-w-[140px]">
-                        ${awayFlag}
-                        <input type="text" id="edit-away-${match.id}" value="${match.away_team}" class="admin-input flex-1">
+
+                    <div class="flex items-center gap-3 flex-wrap mb-3">
+                        <div class="flex items-center gap-2 flex-1 min-w-[200px]">
+                            <span class="text-2xl">${homeFlag}</span>
+                            <input type="text" id="edit-home-${match.id}" value="${match.home_team || ''}" class="admin-input flex-1">
+                        </div>
+                        <span class="text-gray-500 font-bold">VS</span>
+                        <div class="flex items-center gap-2 flex-1 min-w-[200px]">
+                            <span class="text-2xl">${awayFlag}</span>
+                            <input type="text" id="edit-away-${match.id}" value="${match.away_team || ''}" class="admin-input flex-1">
+                        </div>
+                    </div>
+
+                    <!-- Fecha/Hora editable -->
+                    <div class="flex items-center gap-3 flex-wrap">
+                        <div class="flex items-center gap-2 bg-white/5 rounded-lg px-3 py-2">
+                            <i class="fas fa-calendar text-gray-500 text-xs"></i>
+                            <input type="datetime-local" id="edit-date-${match.id}" value="${formatDateTimeLocal(match.match_date)}" 
+                                class="bg-transparent border-none text-xs text-white focus:outline-none font-mono"
+                                onchange="updateMatchDate('${match.id}')">
+                        </div>
+                        <div class="text-xs text-gray-400">
+                            <i class="fas fa-clock mr-1"></i>${formatDisplay(match.match_date)}
+                        </div>
+                        <select id="edit-status-${match.id}" onchange="updateMatchStatus('${match.id}')" class="admin-input text-xs">
+                            <option value="scheduled" ${match.status !== 'finished' ? 'selected' : ''}>📅 Programado</option>
+                            <option value="finished" ${match.status === 'finished' ? 'selected' : ''}>✅ Finalizado</option>
+                        </select>
                     </div>
                 </div>
-                <div class="text-xs text-gray-500 mt-2">${formatDateBolivia(match.match_date)} (Hora Bolivia)</div>
-            </div>
-            <div class="flex items-center gap-2">
-                <input type="number" id="res-${match.id}-home" value="${match.home_score ?? ''}" min="0" class="w-14 text-center bg-white/10 border border-white/20 rounded-lg px-2 py-2 text-sm font-bold focus:outline-none focus:border-yellow-500" placeholder="L">
-                <span class="text-gray-500 font-bold">-</span>
-                <input type="number" id="res-${match.id}-away" value="${match.away_score ?? ''}" min="0" class="w-14 text-center bg-white/10 border border-white/20 rounded-lg px-2 py-2 text-sm font-bold focus:outline-none focus:border-yellow-500" placeholder="V">
-            </div>
-            <div class="flex gap-2 w-full md:w-auto">
-                <button onclick="updateResult('${match.id}')" class="btn-admin ${finished ? 'btn-save' : 'btn-edit'} flex-1 md:flex-none">${finished ? '&#128260; Actualizar' : '&#128190; Guardar'}</button>
-                <button onclick="updateTeams('${match.id}')" class="btn-admin btn-edit flex-1 md:flex-none" title="Actualizar nombres">&#9998; Equipos</button>
+
+                <!-- Resultado -->
+                <div class="flex items-center gap-2">
+                    <input type="number" id="res-home-${match.id}" value="${match.home_score != null ? match.home_score : ''}" class="w-14 text-center admin-input text-lg font-bold" placeholder="L">
+                    <span class="text-gray-500 font-bold">-</span>
+                    <input type="number" id="res-away-${match.id}" value="${match.away_score != null ? match.away_score : ''}" class="w-14 text-center admin-input text-lg font-bold" placeholder="V">
+                </div>
+
+                <!-- Acciones -->
+                <div class="flex items-center gap-2">
+                    <button onclick="saveResult('${match.id}')" class="btn-admin ${finished ? 'btn-save' : 'btn-edit'}">${finished ? 'Actualizar' : 'Guardar'}</button>
+                    <button onclick="updateTeams('${match.id}')" class="btn-admin btn-edit" title="Actualizar equipos y fecha">📝</button>
+                    <button onclick="deleteMatch('${match.id}')" class="btn-admin bg-red-600/20 hover:bg-red-600/30 text-red-400" title="Eliminar">🗑️</button>
+                </div>
             </div>
         </div>`;
-    }).join('');
-}
-
-async function updateTeams(matchId) {
-    const home = $(`edit-home-${matchId}`).value.trim();
-    const away = $(`edit-away-${matchId}`).value.trim();
-    if (!home || !away) { showToast('Los nombres no pueden estar vacios', 'error'); return; }
-    const { error } = await sb.from('matches').update({ home_team: home, away_team: away }).eq('id', matchId);
-    if (error) { showToast('Error: ' + error.message, 'error'); return; }
-    showToast('Equipos actualizados', 'success');
-    await loadMatches();
-    renderAdminMatches();
-}
-
-async function updateResult(matchId) {
-    const home = parseInt($(`res-${matchId}-home`).value);
-    const away = parseInt($(`res-${matchId}-away`).value);
-    if (isNaN(home) || isNaN(away)) { showToast('Completa ambos resultados', 'error'); return; }
-    const { error } = await sb.from('matches')
-        .update({ home_score: home, away_score: away, status: 'finished' })
-        .eq('id', matchId);
-    if (error) { showToast('Error al guardar: ' + error.message, 'error'); return; }
-    showToast('Resultado guardado', 'success');
-    await loadMatches();
-    renderAdminMatches();
-}
-
-async function syncResults() {
-    const btn = $('sync-btn');
-    const originalText = btn.innerHTML;
-    btn.innerHTML = '&#128260; Sincronizando...';
-    btn.disabled = true;
-    try {
-        const response = await fetch(`${SUPABASE_URL}/functions/v1/update-results`, {
-            method: 'POST',
-            headers: { 'Authorization': 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json' }
-        });
-        const data = await response.json();
-        if (data.updated > 0) {
-            showToast(`&#9989; ${data.updated} partidos actualizados`, 'success');
-            await loadMatches(); renderAdminMatches();
-        } else if (data.error) {
-            showToast('&#10060; Error: ' + data.error, 'error');
-        } else {
-            showToast('&#8505; ' + data.message, 'info');
-        }
-    } catch (error) {
-        showToast('&#10060; Error de conexion: ' + error.message, 'error');
-    } finally {
-        btn.innerHTML = originalText;
-        btn.disabled = false;
     }
-}
 
-async function addMatch() {
-    const home = $('new-home').value.trim();
-    const away = $('new-away').value.trim();
-    const date = $('new-date').value;
-    const round = $('new-round').value;
-    if (!home || !away || !date) { showToast('Completa todos los campos', 'error'); return; }
-    const { error } = await sb.from('matches').insert({
-        home_team: home, away_team: away,
-        match_date: new Date(date).toISOString(),
-        status: 'scheduled', round: round
-    });
-    if (error) { showToast('Error: ' + error.message, 'error'); return; }
-    $('new-home').value = ''; $('new-away').value = ''; $('new-date').value = '';
-    showToast('Partido agregado', 'success');
-    await loadMatches();
-    renderAdminMatches();
-    renderPhaseFilters();
-}
+    function isGhostMatch(match) {
+        if (!match) return true;
+        const home = (match.home_team || '').toString().trim();
+        const away = (match.away_team || '').toString().trim();
+        if (!home || !away) return true;
+        const ghostPatterns = /^(Ganador|Perdedor|RU|W|L|Runner-up|Winner|2nd|3rd)[\s]*[A-Z0-9]+$/i;
+        if (ghostPatterns.test(home) || ghostPatterns.test(away)) return true;
+        return false;
+    }
 
-document.addEventListener('DOMContentLoaded', init);
-</script>
+    // ============================================
+    // BANDERAS (simplificado)
+    // ============================================
+    function getFlag(team) {
+        const flags = {
+            'Francia': '🇫🇷', 'Marruecos': '🇲🇦', 'Espana': '🇪🇸', 'Belgica': '🇧🇪',
+            'Noruega': '🇳🇴', 'Inglaterra': '🏴󠁧󠁢󠁥󠁮󠁧󠁿', 'Argentina': '🇦🇷', 'Suiza': '🇨🇭',
+            'Brasil': '🇧🇷', 'Alemania': '🇩🇪', 'Italia': '🇮🇹', 'Portugal': '🇵🇹',
+            'Uruguay': '🇺🇾', 'Colombia': '🇨🇴', 'Mexico': '🇲🇽', 'USA': '🇺🇸',
+            'Japon': '🇯🇵', 'Corea': '🇰🇷', 'Australia': '🇦🇺', 'Croacia': '🇭🇷',
+            'Holanda': '🇳🇱', 'Dinamarca': '🇩🇰', 'Polonia': '🇵🇱', 'Senegal': '🇸🇳',
+            'Ecuador': '🇪🇨', 'Iran': '🇮🇷', 'Arabia': '🇸🇦', 'Tunez': '🇹🇳',
+            'Gales': '🏴󠁧󠁢󠁷󠁬󠁳󠁿', 'Canada': '🇨🇦', 'Costa Rica': '🇨🇷', 'Catar': '🇶🇦'
+        };
+        return flags[team] || '🏳️';
+    }
 
+    // ============================================
+    // ACCIONES
+    // ============================================
+    async function updateMatchDate(matchId) {
+        const input = document.getElementById(`edit-date-${matchId}`);
+        if (!input?.value) return;
+        try {
+            const utcDate = fromLocalTime(input.value);
+            const { error } = await sb.from('matches').update({ match_date: utcDate }).eq('id', matchId);
+            if (error) throw error;
+            showToast('📅 Fecha actualizada: ' + formatDisplay(utcDate), 'success');
+            await loadMatches();
+        } catch (err) {
+            showToast('Error: ' + err.message, 'error');
+        }
+    }
+
+    async function updateMatchStatus(matchId) {
+        const select = document.getElementById(`edit-status-${matchId}`);
+        if (!select) return;
+        try {
+            const { error } = await sb.from('matches').update({ status: select.value }).eq('id', matchId);
+            if (error) throw error;
+            showToast('Estado actualizado', 'success');
+            await loadMatches();
+        } catch (err) {
+            showToast('Error: ' + err.message, 'error');
+        }
+    }
+
+    async function saveResult(matchId) {
+        const home = parseInt(document.getElementById(`res-home-${matchId}`).value);
+        const away = parseInt(document.getElementById(`res-away-${matchId}`).value);
+        if (isNaN(home) || isNaN(away)) {
+            showToast('Completa ambos resultados', 'error');
+            return;
+        }
+        try {
+            const { error } = await sb.from('matches')
+                .update({ home_score: home, away_score: away, status: 'finished' })
+                .eq('id', matchId);
+            if (error) throw error;
+            showToast('✅ Resultado guardado', 'success');
+            await loadMatches();
+        } catch (err) {
+            showToast('Error: ' + err.message, 'error');
+        }
+    }
+
+    async function updateTeams(matchId) {
+        const home = document.getElementById(`edit-home-${matchId}`).value.trim();
+        const away = document.getElementById(`edit-away-${matchId}`).value.trim();
+        const dateInput = document.getElementById(`edit-date-${matchId}`);
+        if (!home || !away) {
+            showToast('Los nombres no pueden estar vacíos', 'error');
+            return;
+        }
+        const updates = { home_team: home, away_team: away };
+        if (dateInput?.value) {
+            updates.match_date = fromLocalTime(dateInput.value);
+        }
+        try {
+            const { error } = await sb.from('matches').update(updates).eq('id', matchId);
+            if (error) throw error;
+            showToast('📝 Partido actualizado', 'success');
+            await loadMatches();
+        } catch (err) {
+            showToast('Error: ' + err.message, 'error');
+        }
+    }
+
+    async function deleteMatch(matchId) {
+        const match = matches.find(m => m.id === matchId);
+        if (!match) return;
+        if (!confirm(`¿Eliminar ${match.home_team} vs ${match.away_team}?\n⚠️ Se borrarán también las apuestas.`)) return;
+        try {
+            await sb.from('bets').delete().eq('match_id', matchId);
+            const { error } = await sb.from('matches').delete().eq('id', matchId);
+            if (error) throw error;
+            showToast('🗑️ Partido eliminado', 'success');
+            await loadMatches();
+        } catch (err) {
+            showToast('Error: ' + err.message, 'error');
+        }
+    }
+
+    async function addMatch() {
+        const home = document.getElementById('new-home').value.trim();
+        const away = document.getElementById('new-away').value.trim();
+        const date = document.getElementById('new-date').value;
+        const round = document.getElementById('new-round').value.trim() || 'Fase de Grupos';
+        if (!home || !away || !date) {
+            showToast('Completa todos los campos', 'error');
+            return;
+        }
+        try {
+            const { error } = await sb.from('matches').insert({
+                home_team: home, away_team: away,
+                match_date: fromLocalTime(date),
+                status: 'scheduled', round: round
+            });
+            if (error) throw error;
+            document.getElementById('new-home').value = '';
+            document.getElementById('new-away').value = '';
+            document.getElementById('new-date').value = '';
+            document.getElementById('new-round').value = '';
+            showToast('Partido agregado', 'success');
+            await loadMatches();
+        } catch (err) {
+            showToast('Error: ' + err.message, 'error');
+        }
+    }
+
+    function filterMatches() {
+        renderMatches();
+    }
+
+    function clearFilters() {
+        document.getElementById('search-input').value = '';
+        document.getElementById('status-filter').value = '';
+        document.getElementById('round-filter').value = '';
+        renderMatches();
+    }
+
+    // ============================================
+    // TOAST
+    // ============================================
+    function showToast(msg, type = 'info') {
+        const container = document.getElementById('toast-container');
+        const toast = document.createElement('div');
+        toast.className = `px-4 py-3 rounded-xl shadow-lg mb-2 animate-slide-in text-sm font-medium ${
+            type === 'error' ? 'bg-red-600' : type === 'success' ? 'bg-green-600' : 'bg-blue-600'
+        } text-white`;
+        toast.textContent = msg;
+        container.appendChild(toast);
+        setTimeout(() => { toast.style.opacity = '0'; setTimeout(() => toast.remove(), 300); }, 3000);
+    }
+    </script>
 </body>
 </html>
