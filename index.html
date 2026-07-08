@@ -283,9 +283,9 @@ function getFeeForDate(dateStr) {
     const day = String(boliviaDate.getDate()).padStart(2, '0');
     const dateKey = `${year}-${month}-${day}`;
     const fee = paymentFees.find(f => f.match_date === dateKey);
-    if (fee && fee.is_free) return { amount: 0, isFree: true, notes: fee.notes };
-    if (fee) return { amount: fee.amount, isFree: false, notes: fee.notes };
-    return { amount: 5.00, isFree: false, notes: 'Valor por defecto' };
+    if (fee && fee.is_free) return '0 (Gratis)';
+    if (fee) return fee.amount.toFixed(2);
+    return '5.00';
 }
 
 function hasVerifiedPayment(playerId, matchDateStr) {
@@ -632,7 +632,7 @@ function renderMatches() {
         if (finished) { resultDisplay = `<div class="text-center px-4 py-1 bg-green-500/20 rounded-lg border border-green-500/30"><span class="text-green-400 font-bold text-lg">${match.home_score} - ${match.away_score}</span></div>`; }
         return `<div class="match-card ${finished ? 'opacity-75' : ''} ${!open && !finished ? 'opacity-60' : ''}">
             <div class="flex justify-between items-center mb-3">
-                <span class="text-xs font-bold text-gray-500 uppercase tracking-wider">${match.round || 'Fase de Grupos'} - Partido ${match.id}</span>
+                <span class="text-xs font-bold text-gray-500 uppercase tracking-wider">${match.round || 'Fase de Grupos'}</span>
                 <span class="text-xs ${open ? 'text-green-400 font-semibold' : finished ? 'text-gray-500' : 'text-yellow-400'}">${open ? 'ABIERTO' : finished ? 'Finalizado' : 'Cerrado'}</span>
             </div>
             <div class="flex items-center justify-between gap-4">
