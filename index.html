@@ -601,13 +601,26 @@ function subscribeToChanges() {
 
 function setFilter(filter) { matchFilter = filter; $('filter-today').classList.toggle('active', filter === 'today'); $('filter-all').classList.toggle('active', filter === 'all'); renderMatches(); }
 
+function isGhostMatch(match) {
+    if (!match) return true;
+    const home = (match.home_team || '').toString().trim();
+    const away = (match.away_team || '').toString().trim();
+    if (!home || !away) return true;
+    const ghostPatterns = /^(Ganador|Perdedor|RU|W|L|Runner-up|Winner|2nd|3rd)[\s]*[A-Z0-9]+$/i;
+    if (ghostPatterns.test(home) || ghostPatterns.test(away)) return true;
+    const codePattern = /^P\d+$/i;
+    if (codePattern.test(home) || codePattern.test(away)) return true;
+    return false;
+}
+
 function renderMatches() {
     const container = $('matches-container');
     if (!matches.length) { container.innerHTML = '<div class="text-center text-gray-500 py-12">No hay partidos cargados aun</div>'; return; }
-    let filteredMatches = matches;
+    let realMatches = matches.filter(m => !isGhostMatch(m));
+    let filteredMatches = realMatches;
     if (matchFilter === 'today') {
         const now = new Date();
-        filteredMatches = matches.filter(m => { const matchDate = new Date(m.match_date); const isOpen = isMatchOpenBolivia(m); const isTodayOrFuture = matchDate >= new Date(now.getFullYear(), now.getMonth(), now.getDate()); return isOpen || (isTodayOrFuture && m.status === 'scheduled'); });
+        filteredMatches = realMatches.filter(m => { const matchDate = new Date(m.match_date); const isOpen = isMatchOpenBolivia(m); const isTodayOrFuture = matchDate >= new Date(now.getFullYear(), now.getMonth(), now.getDate()); return isOpen || (isTodayOrFuture && m.status === 'scheduled'); });
         if (filteredMatches.length === 0) { container.innerHTML = '<div class="text-center text-gray-500 py-12">No hay partidos abiertos para apostar en este momento.</div>'; return; }
     }
     container.innerHTML = filteredMatches.map(match => {
@@ -617,40 +630,50 @@ function renderMatches() {
         const countdown = getCountdownBolivia(match.match_date); const fee = getFeeForDate(match.match_date);
         let resultDisplay = '';
         if (finished) { resultDisplay = `<div class="text-center px-4 py-1 bg-green-500/20 rounded-lg border border-green-500/30"><span class="text-green-400 font-bold text-lg">${match.home_score} - ${match.away_score}</span></div>`; }
-        else if (!open) { resultDisplay = `<div class="text-center px-4 py-1 bg-red-500/20 rounded-lg border border-red-500/30"><span class="text-red-400 text-xs font-bold">CERRADO</span></div>`; }
-        let pointsBadge = ''; let pts = 0;
-        if (finished && myBet) { const hasPayment = hasVerifiedPayment(currentPlayer.id, match.match_date); if (hasPayment) { pts = calculatePoints(myBet, match); if (pts > 0) pointsBadge = `<span class="absolute -top-2 -right-2 bg-yellow-500 text-black text-xs font-bold px-2 py-1 rounded-full">+${pts}</span>`; } else { pointsBadge = `<span class="absolute -top-2 -right-2 bg-red-500 text-white text-xs font-bold px-2 py-1 rounded-full" title="Pago no verificado">!</span>`; } }
-        let feeBadge = '';
-        if (fee.isFree) { feeBadge = `<span class="absolute -top-2 -left-2 bg-green-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">LIBRE</span>`; }
-        else if (fee.amount !== 5) { feeBadge = `<span class="absolute -top-2 -left-2 bg-orange-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">${fee.amount} Bs</span>`; }
-        return `<div class="match-card glass rounded-xl p-4 relative ${finished ? 'opacity-80' : ''}" id="match-card-${match.id}">${pointsBadge}${feeBadge}<div class="flex items-center justify-between mb-3"><span class="text-xs text-gray-400 font-mono">${match.round || 'Fase de Grupos'}</span><span class="text-xs ${open ? 'text-yellow-400 pulse' : 'text-gray-500'}">${open ? 'Faltan: ' + countdown : finished ? 'Finalizado' : 'Cerrado'}</span></div><div class="flex items-center justify-between gap-2"><div class="flex-1 text-center"><div class="mb-1 flex justify-center">${homeFlag}</div><div class="text-sm font-semibold">${match.home_team}</div></div><div class="flex items-center gap-2">${open ? `<input type="number" min="0" max="20" id="bet-${match.id}-home" data-match="${match.id}" data-side="home" value="${myBet ? myBet.home_prediction : ''}" class="input-score w-14 h-12 text-center text-xl font-bold bg-white/10 border border-white/20 rounded-lg focus:border-yellow-500 focus:outline-none" placeholder="-"><span class="text-gray-500 font-bold">:</span><input type="number" min="0" max="20" id="bet-${match.id}-away" data-match="${match.id}" data-side="away" value="${myBet ? myBet.away_prediction : ''}" class="input-score w-14 h-12 text-center text-xl font-bold bg-white/10 border border-white/20 rounded-lg focus:border-yellow-500 focus:outline-none" placeholder="-">` : resultDisplay}</div><div class="flex-1 text-center"><div class="mb-1 flex justify-center">${awayFlag}</div><div class="text-sm font-semibold">${match.away_team}</div></div></div>${open ? `<div class="mt-3 text-xs text-center text-gray-500">${formatDateBolivia(match.match_date)} (Hora Bolivia)</div><div class="mt-2 text-center"><button onclick="saveSingleBet('${match.id}')" class="bg-gradient-to-r from-green-500 to-emerald-600 text-white font-bold px-6 py-2 rounded-lg hover:from-green-400 hover:to-emerald-500 transition text-sm shadow-lg">${myBet ? 'Actualizar Pronostico' : 'Guardar Pronostico'}</button></div>` : ''}${finished && myBet ? `<div class="mt-3 pt-3 border-t border-white/10 text-center text-sm"><span class="text-gray-400">Tu pronostico: </span><span class="font-bold ${pts > 0 ? 'text-green-400' : 'text-red-400'}">${myBet.home_prediction} - ${myBet.away_prediction}</span>${!hasVerifiedPayment(currentPlayer.id, match.match_date) ? `<span class="block text-xs text-red-400 mt-1">&#9888; Pago no verificado - puntos no contabilizados</span>` : ''}</div>` : ''}</div>`;
+        return `<div class="match-card ${finished ? 'opacity-75' : ''} ${!open && !finished ? 'opacity-60' : ''}">
+            <div class="flex justify-between items-center mb-3">
+                <span class="text-xs font-bold text-gray-500 uppercase tracking-wider">${match.round || 'Fase de Grupos'} - Partido ${match.id}</span>
+                <span class="text-xs ${open ? 'text-green-400 font-semibold' : finished ? 'text-gray-500' : 'text-yellow-400'}">${open ? 'ABIERTO' : finished ? 'Finalizado' : 'Cerrado'}</span>
+            </div>
+            <div class="flex items-center justify-between gap-4">
+                <div class="flex-1 text-center">
+                    <div class="text-4xl mb-2">${homeFlag}</div>
+                    <div class="font-bold text-lg">${match.home_team}</div>
+                    <div class="text-xs text-gray-500 mt-1">${match.home_score != null ? match.home_score + ' pts' : ''}</div>
+                </div>
+                <div class="text-center">
+                    ${finished ? resultDisplay : `<div class="text-3xl font-bold text-gray-600">VS</div>`}
+                    <div class="text-xs text-gray-500 mt-2">${formatDateBolivia(match.match_date)}</div>
+                    ${open ? `<div class="text-xs text-yellow-400 mt-1">${countdown}</div>` : ''}
+                </div>
+                <div class="flex-1 text-center">
+                    <div class="text-4xl mb-2">${awayFlag}</div>
+                    <div class="font-bold text-lg">${match.away_team}</div>
+                    <div class="text-xs text-gray-500 mt-1">${match.away_score != null ? match.away_score + ' pts' : ''}</div>
+                </div>
+            </div>
+            ${!finished ? `
+            <div class="mt-4 pt-3 border-t border-white/10">
+                ${open ? `
+                <div class="flex items-center justify-center gap-3 mb-3">
+                    <input type="number" id="bet-${match.id}-home" class="bet-input" placeholder="L" min="0">
+                    <span class="text-gray-500 font-bold">-</span>
+                    <input type="number" id="bet-${match.id}-away" class="bet-input" placeholder="V" min="0">
+                </div>
+                <button onclick="placeBet('${match.id}')" class="btn-primary w-full">Guardar Pronostico</button>
+                <div class="text-center text-xs text-gray-500 mt-2">Costo: ${fee} pts</div>
+                ` : `
+                <div class="text-center text-sm text-gray-500">Apuestas cerradas</div>
+                ${myBet ? `<div class="text-center text-xs text-gray-400 mt-1">Tu pronostico: ${myBet.home_score} - ${myBet.away_score}</div>` : ''}
+                `}
+            </div>
+            ` : `
+            <div class="mt-4 pt-3 border-t border-white/10 text-center">
+                ${myBet ? `<div class="text-sm">Tu pronostico: <span class="font-bold ${getBetResult(match, myBet) > 0 ? 'text-green-400' : 'text-red-400'}">${myBet.home_score} - ${myBet.away_score}</span> <span class="text-xs text-gray-500">(${getBetResult(match, myBet) > 0 ? '+' : ''}${getBetResult(match, myBet)} pts)</span></div>` : '<div class="text-sm text-gray-500">No apostaste este partido</div>'}
+            </div>
+            `}
+        </div>`;
     }).join('');
-}
-
-
-
-async function saveSingleBet(matchId) {
-    const homeInput = $(`bet-${matchId}-home`); const awayInput = $(`bet-${matchId}-away`);
-    if (!homeInput || !awayInput) return;
-    const homeScore = parseInt(homeInput.value); const awayScore = parseInt(awayInput.value);
-    if (isNaN(homeScore) || isNaN(awayScore) || homeScore < 0 || awayScore < 0) { showToast('Completa ambos pronosticos', 'error'); return; }
-    const match = matches.find(m => m.id === matchId);
-    if (!match || !isMatchOpenBolivia(match)) { showToast('Este partido ya no acepta apuestas', 'error'); return; }
-    const existing = bets.find(b => b.player_id === currentPlayer.id && b.match_id === matchId);
-    let error;
-    if (existing) { const { error: err } = await sb.from('bets').update({ home_prediction: homeScore, away_prediction: awayScore }).eq('id', existing.id); error = err; }
-    else { const { error: err } = await sb.from('bets').insert({ player_id: currentPlayer.id, match_id: matchId, home_prediction: homeScore, away_prediction: awayScore }); error = err; }
-    if (error) { showToast('Error: ' + error.message, 'error'); console.error('saveSingleBet error:', error); return; }
-    await loadBets(); renderMatches(); renderLeaderboard(); showToast('Pronostico guardado', 'success');
-}
-
-async function saveAllBets() {
-    const inputs = document.querySelectorAll('[data-match]'); const betsMap = {};
-    inputs.forEach(input => { const matchId = input.dataset.match; const side = input.dataset.side; const val = parseInt(input.value); if (!isNaN(val) && val >= 0) { if (!betsMap[matchId]) betsMap[matchId] = {}; betsMap[matchId][side] = val; } });
-    const promises = [];
-    for (const [matchId, scores] of Object.entries(betsMap)) { if (scores.home === undefined || scores.away === undefined) continue; const match = matches.find(m => m.id === matchId); if (!match || !isMatchOpenBolivia(match)) continue; const existing = bets.find(b => b.player_id === currentPlayer.id && b.match_id === matchId); if (existing) { promises.push(sb.from('bets').update({ home_prediction: scores.home, away_prediction: scores.away }).eq('id', existing.id)); } else { promises.push(sb.from('bets').insert({ player_id: currentPlayer.id, match_id: matchId, home_prediction: scores.home, away_prediction: scores.away })); } }
-    if (promises.length === 0) { showToast('Completa al menos un pronostico', 'error'); return; }
-    await Promise.all(promises); await loadBets(); renderMatches(); renderLeaderboard(); showToast(`${promises.length} pronostico(s) guardado(s)`, 'success');
 }
 
 function renderLeaderboard() {
@@ -1093,8 +1116,6 @@ function renderAdminPanel() {
 function renderAdminMatches() {
     const container = $('admin-matches-container');
     if (!matches.length) { container.innerHTML = '<div class="text-gray-500 text-center py-4">No hay partidos</div>'; return; }
-
-    // HTML del panel de filtros + búsqueda
     let html = `
     <div class="mb-4 space-y-3">
         <div class="flex flex-col md:flex-row gap-3">
@@ -1123,10 +1144,8 @@ function renderAdminMatches() {
     </div>
     <div id="admin-matches-list" class="space-y-3 max-h-[600px] overflow-y-auto pr-2">
     `;
-
     html += matches.map(match => renderAdminMatchRow(match)).join('');
     html += '</div>';
-
     html += `
     <div class="mt-6 pt-4 border-t border-white/10">
         <h4 class="text-sm font-bold text-gray-400 mb-3">➕ Agregar Nuevo Partido</h4>
@@ -1139,7 +1158,6 @@ function renderAdminMatches() {
         <button onclick="addMatch()" class="mt-2 bg-green-600 hover:bg-green-500 text-white px-4 py-2 rounded-lg text-sm font-bold transition">Agregar Partido</button>
     </div>
     `;
-
     container.innerHTML = html;
 }
 
@@ -1149,17 +1167,19 @@ function renderAdminMatchRow(match) {
     const awayFlag = getFlagHTML(match.away_team);
     const matchDate = new Date(match.match_date);
     const dateStr = matchDate.toISOString().slice(0, 16);
+    const isGhost = isGhostMatch(match);
 
-    return `<div class="admin-match-row flex flex-col md:flex-row items-start md:items-center gap-3 bg-white/5 rounded-lg p-3" data-home="${(match.home_team || '').toLowerCase()}" data-away="${(match.away_team || '').toLowerCase()}" data-round="${match.round || ''}" data-status="${match.status || 'scheduled'}" data-date="${match.match_date || ''}">
+    return `<div class="admin-match-row flex flex-col md:flex-row items-start md:items-center gap-3 ${isGhost ? 'bg-white/3 border border-dashed border-white/10' : 'bg-white/5'} rounded-lg p-3" data-home="${(match.home_team || '').toLowerCase()}" data-away="${(match.away_team || '').toLowerCase()}" data-round="${match.round || ''}" data-status="${match.status || 'scheduled'}" data-date="${match.match_date || ''}">
         <div class="flex-1 min-w-0">
             <div class="flex items-center gap-2 mb-1">
                 <span class="text-xs text-gray-500">${match.round || 'Fase de Grupos'}</span>
                 <span class="text-xs ${finished ? 'text-green-400' : 'text-yellow-400'}">${finished ? '✅ Finalizado' : '📅 Programado'}</span>
+                ${isGhost ? '<span class="text-xs text-purple-400">👻 Fantasma (sin equipos)</span>' : ''}
             </div>
             <div class="flex items-center gap-2 flex-wrap">
-                <div class="flex items-center gap-2">${homeFlag}<input type="text" id="edit-home-${match.id}" value="${match.home_team || ''}" class="admin-input"></div>
+                <div class="flex items-center gap-2">${homeFlag}<input type="text" id="edit-home-${match.id}" value="${match.home_team || ''}" class="admin-input ${isGhost ? 'border-purple-500/30' : ''}"></div>
                 <span class="text-gray-500 font-bold">vs</span>
-                <div class="flex items-center gap-2">${awayFlag}<input type="text" id="edit-away-${match.id}" value="${match.away_team || ''}" class="admin-input"></div>
+                <div class="flex items-center gap-2">${awayFlag}<input type="text" id="edit-away-${match.id}" value="${match.away_team || ''}" class="admin-input ${isGhost ? 'border-purple-500/30' : ''}"></div>
             </div>
             <div class="mt-2 flex items-center gap-2 flex-wrap">
                 <div class="flex items-center gap-2 bg-white/5 rounded-lg px-3 py-1.5">
@@ -1359,7 +1379,131 @@ async function addMatch() {
     } catch (err) {
         showToast('Error: ' + err.message, 'error');
     }
-}</script>
+}
+
+function renderAdminPanel() { 
+    // Determinar qué pestaña está activa y renderizar solo esa
+    const activeTab = document.querySelector('.admin-tab-active');
+    if (activeTab) {
+        const tabId = activeTab.id.replace('admin-tab-', '');
+        if (tabId === 'alicuotas') renderAdminFees();
+        else if (tabId === 'pagos') renderAdminPayments();
+        else if (tabId === 'resultados') renderAdminMatches();
+    } else {
+        // Por defecto, renderizar alícuotas
+        renderAdminFees();
+    }
+}
+
+function renderAdminMatches() {
+    const container = $('admin-matches-container');
+    if (!matches.length) { container.innerHTML = '<div class="text-gray-500 text-center py-4">No hay partidos</div>'; return; }
+    container.innerHTML = matches.map(match => {
+        const finished = isMatchFinished(match);
+        const homeFlag = getFlagHTML(match.home_team);
+        const awayFlag = getFlagHTML(match.away_team);
+        return `<div class="flex flex-col md:flex-row items-start md:items-center gap-3 bg-white/5 rounded-lg p-3" id="admin-row-${match.id}"><div class="flex-1 min-w-0"><div class="flex items-center gap-2 mb-1"><span class="text-xs text-gray-500">${match.round}</span><span class="text-xs ${finished ? 'text-green-400' : 'text-yellow-400'}">${finished ? 'Finalizado' : 'Pendiente'}</span></div><div class="flex items-center gap-2 flex-wrap"><div class="flex items-center gap-2">${homeFlag}<input type="text" id="edit-home-${match.id}" value="${match.home_team}" class="admin-input"></div><span class="text-gray-500 font-bold">vs</span><div class="flex items-center gap-2">${awayFlag}<input type="text" id="edit-away-${match.id}" value="${match.away_team}" class="admin-input"></div></div><div class="text-xs text-gray-500 mt-1">${formatDateBolivia(match.match_date)}</div></div><div class="flex items-center gap-2"><input type="number" id="res-${match.id}-home" value="${match.home_score ?? ''}" class="w-12 text-center bg-white/10 border border-white/20 rounded px-2 py-1 text-sm" placeholder="L"><span class="text-gray-500">-</span><input type="number" id="res-${match.id}-away" value="${match.away_score ?? ''}" class="w-12 text-center bg-white/10 border border-white/20 rounded px-2 py-1 text-sm" placeholder="V"></div><div class="flex gap-2"><button onclick="updateResult('${match.id}')" class="btn-admin ${finished ? 'btn-save' : 'btn-edit'}">${finished ? 'Actualizar' : 'Guardar'}</button><button onclick="updateTeams('${match.id}')" class="btn-admin btn-edit" title="Actualizar nombres de equipos">Editar Equipos</button></div></div>`;
+    }).join('');
+}
+
+async function updateTeams(matchId) {
+    const home = $(`edit-home-${matchId}`).value.trim();
+    const away = $(`edit-away-${matchId}`).value.trim();
+    if (!home || !away) {
+        showToast('Los nombres no pueden estar vacios', 'error');
+        return;
+    }
+    const { error } = await sb.from('matches')
+        .update({ home_team: home, away_team: away })
+        .eq('id', matchId);
+    if (error) {
+        showToast('Error: ' + error.message, 'error');
+        return;
+    }
+    showToast('Equipos actualizados', 'success');
+    await loadMatches();
+    renderMatches();
+    if (currentPlayer?.isAdmin) renderAdminPanel();
+}
+
+async function updateResult(matchId) {
+    const home = parseInt($(`res-${matchId}-home`).value);
+    const away = parseInt($(`res-${matchId}-away`).value);
+    if (isNaN(home) || isNaN(away)) {
+        showToast('Completa ambos resultados', 'error');
+        return;
+    }
+    const { error } = await sb.from('matches')
+        .update({ home_score: home, away_score: away, status: 'finished' })
+        .eq('id', matchId);
+    if (error) {
+        showToast('Error al guardar: ' + error.message, 'error');
+        console.error('updateResult error:', error);
+        return;
+    }
+    showToast('Resultado guardado', 'success');
+    await loadMatches();
+    renderMatches();
+    renderLeaderboard();
+    if (currentPlayer?.isAdmin) renderAdminPanel();
+}
+
+async function syncResults() {
+    const btn = document.activeElement;
+    const originalText = btn.innerHTML;
+    btn.innerHTML = '&#128260; Sincronizando...';
+    btn.disabled = true;
+    try {
+        const response = await fetch(`${SUPABASE_URL}/functions/v1/update-results`, {
+            method: 'POST',
+            headers: { 'Authorization': 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json' }
+        });
+        const data = await response.json();
+        if (data.updated > 0) {
+            showToast(`&#9989; ${data.updated} partidos actualizados`, 'success');
+            await loadMatches(); renderMatches(); renderLeaderboard();
+            if (currentPlayer?.isAdmin) renderAdminPanel();
+        } else if (data.error) {
+            showToast('&#10060; Error: ' + data.error, 'error');
+        } else {
+            showToast('&#8505; ' + data.message, 'info');
+        }
+    } catch (error) {
+        showToast('&#10060; Error de conexion: ' + error.message, 'error');
+    } finally {
+        btn.innerHTML = originalText;
+        btn.disabled = false;
+    }
+}
+
+async function addMatch() {
+    const home = $('new-home').value.trim();
+    const away = $('new-away').value.trim();
+    const date = $('new-date').value;
+    if (!home || !away || !date) {
+        showToast('Completa todos los campos', 'error');
+        return;
+    }
+    const { error } = await sb.from('matches').insert({
+        home_team: home,
+        away_team: away,
+        match_date: new Date(date).toISOString(),
+        status: 'scheduled',
+        round: 'Fase de Grupos'
+    });
+    if (error) {
+        showToast('Error: ' + error.message, 'error');
+        return;
+    }
+    $('new-home').value = '';
+    $('new-away').value = '';
+    $('new-date').value = '';
+    showToast('Partido agregado', 'success');
+    await loadMatches();
+    renderMatches();
+    if (currentPlayer?.isAdmin) renderAdminPanel();
+}
+</script>
 
 <!-- MODAL: CÓMO JUGAR -->
 <div id="modalReglas" class="fixed inset-0 bg-black/85 z-[9999] hidden overflow-y-auto">
