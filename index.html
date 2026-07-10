@@ -46,17 +46,16 @@
         .admin-tab-active { border-bottom: 3px solid #3b82f6; color: #3b82f6; }
         .admin-panel { animation: fadeIn 0.3s ease; }
 
+        /* Admin tabs */
+        .admin-tab-btn { cursor: pointer; padding: 10px 16px; font-weight: 600; color: #94a3b8; border-bottom: 3px solid transparent; transition: all 0.2s; background: none; border-top: none; border-left: none; border-right: none; }
+        .admin-tab-btn:hover { color: #e2e8f0; }
+        .admin-tab-active { border-bottom: 3px solid #3b82f6; color: #3b82f6; }
+        .admin-panel { animation: fadeIn 0.3s ease; }
 
-/* === RESPONSIVE: Casillas de apuestas === */
-@media (max-width: 640px) {
-    .input-score {
-        width: 2.25rem !important;  /* 36px */
-        height: 2.25rem !important;
-        font-size: 0.875rem !important; /* 14px */
-        padding: 0 !important;
-    }
-}
-</style>
+    
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+    </style>
 <base target="_blank">
 <base target="_blank">
 <base target="_blank">
@@ -158,6 +157,10 @@ let bets = [];
 let players = [];
 let payments = [];
 let paymentFees = [];
+let bonusPredictions = [];
+let bonusResults = [];
+let bonusPointsData = [];
+let playerHasBet = false;
 let matchFilter = 'today';
 
 const ADMIN_CODE = 'MUNDIAL2026';
@@ -299,6 +302,25 @@ function getFeeForDate(dateStr) {
     return { amount: 5.00, isFree: false, notes: 'Valor por defecto' };
 }
 
+function isRealTeam(teamName) {
+    if (!teamName || teamName.trim() === '') return false;
+    const placeholderPatterns = [
+        /^ganador\s+p?\d+/i,
+        /^w\d+/i,
+        /^ru\d+/i,
+        /^p\d+/i,
+        /^partido\s+\d+/i,
+        /^winner\s+/i,
+        /^loser\s+/i,
+        /^tbd$/i,
+        /^por\s+definir/i,
+        /^undefined$/,
+        /^null$/
+    ];
+    return !placeholderPatterns.some(pattern => pattern.test(teamName.trim()));
+}
+
+
 function hasVerifiedPayment(playerId, matchDateStr) {
     const date = new Date(matchDateStr);
     const boliviaDate = new Date(date.toLocaleString('en-US', { timeZone: 'America/La_Paz' }));
@@ -337,23 +359,7 @@ function getPaymentStatus(playerId, matchDateStr) {
 <header class="glass sticky top-0 z-40 border-b border-white/10">
     <div class="max-w-4xl mx-auto px-4 py-4 flex items-center justify-between">
         <div class="flex items-center gap-3">
-            <div class="w-10 h-10 flex items-center justify-center">
-                <svg viewBox="0 0 100 100" class="w-full h-full" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <circle cx="50" cy="50" r="48" fill="url(#grad1)" stroke="white" stroke-width="2"/>
-                    <defs>
-                        <linearGradient id="grad1" x1="0%" y1="0%" x2="100%" y2="100%">
-                            <stop offset="0%" style="stop-color:#1e3a5f;stop-opacity:1" />
-                            <stop offset="100%" style="stop-color:#0f172a;stop-opacity:1" />
-                        </linearGradient>
-                    </defs>
-                    <text x="50" y="55" text-anchor="middle" fill="white" font-size="28" font-weight="bold" font-family="Arial">26</text>
-                    <path d="M50 15 L55 25 L45 25 Z" fill="#f59e0b"/>
-                    <path d="M50 85 L55 75 L45 75 Z" fill="#f59e0b"/>
-                    <path d="M15 50 L25 55 L25 45 Z" fill="#ef4444"/>
-                    <path d="M85 50 L75 55 L75 45 Z" fill="#ef4444"/>
-                    <circle cx="50" cy="50" r="8" fill="#f59e0b"/>
-                </svg>
-            </div>
+            <div class="text-3xl">&#9917;</div>
             <div>
                 <h1 class="text-xl font-black gradient-text">QUINIELA MUNDIAL 2026</h1>
                 <p class="text-xs text-gray-400">Predice, compite, gana</p>
@@ -374,6 +380,7 @@ function getPaymentStatus(playerId, matchDateStr) {
         <button onclick="showSection('qr')" id="tab-qr" class="pb-3 text-sm font-semibold text-gray-400 hover:text-white whitespace-nowrap">Mi QR</button>
         <button onclick="window.open('ganador-fecha.html','_blank')" class="pb-3 text-sm font-semibold text-amber-400 hover:text-amber-300 whitespace-nowrap">&#127942; Ganador Fecha</button>
         <button onclick="window.open('evaluaciones.html','_blank')" class="pb-3 text-sm font-semibold text-yellow-400 hover:text-yellow-300 whitespace-nowrap">&#128202; Evaluaciones</button>
+        <button onclick="showSection('bonus')" id="tab-bonus" class="pb-3 text-sm font-semibold text-yellow-400 hover:text-yellow-300 whitespace-nowrap">&#127942; Bono Extra</button>
         <button onclick="showSection('admin')" id="tab-admin" class="hidden pb-3 text-sm font-semibold text-gray-400 hover:text-white whitespace-nowrap">&#9881; Admin</button>
     </div>
 </nav>
@@ -400,6 +407,7 @@ function getPaymentStatus(playerId, matchDateStr) {
             <p class="text-xs text-gray-500 mb-2">Sos el administrador?</p>
             <button onclick="showAdminLogin()" class="text-xs text-yellow-500 hover:text-yellow-400 underline">Acceso Admin</button>
         </div>
+    </div>
     </div>
 </section>
 
@@ -453,6 +461,7 @@ function getPaymentStatus(playerId, matchDateStr) {
             <p class="text-red-400 text-xs">&#9888; Solo los jugadores con <strong>pago verificado por el administrador</strong> acumulan puntos. Las fechas marcadas como "Libres" no requieren pago.</p>
         </div>
     </div>
+    </div>
 </section>
 
 <!-- QR -->
@@ -467,14 +476,149 @@ function getPaymentStatus(playerId, matchDateStr) {
             <p><strong>Puntos:</strong> <span id="qr-player-points" class="text-yellow-400 font-bold"></span></p>
         </div>
     </div>
+    </div>
+</section>
+
+<!-- BONO EXTRA -->
+<section id="section-bonus" class="hidden-section max-w-4xl mx-auto px-4 mt-6 pb-20">
+    <div class="glass rounded-2xl p-6 mb-6">
+        <div class="text-center mb-6">
+            <div class="inline-block bg-gradient-to-r from-yellow-500 to-amber-600 text-black font-bold px-4 py-1 rounded-full text-sm mb-3">&#10024; Sistema de Puntos Extra</div>
+            <h2 class="text-2xl font-bold gradient-text">&#127942; Bono Extra</h2>
+            <p class="text-gray-400 text-sm mt-2">Pron&oacute;sticos especiales del Mundial que suman <strong class="text-yellow-400">puntos directos</strong> a tu acumulado.</p>
+            <div class="mt-4 inline-flex items-center gap-3 bg-white/5 rounded-xl px-6 py-3 border border-yellow-500/20">
+                <span class="text-3xl font-black text-yellow-400">230</span>
+                <span class="text-sm text-gray-400 text-left">PUNTOS EXTRA<br>EN JUEGO</span>
+            </div>
+        </div>
+
+        <div class="mb-8" id="bonus-status-bar">
+            <!-- Cuenta Regresiva Grande -->
+            <div id="bonus-countdown-container" class="text-center mb-6">
+                <div class="text-xs text-gray-400 uppercase tracking-widest mb-3">&#9200; Tiempo restante para cerrar</div>
+                <div class="flex justify-center gap-3 md:gap-4">
+                    <div class="bg-gradient-to-b from-yellow-500/20 to-yellow-600/10 border border-yellow-500/30 rounded-2xl px-4 py-3 md:px-6 md:py-4 min-w-[70px] md:min-w-[90px]">
+                        <div id="countdown-days" class="text-3xl md:text-5xl font-black text-yellow-400 leading-none">--</div>
+                        <div class="text-[10px] md:text-xs text-yellow-500/70 uppercase mt-1 tracking-wider">Días</div>
+                    </div>
+                    <div class="text-2xl md:text-4xl font-black text-yellow-500/30 self-center">:</div>
+                    <div class="bg-gradient-to-b from-yellow-500/20 to-yellow-600/10 border border-yellow-500/30 rounded-2xl px-4 py-3 md:px-6 md:py-4 min-w-[70px] md:min-w-[90px]">
+                        <div id="countdown-hours" class="text-3xl md:text-5xl font-black text-yellow-400 leading-none">--</div>
+                        <div class="text-[10px] md:text-xs text-yellow-500/70 uppercase mt-1 tracking-wider">Horas</div>
+                    </div>
+                    <div class="text-2xl md:text-4xl font-black text-yellow-500/30 self-center">:</div>
+                    <div class="bg-gradient-to-b from-yellow-500/20 to-yellow-600/10 border border-yellow-500/30 rounded-2xl px-4 py-3 md:px-6 md:py-4 min-w-[70px] md:min-w-[90px]">
+                        <div id="countdown-minutes" class="text-3xl md:text-5xl font-black text-yellow-400 leading-none">--</div>
+                        <div class="text-[10px] md:text-xs text-yellow-500/70 uppercase mt-1 tracking-wider">Min</div>
+                    </div>
+                    <div class="text-2xl md:text-4xl font-black text-yellow-500/30 self-center">:</div>
+                    <div class="bg-gradient-to-b from-red-500/20 to-red-600/10 border border-red-500/30 rounded-2xl px-4 py-3 md:px-6 md:py-4 min-w-[70px] md:min-w-[90px]">
+                        <div id="countdown-seconds" class="text-3xl md:text-5xl font-black text-red-400 leading-none">--</div>
+                        <div class="text-[10px] md:text-xs text-red-500/70 uppercase mt-1 tracking-wider">Seg</div>
+                    </div>
+                </div>
+                <div id="countdown-label" class="mt-3 text-sm text-yellow-400/80 font-medium">Cierra: dom 5 jul, 16:00 (Hora Bolivia)</div>
+            </div>
+
+            <!-- Pills de estado -->
+            <div class="flex flex-wrap justify-center gap-2">
+                <div class="flex items-center gap-2 bg-white/5 rounded-full px-4 py-2 text-sm">
+                    <span id="bonus-status-dot" class="w-2 h-2 rounded-full bg-green-400 animate-pulse"></span>
+                    <span>Estado: <span id="bonus-status-text" class="text-green-400 font-bold">ABIERTO</span></span>
+                </div>
+                <div class="flex items-center gap-2 bg-white/5 rounded-full px-4 py-2 text-sm">
+                    <span>&#128221; Completados: <span id="bonus-completed" class="text-yellow-400 font-bold">0/8</span></span>
+                </div>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mb-6">
+            <div class="bg-white/5 rounded-xl p-4 text-center border border-white/10">
+                <div class="text-2xl mb-2">&#127912;</div>
+                <div class="text-yellow-400 font-bold text-sm uppercase mb-1">Requisito</div>
+                <div class="text-gray-400 text-xs">Haber apostado <strong class="text-white">al menos 1 vez</strong> en la quiniela regular.</div>
+            </div>
+            <div class="bg-white/5 rounded-xl p-4 text-center border border-white/10">
+                <div class="text-2xl mb-2">&#128197;</div>
+                <div class="text-yellow-400 font-bold text-sm uppercase mb-1">Cierre</div>
+                <div class="text-gray-400 text-xs">Hasta el inicio del <strong class="text-white">primer partido de Octavos</strong>.</div>
+            </div>
+            <div class="bg-white/5 rounded-xl p-4 text-center border border-white/10">
+                <div class="text-2xl mb-2">&#128200;</div>
+                <div class="text-yellow-400 font-bold text-sm uppercase mb-1">Suma Directa</div>
+                <div class="text-gray-400 text-xs">Los puntos se <strong class="text-white">suman autom&aacute;ticamente</strong> a tu acumulado.</div>
+            </div>
+        </div>
+
+        <div id="bonus-form-container">
+            <h3 class="text-lg font-bold text-yellow-400 mb-4 text-center">&#128221; Cargar tus 8 Pron&oacute;sticos</h3>
+            <div class="space-y-3" id="bonus-categories"></div>
+            <div class="flex flex-wrap justify-center gap-3 mt-6">
+                <button onclick="saveBonusPredictions()" id="btn-save-bonus" class="bg-gradient-to-r from-yellow-500 to-amber-600 text-black font-bold px-8 py-3 rounded-xl hover:from-yellow-400 hover:to-amber-500 transition shadow-lg shadow-yellow-500/20">
+                    &#128190; Guardar Pron&oacute;sticos
+                </button>
+                <button onclick="loadBonusForPlayer()" class="bg-white/10 border border-white/20 text-white font-bold px-6 py-3 rounded-xl hover:bg-white/20 transition">
+                    &#128260; Recargar
+                </button>
+            </div>
+        </div>
+
+        <div id="bonus-closed-msg" class="hidden text-center py-8">
+            <div class="text-6xl mb-4">&#128274;</div>
+            <h3 class="text-xl font-bold text-red-400">Plazo Cerrado</h3>
+            <p class="text-gray-400 mt-2">Los pron&oacute;sticos extra ya no se pueden modificar.</p>
+            <p class="text-gray-500 text-sm mt-1">Los resultados se conocer&aacute;n al finalizar el Mundial.</p>
+        </div>
+
+        <div id="bonus-not-eligible" class="hidden text-center py-8">
+            <div class="text-6xl mb-4">&#128683;</div>
+            <h3 class="text-xl font-bold text-red-400">No Elegible</h3>
+            <p class="text-gray-400 mt-2">Deb&eacute;s haber apostado al menos <strong class="text-white">1 fecha</strong> en la quiniela regular para participar.</p>
+        </div>
+    </div>
+
+    <div class="glass rounded-2xl p-6">
+        <h3 class="text-lg font-bold text-yellow-400 mb-4">&#128220; Reglas del Bono Extra</h3>
+        <ul class="space-y-3 text-sm text-gray-300">
+            <li class="flex items-start gap-3"><span class="text-yellow-400 font-bold mt-0.5">&#10148;</span><span><strong class="text-white">Acceso universal:</strong> Todos los jugadores que hayan apostado al menos 1 fecha en la quiniela regular pueden participar.</span></li>
+            <li class="flex items-start gap-3"><span class="text-yellow-400 font-bold mt-0.5">&#10148;</span><span><strong class="text-white">Plazo:</strong> Los pron&oacute;sticos se pueden cargar y modificar hasta el inicio del primer partido de los Octavos de Final.</span></li>
+            <li class="flex items-start gap-3"><span class="text-yellow-400 font-bold mt-0.5">&#10148;</span><span><strong class="text-white">Acumulaci&oacute;n directa:</strong> Cada punto ganado se suma directamente al puntaje acumulado de la tabla general.</span></li>
+            <li class="flex items-start gap-3"><span class="text-yellow-400 font-bold mt-0.5">&#10148;</span><span><strong class="text-white">Empates:</strong> Si hay empate en goleador o equipo con m&aacute;s goles, acierta quien haya pronosticado a cualquiera de los empatados.</span></li>
+            <li class="flex items-start gap-3"><span class="text-yellow-400 font-bold mt-0.5">&#10148;</span><span><strong class="text-white">Sin ganador:</strong> Si nadie acierta una categor&iacute;a, esos puntos no se otorgan y quedan anulados.</span></li>
+            <li class="flex items-start gap-3"><span class="text-yellow-400 font-bold mt-0.5">&#10148;</span><span><strong class="text-white">Resultados oficiales:</strong> Se consideran los ganadores oficiales proclamados por la FIFA en la ceremonia de clausura.</span></li>
+        </ul>
+    </div>
 </section>
 
 <!-- ADMIN -->
 <section id="section-admin" class="hidden-section max-w-4xl mx-auto px-4 mt-6 pb-20">
     <div class="glass rounded-2xl p-6 mb-6">
         <h2 class="text-xl font-bold mb-2">Panel de Administracion</h2>
-        <p class="text-sm text-gray-400 mb-6">Selecciona una sección para gestionar la quiniela. Cada módulo se abre en su propia página para una mejor experiencia.</p>
+        <p class="text-sm text-gray-400 mb-6">Gestioná la quiniela desde acá.</p>
 
+        <div class="flex gap-2 mb-4 border-b border-white/10">
+                <button onclick="switchAdminTab('alicuotas')" id="admin-tab-alicuotas" class="admin-tab-btn admin-tab-active">Alícuotas</button>
+                <button onclick="switchAdminTab('pagos')" id="admin-tab-pagos" class="admin-tab-btn text-gray-400">Pagos</button>
+                <button onclick="switchAdminTab('resultados')" id="admin-tab-resultados" class="admin-tab-btn text-gray-400">Resultados</button>
+                <button onclick="switchAdminTab('bonus')" id="admin-tab-bonus" class="admin-tab-btn text-yellow-400">&#127942; Bono Extra</button>
+            </div>
+            <div id="admin-panel-alicuotas" class="admin-panel block">
+                <div id="admin-fees-container"></div>
+            </div>
+            <div id="admin-panel-pagos" class="admin-panel hidden">
+                <div id="admin-payments-container"></div>
+            </div>
+            <div id="admin-panel-resultados" class="admin-panel hidden">
+                <div id="admin-matches-container"></div>
+            </div>
+            <div id="admin-panel-bonus" class="admin-panel hidden">
+                <div id="admin-bonus-container"></div>
+            </div>
+    </div>
+
+    <!-- Panel de tarjetas legacy (mantener compatibilidad) -->
+    <div class="glass rounded-2xl p-6 mb-6 hidden" id="admin-legacy-cards">
+        <p class="text-sm text-gray-400 mb-6">Selecciona una sección para gestionar la quiniela. Cada módulo se abre en su propia página para una mejor experiencia.</p>
         <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
             <!-- Tarjeta Alícuotas -->
             <a href="admin-alicuotas.html" class="group block bg-gradient-to-br from-blue-500/10 to-blue-600/5 border border-blue-500/20 rounded-xl p-6 hover:border-blue-500/40 hover:bg-blue-500/10 transition-all">
@@ -507,6 +651,7 @@ function getPaymentStatus(playerId, matchDateStr) {
             </a>
         </div>
     </div>
+    </div>
 </section>
 
 <!-- JAVASCRIPT PRINCIPAL -->
@@ -525,6 +670,7 @@ async function initApp() {
     $('player-badge').classList.remove('hidden'); $('player-badge').classList.add('flex');
     $('player-name-display').textContent = currentPlayer.name;
     await Promise.all([loadMatches(), loadPlayers(), loadBets(), loadPayments(), loadPaymentFees()]);
+    await loadBonusData();
     renderMatches(); renderLeaderboard(); renderQR();
     if (currentPlayer.isAdmin) { $('tab-admin').classList.remove('hidden'); renderAdminPanel(); }
     showSection('apuestas'); subscribeToChanges();
@@ -566,13 +712,13 @@ async function verifyAdmin() {
 }
 
 function showSection(section) {
-    ['apuestas','posiciones','qr','admin'].forEach(s => {
+    ['apuestas','posiciones','qr','bonus','admin'].forEach(s => {
         $(`section-${s}`).classList.add('hidden-section'); $(`section-${s}`).classList.remove('visible-section');
         $(`tab-${s}`)?.classList.remove('tab-active'); $(`tab-${s}`)?.classList.add('text-gray-400');
     });
     $(`section-${section}`).classList.remove('hidden-section'); $(`section-${section}`).classList.add('visible-section');
     $(`tab-${section}`)?.classList.add('tab-active'); $(`tab-${section}`)?.classList.remove('text-gray-400');
-    if (section === 'posiciones') renderLeaderboard(); if (section === 'qr') renderQR(); if (section === 'admin') renderAdminPanel();
+    if (section === 'posiciones') renderLeaderboard(); if (section === 'qr') renderQR(); if (section === 'bonus') { renderBonusSection(); checkBonusDeadline(); } if (section === 'admin') renderAdminPanel();
 }
 
 // ============================================
@@ -623,6 +769,8 @@ function subscribeToChanges() {
         .on('postgres_changes', { event: '*', schema: 'public', table: 'bets' }, async () => { await loadBets(); renderLeaderboard(); })
         .on('postgres_changes', { event: '*', schema: 'public', table: 'payments' }, async () => { await loadPayments(); renderLeaderboard(); if (currentPlayer?.isAdmin) renderAdminPanel(); })
         .on('postgres_changes', { event: '*', schema: 'public', table: 'payment_fees' }, async () => { await loadPaymentFees(); renderMatches(); renderLeaderboard(); if (currentPlayer?.isAdmin) renderAdminPanel(); })
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'bonus_predictions' }, async () => { await loadBonusData(); if (currentPlayer?.isAdmin) renderAdminPanel(); })
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'bonus_points_awarded' }, async () => { await loadBonusData(); renderLeaderboard(); })
         .subscribe();
 }
 
@@ -631,10 +779,13 @@ function setFilter(filter) { matchFilter = filter; $('filter-today').classList.t
 function renderMatches() {
     const container = $('matches-container');
     if (!matches.length) { container.innerHTML = '<div class="text-center text-gray-500 py-12">No hay partidos cargados aun</div>'; return; }
-    let filteredMatches = matches;
+
+    // Filtrar partidos con equipos reales (no placeholders)
+    let filteredMatches = matches.filter(m => isRealTeam(m.home_team) && isRealTeam(m.away_team));
+
     if (matchFilter === 'today') {
         const now = new Date();
-        filteredMatches = matches.filter(m => { const matchDate = new Date(m.match_date); const isOpen = isMatchOpenBolivia(m); const isTodayOrFuture = matchDate >= new Date(now.getFullYear(), now.getMonth(), now.getDate()); return isOpen || (isTodayOrFuture && m.status === 'scheduled'); });
+        filteredMatches = filteredMatches.filter(m => { const matchDate = new Date(m.match_date); const isOpen = isMatchOpenBolivia(m); const isTodayOrFuture = matchDate >= new Date(now.getFullYear(), now.getMonth(), now.getDate()); return isOpen || (isTodayOrFuture && m.status === 'scheduled'); });
         if (filteredMatches.length === 0) { container.innerHTML = '<div class="text-center text-gray-500 py-12">No hay partidos abiertos para apostar en este momento.</div>'; return; }
     }
     container.innerHTML = filteredMatches.map(match => {
@@ -650,7 +801,7 @@ function renderMatches() {
         let feeBadge = '';
         if (fee.isFree) { feeBadge = `<span class="absolute -top-2 -left-2 bg-green-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">LIBRE</span>`; }
         else if (fee.amount !== 5) { feeBadge = `<span class="absolute -top-2 -left-2 bg-orange-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">${fee.amount} Bs</span>`; }
-        return `<div class="match-card glass rounded-xl p-4 relative ${finished ? 'opacity-80' : ''}" id="match-card-${match.id}">${pointsBadge}${feeBadge}<div class="flex items-center justify-between mb-3"><span class="text-xs text-gray-400 font-mono">${match.round || 'Fase de Grupos'}</span><span class="text-xs ${open ? 'text-yellow-400 pulse' : 'text-gray-500'}">${open ? 'Faltan: ' + countdown : finished ? 'Finalizado' : 'Cerrado'}</span></div><div class="flex items-center justify-between gap-2"><div class="flex-1 text-center"><div class="mb-1 flex justify-center">${homeFlag}</div><div class="text-sm font-semibold">${match.home_team}</div></div><div class="flex items-center gap-2">${open ? `<div class="flex items-center justify-center gap-2 mx-auto max-w-[140px]"><input type="number" min="0" max="99" id="bet-${match.id}-home" data-match="${match.id}" data-side="home" value="${myBet ? myBet.home_prediction : ''}" class="input-score w-10 h-10 text-center text-lg font-bold bg-white/10 border border-white/20 rounded-lg focus:border-yellow-500 focus:outline-none" placeholder="-"><span class="text-gray-500 font-bold text-lg">:</span><input type="number" min="0" max="99" id="bet-${match.id}-away" data-match="${match.id}" data-side="away" value="${myBet ? myBet.away_prediction : ''}" class="input-score w-10 h-10 text-center text-lg font-bold bg-white/10 border border-white/20 rounded-lg focus:border-yellow-500 focus:outline-none" placeholder="-"></div>` : resultDisplay}</div><div class="flex-1 text-center"><div class="mb-1 flex justify-center">${awayFlag}</div><div class="text-sm font-semibold">${match.away_team}</div></div></div>${open ? `<div class="mt-3 text-xs text-center text-gray-500">${formatDateBolivia(match.match_date)} (Hora Bolivia)</div><div class="mt-2 text-center"><button onclick="saveSingleBet('${match.id}')" class="bg-gradient-to-r from-green-500 to-emerald-600 text-white font-bold px-6 py-2 rounded-lg hover:from-green-400 hover:to-emerald-500 transition text-sm shadow-lg">${myBet ? 'Actualizar Pronostico' : 'Guardar Pronostico'}</button></div>` : ''}${finished && myBet ? `<div class="mt-3 pt-3 border-t border-white/10 text-center text-sm"><span class="text-gray-400">Tu pronostico: </span><span class="font-bold ${pts > 0 ? 'text-green-400' : 'text-red-400'}">${myBet.home_prediction} - ${myBet.away_prediction}</span>${!hasVerifiedPayment(currentPlayer.id, match.match_date) ? `<span class="block text-xs text-red-400 mt-1">&#9888; Pago no verificado - puntos no contabilizados</span>` : ''}</div>` : ''}</div>`;
+        return `<div class="match-card glass rounded-xl p-4 relative ${finished ? 'opacity-80' : ''}" id="match-card-${match.id}">${pointsBadge}${feeBadge}<div class="flex items-center justify-between mb-3"><span class="text-xs text-gray-400 font-mono">${match.round || 'Fase de Grupos'}</span><span class="text-xs ${open ? 'text-yellow-400 pulse' : 'text-gray-500'}">${open ? 'Faltan: ' + countdown : finished ? 'Finalizado' : 'Cerrado'}</span></div><div class="flex items-center justify-between gap-2"><div class="flex-1 text-center"><div class="mb-1 flex justify-center">${homeFlag}</div><div class="text-sm font-semibold">${match.home_team}</div></div><div class="flex items-center gap-2">${open ? `<input type="number" min="0" max="20" id="bet-${match.id}-home" data-match="${match.id}" data-side="home" value="${myBet ? myBet.home_prediction : ''}" class="input-score w-14 h-12 text-center text-xl font-bold bg-white/10 border border-white/20 rounded-lg focus:border-yellow-500 focus:outline-none" placeholder="-"><span class="text-gray-500 font-bold">:</span><input type="number" min="0" max="20" id="bet-${match.id}-away" data-match="${match.id}" data-side="away" value="${myBet ? myBet.away_prediction : ''}" class="input-score w-14 h-12 text-center text-xl font-bold bg-white/10 border border-white/20 rounded-lg focus:border-yellow-500 focus:outline-none" placeholder="-">` : resultDisplay}</div><div class="flex-1 text-center"><div class="mb-1 flex justify-center">${awayFlag}</div><div class="text-sm font-semibold">${match.away_team}</div></div></div>${open ? `<div class="mt-3 text-xs text-center text-gray-500">${formatDateBolivia(match.match_date)} (Hora Bolivia)</div><div class="mt-2 text-center"><button onclick="saveSingleBet('${match.id}')" class="bg-gradient-to-r from-green-500 to-emerald-600 text-white font-bold px-6 py-2 rounded-lg hover:from-green-400 hover:to-emerald-500 transition text-sm shadow-lg">${myBet ? 'Actualizar Pronostico' : 'Guardar Pronostico'}</button></div>` : ''}${finished && myBet ? `<div class="mt-3 pt-3 border-t border-white/10 text-center text-sm"><span class="text-gray-400">Tu pronostico: </span><span class="font-bold ${pts > 0 ? 'text-green-400' : 'text-red-400'}">${myBet.home_prediction} - ${myBet.away_prediction}</span>${!hasVerifiedPayment(currentPlayer.id, match.match_date) ? `<span class="block text-xs text-red-400 mt-1">&#9888; Pago no verificado - puntos no contabilizados</span>` : ''}</div>` : ''}</div>`;
     }).join('');
 }
 
@@ -702,7 +853,13 @@ function renderLeaderboard() {
             } 
         });
 
-        return { ...player, totalPoints, exactos, totalBets, validBets };
+        // Sumar puntos bonus del bono extra
+        const playerBonusPoints = bonusPointsData
+            .filter(bp => bp.player_id === player.id)
+            .reduce((sum, bp) => sum + (bp.points || 0), 0);
+        totalPoints += playerBonusPoints;
+
+        return { ...player, totalPoints, exactos, totalBets, validBets, bonusPoints: playerBonusPoints };
     }).sort((a, b) => b.totalPoints - a.totalPoints);
     const tbody = $('leaderboard-body');
     if (!stats.length) { tbody.innerHTML = '<tr><td colspan="6" class="text-center py-8 text-gray-500">Aun no hay jugadores</td></tr>'; return; }
@@ -717,6 +874,456 @@ function renderQR() {
     playerBets.forEach(bet => { const match = matches.find(m => m.id === bet.match_id); if (match && isMatchFinished(match) && hasVerifiedPayment(currentPlayer.id, match.match_date)) pts += calculatePoints(bet, match); });
     $('qr-player-points').textContent = pts;
     $('qrcode').innerHTML = ''; new QRCode($('qrcode'), { text: url, width: 200, height: 200, colorDark: '#0f172a', colorLight: '#ffffff', correctLevel: QRCode.CorrectLevel.M });
+}
+
+
+
+// ============================================
+// BONO EXTRA - FUNCIONES COMPLETAS
+// ============================================
+
+const BONUS_CATEGORIES = [
+    { key: 'campeon', name: 'Campe&oacute;n del Mundial', sub: 'Selecci&oacute;n ganadora del torneo', icon: '&#127942;', points: 50 },
+    { key: 'subcampeon', name: 'Subcampe&oacute;n', sub: 'Selecci&oacute;n finalista perdedora', icon: '&#129352;', points: 40 },
+    { key: 'tercer_lugar', name: 'Tercer Lugar', sub: 'Ganador del partido por el 3&deg; puesto', icon: '&#129353;', points: 30 },
+    { key: 'goleador', name: 'Goleador del Mundial', sub: 'Bota de Oro - M&aacute;ximo goleador', icon: '&#9917;', points: 30 },
+    { key: 'balon_oro', name: 'Mejor Jugador del Torneo', sub: 'Bal&oacute;n de Oro', icon: '&#11088;', points: 25 },
+    { key: 'mas_goles', name: 'Equipo con M&aacute;s Goles', sub: 'Mayor cantidad de goles anotados', icon: '&#128293;', points: 20 },
+    { key: 'mejor_arquero', name: 'Mejor Arquero', sub: 'Guante de Oro - Mejor portero', icon: '&#129508;', points: 20 },
+    { key: 'juego_limpio', name: 'Premio al Juego Limpio', sub: 'Equipo con mejor Fair Play', icon: '&#128330;', points: 15 }
+];
+
+// Deadline: 5 de julio 2026, 16:00 HORA BOLIVIA
+// getNowBolivia() devuelve: hora Bolivia + 4h = equivalente UTC
+// Ej: 13:50 Bolivia -> 17:50 UTC
+// Entonces deadline debe ser 20:00 UTC para que 17:50 < 20:00 (ABIERTO)
+const BONUS_DEADLINE = new Date(Date.UTC(2026, 6, 5, 20, 0, 0)); // Ajustar fecha real del primer 8vo
+
+async function loadBonusData() {
+    try {
+        const { data: preds } = await sb.from('bonus_predictions').select('*');
+        bonusPredictions = preds || [];
+        const { data: results } = await sb.from('bonus_results').select('*');
+        bonusResults = results || [];
+        const { data: points } = await sb.from('bonus_points_awarded').select('*');
+        bonusPointsData = points || [];
+    } catch (e) {
+        console.error('Error cargando bonus:', e);
+    }
+}
+
+function checkBonusDeadline() {
+    // Usar getNowBolivia() que ya existe en el código - devuelve hora Bolivia como UTC timestamp
+    const nowBolivia = getNowBolivia();
+    const isOpen = nowBolivia < BONUS_DEADLINE;
+    const diff = BONUS_DEADLINE - nowBolivia;
+
+    const dot = document.getElementById('bonus-status-dot');
+    const text = document.getElementById('bonus-status-text');
+    const formContainer = document.getElementById('bonus-form-container');
+    const closedMsg = document.getElementById('bonus-closed-msg');
+    const countdownContainer = document.getElementById('bonus-countdown-container');
+
+    if (!dot || !text) return;
+
+    if (isOpen) {
+        dot.className = 'w-2 h-2 rounded-full bg-green-400 animate-pulse';
+        text.textContent = 'ABIERTO';
+        text.className = 'text-green-400 font-bold';
+
+        if (formContainer) formContainer.classList.remove('hidden');
+        if (closedMsg) closedMsg.classList.add('hidden');
+        if (countdownContainer) countdownContainer.classList.remove('hidden');
+
+        // Actualizar cuenta regresiva visual
+        updateCountdownDisplay(diff);
+
+        // Actualizar cada segundo
+        if (window.bonusCountdownInterval) clearInterval(window.bonusCountdownInterval);
+        window.bonusCountdownInterval = setInterval(() => {
+            const nowBolivia2 = getNowBolivia();
+            const newDiff = BONUS_DEADLINE - nowBolivia2;
+            if (newDiff <= 0) {
+                clearInterval(window.bonusCountdownInterval);
+                checkBonusDeadline(); // Recheck para cerrar
+                return;
+            }
+            updateCountdownDisplay(newDiff);
+        }, 1000);
+
+    } else {
+        dot.className = 'w-2 h-2 rounded-full bg-red-500';
+        text.textContent = 'CERRADO';
+        text.className = 'text-red-400 font-bold';
+
+        if (formContainer) formContainer.classList.add('hidden');
+        if (closedMsg) closedMsg.classList.remove('hidden');
+        if (countdownContainer) countdownContainer.classList.add('hidden');
+
+        if (window.bonusCountdownInterval) clearInterval(window.bonusCountdownInterval);
+    }
+}
+
+function updateCountdownDisplay(diff) {
+    const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+    const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+    const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+    const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+
+    const elDays = document.getElementById('countdown-days');
+    const elHours = document.getElementById('countdown-hours');
+    const elMinutes = document.getElementById('countdown-minutes');
+    const elSeconds = document.getElementById('countdown-seconds');
+
+    if (elDays) elDays.textContent = String(days).padStart(2, '0');
+    if (elHours) elHours.textContent = String(hours).padStart(2, '0');
+    if (elMinutes) elMinutes.textContent = String(minutes).padStart(2, '0');
+    if (elSeconds) elSeconds.textContent = String(seconds).padStart(2, '0');
+
+    // Efecto de urgencia cuando queda poco tiempo
+    if (days === 0 && hours < 6) {
+        [elHours, elMinutes, elSeconds].forEach(el => {
+            if (el) el.classList.add('animate-pulse');
+        });
+    }
+}
+
+function renderBonusSection() {
+    const container = document.getElementById('bonus-categories');
+    if (!container) return;
+
+    // Verificar si el jugador es elegible (apostó al menos 1 vez)
+    const myBets = bets.filter(b => b.player_id === currentPlayer?.id);
+    const eligible = myBets.length > 0 || currentPlayer?.isAdmin;
+
+    const notEligibleMsg = document.getElementById('bonus-not-eligible');
+    const formContainer = document.getElementById('bonus-form-container');
+
+    if (!eligible && !currentPlayer?.isAdmin) {
+        if (notEligibleMsg) notEligibleMsg.classList.remove('hidden');
+        if (formContainer) formContainer.classList.add('hidden');
+        return;
+    } else {
+        if (notEligibleMsg) notEligibleMsg.classList.add('hidden');
+    }
+
+    // Cargar pronósticos existentes del jugador
+    const myPred = bonusPredictions.find(p => p.player_id === currentPlayer?.id);
+
+    container.innerHTML = BONUS_CATEGORIES.map((cat, i) => {
+        const savedVal = myPred ? myPred[cat.key] : '';
+        const hasValue = savedVal && savedVal.trim() !== '';
+        return `
+        <div class="flex items-center gap-3 bg-white/5 rounded-xl p-4 border ${hasValue ? 'border-green-500/30 bg-green-500/5' : 'border-white/10'} transition-all hover:border-yellow-500/30" id="bonus-row-${cat.key}">
+            <div class="text-2xl flex-shrink-0">${cat.icon}</div>
+            <div class="flex-1 min-w-0">
+                <div class="font-semibold text-sm text-white">${cat.name}</div>
+                <div class="text-xs text-gray-500">${cat.sub}</div>
+            </div>
+            <div class="flex-shrink-0 text-center mr-2">
+                <div class="text-lg font-black text-yellow-400">+${cat.points}</div>
+                <div class="text-[10px] text-gray-500 uppercase">pts</div>
+            </div>
+            <div class="flex-1 min-w-[140px]">
+                <input type="text" 
+                    id="bonus-input-${cat.key}" 
+                    data-key="${cat.key}"
+                    value="${savedVal || ''}" 
+                    placeholder="Ej: ${getPlaceholder(cat.key)}"
+                    class="w-full bg-white/10 border ${hasValue ? 'border-green-500/50 text-green-400' : 'border-white/20 text-white'} rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-yellow-500 transition-colors"
+                    ${new Date() >= BONUS_DEADLINE ? 'disabled' : ''}
+                    oninput="updateBonusRowStyle('${cat.key}')"
+                >
+            </div>
+            ${hasValue ? '<div class="text-green-400 text-lg flex-shrink-0">&#9989;</div>' : ''}
+        </div>`;
+    }).join('');
+
+    updateBonusCompleted();
+}
+
+function getPlaceholder(key) {
+    const placeholders = {
+        campeon: 'Argentina', subcampeon: 'Francia', tercer_lugar: 'Brasil',
+        goleador: 'Mbapp&eacute;', balon_oro: 'Messi', mas_goles: 'Inglaterra',
+        mejor_arquero: 'Dibu', juego_limpio: 'Jap&oacute;n'
+    };
+    return placeholders[key] || '';
+}
+
+function updateBonusRowStyle(key) {
+    const input = document.getElementById(`bonus-input-${key}`);
+    const row = document.getElementById(`bonus-row-${key}`);
+    if (!input || !row) return;
+
+    if (input.value.trim()) {
+        input.classList.remove('border-white/20', 'text-white');
+        input.classList.add('border-green-500/50', 'text-green-400');
+        row.classList.remove('border-white/10');
+        row.classList.add('border-green-500/30', 'bg-green-500/5');
+    } else {
+        input.classList.add('border-white/20', 'text-white');
+        input.classList.remove('border-green-500/50', 'text-green-400');
+        row.classList.add('border-white/10');
+        row.classList.remove('border-green-500/30', 'bg-green-500/5');
+    }
+    updateBonusCompleted();
+}
+
+function updateBonusCompleted() {
+    const inputs = document.querySelectorAll('[id^="bonus-input-"]');
+    let count = 0;
+    inputs.forEach(inp => { if (inp.value.trim()) count++; });
+    const el = document.getElementById('bonus-completed');
+    if (el) {
+        el.textContent = `${count}/8`;
+        el.className = count === 8 ? 'text-green-400 font-bold' : count >= 4 ? 'text-yellow-400 font-bold' : 'text-yellow-400 font-bold';
+    }
+}
+
+async function saveBonusPredictions() {
+    if (!currentPlayer || currentPlayer.id === 'admin') {
+        showToast('Debes estar logueado como jugador', 'error');
+        return;
+    }
+
+    if (new Date() >= BONUS_DEADLINE) {
+        showToast('El plazo de pron&oacute;sticos extra ha cerrado', 'error');
+        return;
+    }
+
+    // Verificar elegibilidad
+    const myBets = bets.filter(b => b.player_id === currentPlayer.id);
+    if (myBets.length === 0) {
+        showToast('Debes haber apostado al menos 1 vez en la quiniela', 'error');
+        return;
+    }
+
+    const data = { player_id: currentPlayer.id };
+    let filledCount = 0;
+
+    BONUS_CATEGORIES.forEach(cat => {
+        const input = document.getElementById(`bonus-input-${cat.key}`);
+        const val = input ? input.value.trim() : '';
+        data[cat.key] = val || null;
+        if (val) filledCount++;
+    });
+
+    if (filledCount === 0) {
+        showToast('Complet&aacute; al menos un pron&oacute;stico', 'warn');
+        return;
+    }
+
+    const { error } = await sb.from('bonus_predictions')
+        .upsert(data, { onConflict: 'player_id' });
+
+    if (error) {
+        showToast('Error al guardar: ' + error.message, 'error');
+        console.error('saveBonusPredictions error:', error);
+        return;
+    }
+
+    await loadBonusData();
+    renderBonusSection();
+    showToast(`${filledCount}/8 pron&oacute;sticos extra guardados &#9989;`, 'success');
+}
+
+async function loadBonusForPlayer() {
+    if (!currentPlayer || currentPlayer.id === 'admin') return;
+    await loadBonusData();
+    renderBonusSection();
+    showToast('Pron&oacute;sticos recargados', 'success');
+}
+
+// ============================================
+// ADMIN - PANEL DE BONO EXTRA
+// ============================================
+
+function renderAdminBonus() {
+    const container = document.getElementById('admin-bonus-container');
+    if (!container) return;
+
+    // Contar pronósticos por categoría
+    const counts = {};
+    BONUS_CATEGORIES.forEach(c => counts[c.key] = { total: 0, values: {} });
+
+    bonusPredictions.forEach(pred => {
+        BONUS_CATEGORIES.forEach(cat => {
+            const val = pred[cat.key];
+            if (val && val.trim()) {
+                counts[cat.key].total++;
+                counts[cat.key].values[val] = (counts[cat.key].values[val] || 0) + 1;
+            }
+        });
+    });
+
+    container.innerHTML = `
+        <div class="space-y-4">
+            <div class="flex justify-between items-center">
+                <h3 class="text-lg font-bold text-yellow-400">&#127942; Pron&oacute;sticos Extra</h3>
+                <span class="text-sm text-gray-400">${bonusPredictions.length} jugadores participando</span>
+            </div>
+
+            ${BONUS_CATEGORIES.map((cat, i) => {
+                const catData = counts[cat.key];
+                const topPicks = Object.entries(catData.values)
+                    .sort((a, b) => b[1] - a[1])
+                    .slice(0, 5);
+
+                return `
+                <div class="bg-white/5 rounded-xl p-4 border border-white/10">
+                    <div class="flex items-center justify-between mb-3">
+                        <div class="flex items-center gap-2">
+                            <span class="text-xl">${cat.icon}</span>
+                            <div>
+                                <div class="font-semibold text-sm">${cat.name}</div>
+                                <div class="text-xs text-gray-500">+${cat.points} pts</div>
+                            </div>
+                        </div>
+                        <div class="text-right">
+                            <div class="text-lg font-bold text-yellow-400">${catData.total}</div>
+                            <div class="text-[10px] text-gray-500">pron&oacute;sticos</div>
+                        </div>
+                    </div>
+                    ${topPicks.length > 0 ? `
+                    <div class="space-y-1">
+                        <div class="text-xs text-gray-500 mb-1">Top pron&oacute;sticos:</div>
+                        ${topPicks.map(([val, count]) => `
+                            <div class="flex items-center justify-between text-sm">
+                                <span class="text-gray-300">${val}</span>
+                                <div class="flex items-center gap-2">
+                                    <div class="w-24 h-2 bg-white/10 rounded-full overflow-hidden">
+                                        <div class="h-full bg-yellow-500 rounded-full" style="width: ${(count / catData.total * 100).toFixed(0)}%"></div>
+                                    </div>
+                                    <span class="text-xs text-gray-400 w-8 text-right">${count}</span>
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
+                    ` : '<div class="text-xs text-gray-500 italic">Sin pron&oacute;sticos a&uacute;n</div>'}
+                </div>
+                `;
+            }).join('')}
+
+            <!-- Cargar resultados oficiales -->
+            <div class="bg-gradient-to-r from-yellow-500/10 to-amber-500/10 rounded-xl p-4 border border-yellow-500/20 mt-6">
+                <h4 class="font-bold text-yellow-400 mb-3">&#9881; Cargar Resultados Oficiales</h4>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    ${BONUS_CATEGORIES.map(cat => `
+                        <div class="flex items-center gap-2">
+                            <span class="text-sm w-24 text-gray-400">${cat.name}:</span>
+                            <input type="text" id="admin-bonus-result-${cat.key}" 
+                                value="${bonusResults.find(r => r.category === cat.key)?.winner || ''}"
+                                class="flex-1 bg-white/10 border border-white/20 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-yellow-500"
+                                placeholder="Ganador oficial">
+                        </div>
+                    `).join('')}
+                </div>
+                <button onclick="saveBonusResults()" class="mt-4 w-full bg-gradient-to-r from-yellow-500 to-amber-600 text-black font-bold py-2 rounded-lg hover:from-yellow-400 hover:to-amber-500 transition">
+                    &#128190; Guardar Resultados y Calcular Puntos
+                </button>
+            </div>
+        </div>
+    `;
+}
+
+async function saveBonusResults() {
+    const results = [];
+    BONUS_CATEGORIES.forEach(cat => {
+        const input = document.getElementById(`admin-bonus-result-${cat.key}`);
+        if (input && input.value.trim()) {
+            results.push({ category: cat.key, winner: input.value.trim() });
+        }
+    });
+
+    if (results.length === 0) {
+        showToast('Complet&aacute; al menos un resultado', 'warn');
+        return;
+    }
+
+    // Guardar resultados
+    for (const r of results) {
+        const { error } = await sb.from('bonus_results')
+            .upsert(r, { onConflict: 'category' });
+        if (error) {
+            showToast('Error guardando ' + r.category + ': ' + error.message, 'error');
+            return;
+        }
+    }
+
+    // Llamar función RPC para calcular puntos
+    try {
+        const { error: calcError } = await sb.rpc('calculate_bonus_points');
+        if (calcError) throw calcError;
+    } catch (e) {
+        // Fallback: calcular manualmente si la función RPC no existe
+        console.log('RPC no disponible, calculando manualmente...');
+        await calculateBonusPointsManual();
+    }
+
+    await loadBonusData();
+    renderAdminBonus();
+    renderLeaderboard();
+    showToast('Resultados guardados y puntos calculados &#9989;', 'success');
+}
+
+async function calculateBonusPointsManual() {
+    try {
+        // Borrar asignaciones previas
+        await sb.from('bonus_points_awarded').delete().neq('id', 0);
+
+        const pointsMap = { campeon: 50, subcampeon: 40, tercer_lugar: 30, goleador: 30, balon_oro: 25, mas_goles: 20, mejor_arquero: 20, juego_limpio: 15 };
+
+        for (const pred of bonusPredictions) {
+            let totalExtra = 0;
+
+            for (const cat of BONUS_CATEGORIES) {
+                const result = bonusResults.find(r => r.category === cat.key);
+                if (!result || !result.winner) continue;
+
+                const prediction = pred[cat.key];
+                if (prediction && prediction.trim().toLowerCase() === result.winner.trim().toLowerCase()) {
+                    totalExtra += pointsMap[cat.key];
+                    await sb.from('bonus_points_awarded').insert({
+                        player_id: pred.player_id,
+                        category: cat.key,
+                        prediction: prediction,
+                        actual_winner: result.winner,
+                        points: pointsMap[cat.key]
+                    });
+                }
+            }
+
+            // Actualizar total_points del jugador - obtener valor actual primero
+            if (totalExtra > 0) {
+                const player = players.find(p => p.id === pred.player_id);
+                const currentPoints = player ? (player.total_points || 0) : 0;
+                const newTotal = currentPoints + totalExtra;
+
+                await sb.from('players')
+                    .update({ total_points: newTotal })
+                    .eq('id', pred.player_id);
+            }
+        }
+    } catch (error) {
+        console.error('Error en calculateBonusPointsManual:', error);
+        showToast('Error calculando puntos bonus: ' + error.message, 'error');
+        throw error;
+    }
+}
+
+// Agregar tab de bonus en admin
+function renderAdminPanel() {
+    const activeTab = document.querySelector('.admin-tab-active');
+    if (activeTab) {
+        const tabId = activeTab.id.replace('admin-tab-', '');
+        if (tabId === 'alicuotas') renderAdminFees();
+        else if (tabId === 'pagos') renderAdminPayments();
+        else if (tabId === 'resultados') renderAdminMatches();
+        else if (tabId === 'bonus') renderAdminBonus();
+    } else {
+        renderAdminFees();
+    }
 }
 
 // ============================================
