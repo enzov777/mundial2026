@@ -24,6 +24,7 @@
         ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); border-radius: 4px; }
         ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.3); }
     </style>
+<base target="_blank">
 </head>
 <body class="text-white min-h-screen">
 
@@ -287,15 +288,29 @@ async function verifyPlayerPayment(playerId, date) {
             if (error) throw error;
             showToast(`&#9989; Pago de ${player.name} verificado`, 'success');
 
+        } else if (existing) {
+            // Existe registro pero con otro status → actualizar a paid+verified
+            const { error } = await sb.from('payments')
+                .update({
+                    status: 'paid',
+                    amount: 5.00,
+                    verified_by: 'admin',
+                    verified_at: new Date().toISOString()
+                })
+                .eq('id', existing.id);
+            if (error) throw error;
+            showToast(`&#9989; Pago de ${player.name} actualizado y verificado`, 'success');
+
         } else {
-            const { error } = await sb.from('payments').upsert({
+            // No existe registro → insertar nuevo
+            const { error } = await sb.from('payments').insert({
                 player_id: playerId,
                 match_date: date,
                 status: 'paid',
                 amount: 5.00,
                 verified_by: 'admin',
                 verified_at: new Date().toISOString()
-            }, { onConflict: 'player_id,match_date' });
+            });
             if (error) throw error;
             showToast(`&#9989; Pago de ${player.name} registrado y verificado`, 'success');
         }
