@@ -3,328 +3,638 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Admin - Validar Pagos | Quiniela Mundial 2026</title>
+    <title>⚙️ Admin Resultados - Quiniela Mundial 2026</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.39.0/dist/umd/supabase.min.js"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     <style>
-        body { font-family: 'Inter', sans-serif; background: #0f172a; }
-        .glass { background: rgba(255,255,255,0.05); backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,0.1); }
-        .gradient-text { background: linear-gradient(135deg, #fbbf24, #f59e0b); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
-        .verified-badge { background: rgba(34, 197, 94, 0.2); color: #4ade80; border: 1px solid rgba(34, 197, 94, 0.3); }
-        .pending-badge { background: rgba(251, 191, 36, 0.2); color: #fbbf24; border: 1px solid rgba(251, 191, 36, 0.3); }
-        .no-payment-badge { background: rgba(71, 85, 105, 0.2); color: #94a3b8; border: 1px solid rgba(71, 85, 105, 0.3); }
-        .nav-btn { padding: 10px 20px; border-radius: 8px; font-size: 0.9rem; font-weight: 600; transition: all 0.2s; border: 1px solid rgba(255,255,255,0.1); background: rgba(255,255,255,0.05); color: #94a3b8; text-decoration: none; display: inline-flex; align-items: center; gap: 6px; }
-        .nav-btn:hover { background: rgba(255,255,255,0.1); color: #e2e8f0; }
-        .nav-btn.active { background: rgba(251, 191, 36, 0.15); color: #fbbf24; border-color: rgba(251, 191, 36, 0.4); }
-        .player-card { transition: all 0.2s; }
-        .player-card:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.3); }
-        ::-webkit-scrollbar { width: 8px; }
-        ::-webkit-scrollbar-track { background: rgba(255,255,255,0.05); }
-        ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); border-radius: 4px; }
-        ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.3); }
+        :root { --bg-primary: #0f172a; --bg-secondary: #1e293b; --accent: #f59e0b; --accent-glow: rgba(245,158,11,0.3); --success: #22c55e; --danger: #ef4444; --info: #3b82f6; }
+        body { font-family: 'Inter', sans-serif; background: var(--bg-primary); color: #f1f5f9; min-height: 100vh; }
+        .font-mono { font-family: 'JetBrains Mono', monospace; }
+        .glass { background: rgba(30,41,59,0.7); backdrop-filter: blur(20px); border: 1px solid rgba(255,255,255,0.06); border-radius: 16px; }
+        .admin-input { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; padding: 6px 12px; color: #f1f5f9; font-size: 0.85rem; }
+        .admin-input:focus { outline: none; border-color: var(--accent); background: rgba(245,158,11,0.05); }
+        .btn-admin { padding: 6px 14px; border-radius: 8px; font-size: 0.8rem; font-weight: 600; transition: all 0.2s; border: none; cursor: pointer; }
+        .btn-edit { background: rgba(59,130,246,0.2); color: #60a5fa; }
+        .btn-edit:hover { background: rgba(59,130,246,0.3); }
+        .btn-save { background: rgba(34,197,94,0.2); color: #4ade80; }
+        .btn-save:hover { background: rgba(34,197,94,0.3); }
+        .badge { display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px; border-radius: 20px; font-size: 0.7rem; font-weight: 600; }
+        .badge-success { background: rgba(34,197,94,0.15); color: #4ade80; border: 1px solid rgba(34,197,94,0.25); }
+        .badge-warning { background: rgba(245,158,11,0.15); color: #fbbf24; border: 1px solid rgba(245,158,11,0.25); }
+        .badge-danger { background: rgba(239,68,68,0.15); color: #f87171; border: 1px solid rgba(239,68,68,0.25); }
+        .badge-info { background: rgba(6,182,212,0.15); color: #67e8f9; border: 1px solid rgba(6,182,212,0.25); }
+        .badge-ghost { background: rgba(168,85,247,0.15); color: #c084fc; border: 1px solid rgba(168,85,247,0.25); }
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 3px; }
+        @keyframes slideIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        .animate-slide-in { animation: slideIn 0.3s ease forwards; }
+    
+        /* === ESTILOS PARA SELECTS Y OPTIONS (contraste mejorado) === */
+        select.admin-input {
+            background-color: #1e293b !important;
+            color: #f1f5f9 !important;
+            -webkit-appearance: none;
+            -moz-appearance: none;
+            appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 10px center;
+            padding-right: 30px;
+        }
+        select.admin-input option {
+            background-color: #1e293b;
+            color: #f1f5f9;
+            padding: 8px 12px;
+            font-size: 0.9rem;
+        }
+        select.admin-input option:hover,
+        select.admin-input option:focus,
+        select.admin-input option:checked {
+            background-color: #f59e0b !important;
+            color: #0f172a !important;
+        }
+        select.admin-input:focus {
+            border-color: #f59e0b;
+            box-shadow: 0 0 0 2px rgba(245,158,11,0.2);
+        }
+        /* Para Firefox */
+        select.admin-input:-moz-focusring {
+            color: transparent;
+            text-shadow: 0 0 0 #f1f5f9;
+        }
+        /* Para el select de timezone también */
+        #timezone-select {
+            background-color: #1e293b !important;
+            color: #f1f5f9 !important;
+            -webkit-appearance: none;
+            -moz-appearance: none;
+            appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 10px center;
+            padding-right: 30px;
+        }
+        #timezone-select option {
+            background-color: #1e293b;
+            color: #f1f5f9;
+            padding: 8px 12px;
+        }
+        #timezone-select option:hover,
+        #timezone-select option:focus,
+        #timezone-select option:checked {
+            background-color: #f59e0b !important;
+            color: #0f172a !important;
+        }
     </style>
 <base target="_blank">
+<base target="_blank">
 </head>
-<body class="text-white min-h-screen">
+<body class="p-4 md:p-8">
+    <div class="max-w-6xl mx-auto">
+        <!-- Header -->
+        <div class="flex items-center justify-between mb-6">
+            <div>
+                <h1 class="text-2xl font-bold text-white">⚙️ Resultados</h1>
+                <p class="text-sm text-gray-400">Registra y edita resultados oficiales</p>
+            </div>
+            <a href="index.html" class="text-sm text-gray-400 hover:text-white transition">
+                <i class="fas fa-arrow-left mr-1"></i> Volver al inicio
+            </a>
+        </div>
 
-<!-- HEADER -->
-<header class="glass sticky top-0 z-40 border-b border-white/10">
-    <div class="max-w-5xl mx-auto px-4 py-4">
-        <div class="flex items-center justify-between mb-4">
-            <div class="flex items-center gap-3">
-                <div class="text-3xl">&#9917;</div>
-                <div>
-                    <h1 class="text-xl font-black gradient-text">PANEL ADMIN</h1>
-                    <p class="text-xs text-gray-400">Quiniela Mundial 2026</p>
+        <!-- CONFIGURADOR DE ZONA HORARIA -->
+        <div class="glass p-4 mb-6 border-l-4 border-blue-500">
+            <div class="flex flex-col md:flex-row items-start md:items-center gap-4">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-xl bg-blue-500/20 flex items-center justify-center text-blue-400">
+                        <i class="fas fa-globe"></i>
+                    </div>
+                    <div>
+                        <h3 class="font-bold text-sm">Zona Horaria de Referencia</h3>
+                        <p class="text-xs text-gray-400">Los horarios se guardan en UTC y se muestran en la zona seleccionada</p>
+                    </div>
+                </div>
+                <div class="flex-1 flex items-center gap-3 flex-wrap">
+                    <select id="timezone-select" onchange="changeTimezone()" class="admin-input">
+                        <option value="-4" selected>🇧🇴 Bolivia (GMT-4)</option>
+                        <option value="-5">🇺🇸 EST New York (GMT-5)</option>
+                        <option value="-6">🇺🇸 CST Chicago (GMT-6)</option>
+                        <option value="-7">🇺🇸 MST Denver (GMT-7)</option>
+                        <option value="-8">🇺🇸 PST Los Angeles (GMT-8)</option>
+                        <option value="0">🌍 UTC (GMT+0)</option>
+                        <option value="+1">🇪🇪 CET Europa (GMT+1)</option>
+                        <option value="+2">🇷🇴 EET (GMT+2)</option>
+                    </select>
+                    <div class="text-xs text-gray-500 bg-white/5 px-3 py-1.5 rounded-lg">
+                        <i class="fas fa-clock mr-1"></i>
+                        Hora actual: <span id="current-time-display" class="font-mono text-blue-400">--:--</span>
+                    </div>
                 </div>
             </div>
-            <a href="index.html" class="text-sm text-gray-400 hover:text-white flex items-center gap-1">&#8592; Volver al Inicio</a>
         </div>
-        <nav class="flex gap-3 overflow-x-auto pb-2">
-            <a href="admin-alicuotas.html" class="nav-btn">&#128176; Alícuotas</a>
-            <a href="admin-pagos.html" class="nav-btn active">&#9989; Validar Pagos</a>
-            <a href="admin-resultados.html" class="nav-btn">&#9881; Resultados</a>
-        </nav>
-    </div>
-</header>
 
-<main class="max-w-5xl mx-auto px-4 mt-6 pb-20">
-    <div class="glass rounded-2xl p-6">
-        <h2 class="text-xl font-bold mb-2">Validación de Pagos</h2>
-        <p class="text-sm text-gray-400 mb-6">Gestiona y verifica los pagos de los jugadores por fecha. Solo los pagos verificados permiten acumular puntos.</p>
-
-        <!-- RESUMEN Y FILTRO DE FECHA -->
-        <div class="bg-gradient-to-r from-yellow-500/10 to-amber-500/10 rounded-xl p-4 mb-6 border border-yellow-500/20">
-            <div class="flex flex-col md:flex-row gap-3 items-end">
-                <div class="flex-1 min-w-0">
-                    <label class="text-xs text-yellow-400 font-semibold block mb-1">&#128197; Fecha a gestionar</label>
-                    <input type="date" id="payment-date" 
-                        class="w-full bg-gray-800 border border-yellow-500/30 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-yellow-500"
-                        onchange="renderAdminPayments()">
+        <!-- Filtros -->
+        <div class="glass p-4 mb-4">
+            <div class="flex flex-col md:flex-row gap-3">
+                <div class="flex-1 relative">
+                    <i class="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm"></i>
+                    <input type="text" id="search-input" placeholder="Buscar equipo, fecha, ronda..." 
+                        class="w-full admin-input pl-10" oninput="filterMatches()">
                 </div>
-                <div class="flex gap-2">
-                    <button onclick="setTodayPayment()" class="bg-yellow-600 hover:bg-yellow-500 text-white px-4 py-2 rounded-lg text-sm font-bold transition">&#128205; Hoy</button>
-                    <button onclick="setTomorrowPayment()" class="bg-gray-700 hover:bg-gray-600 text-white px-4 py-2 rounded-lg text-sm font-semibold transition">&#128198; Mañana</button>
-                </div>
+                <select id="status-filter" onchange="filterMatches()" class="admin-input">
+                    <option value="">Todos los estados</option>
+                    <option value="scheduled">📅 Programados</option>
+                    <option value="finished">✅ Finalizados</option>
+                </select>
+                <select id="round-filter" onchange="filterMatches()" class="admin-input">
+                    <option value="">Todas las rondas</option>
+                </select>
+                <button onclick="clearFilters()" class="btn-admin btn-edit">
+                    <i class="fas fa-undo mr-1"></i> Limpiar
+                </button>
             </div>
-            <div id="payment-summary" class="mt-3 flex flex-wrap gap-2"></div>
+            <div class="mt-3 flex items-center justify-between text-xs text-gray-500">
+                <span id="match-count">Cargando...</span>
+                <span id="timezone-indicator" class="text-blue-400">Zona: GMT-4</span>
+            </div>
         </div>
 
-        <!-- ESTADO DE ALICUOTA -->
-        <div id="fee-status-banner" class="mb-6"></div>
+        <!-- Lista de partidos -->
+        <div id="matches-list" class="space-y-3">
+            <div class="text-center py-12 text-gray-500">Cargando partidos...</div>
+        </div>
 
-        <!-- GRID DE JUGADORES -->
-        <div id="admin-payments-grid" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-            <p class="text-gray-500 text-sm col-span-full text-center py-8">Cargando jugadores...</p>
+        <!-- Agregar partido -->
+        <div class="glass p-4 mt-6 border-t border-white/10">
+            <h4 class="text-sm font-bold text-gray-400 mb-3">➕ Agregar Nuevo Partido</h4>
+            <div class="grid grid-cols-1 md:grid-cols-5 gap-2">
+                <input type="text" id="new-home" placeholder="Equipo Local" class="admin-input">
+                <input type="text" id="new-away" placeholder="Equipo Visitante" class="admin-input">
+                <input type="datetime-local" id="new-date" class="admin-input">
+                <input type="text" id="new-round" placeholder="Ronda (ej: Cuartos)" class="admin-input">
+                <button onclick="addMatch()" class="btn-admin bg-green-600 hover:bg-green-500 text-white font-bold">
+                    <i class="fas fa-plus mr-1"></i> Agregar
+                </button>
+            </div>
+            <p class="text-xs text-gray-500 mt-2">
+                <i class="fas fa-info-circle mr-1"></i>
+                La fecha se ingresa en <strong id="input-timezone-label">hora Bolivia (GMT-4)</strong> y se convierte automáticamente a UTC.
+            </p>
         </div>
     </div>
-</main>
 
-<script>
-const SUPABASE_URL = 'https://dwcnwxrcwuicwxbtqpxs.supabase.co';
-const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImR3Y253eHJjd3VpY3d4YnRxcHhzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODIxNDk4NDcsImV4cCI6MjA5NzcyNTg0N30.Xwa-18sv9YsodNG1AJeItmf3NdwiHanCE9m9Mka4dSE';
-const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+    <!-- Toast -->
+    <div id="toast-container" class="fixed bottom-4 right-4 z-50"></div>
 
-let matches = [];
-let players = [];
-let bets = [];
-let payments = [];
-let paymentFees = [];
+    <script>
+    // ============================================
+    // CONFIGURACIÓN SUPABASE (mismas credenciales que index.html)
+    // ============================================
+    const SUPABASE_URL = 'https://dwcnwxrcwuicwxbtqpxs.supabase.co';
+    const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImR3Y253eHJjd3VpY3d4YnRxcHhzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODIxNDk4NDcsImV4cCI6MjA5NzcyNTg0N30.Xwa-18sv9YsodNG1AJeItmf3NdwiHanCE9m9Mka4dSE';
+    const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-const $ = id => document.getElementById(id);
+    let matches = [];
+    let currentTimezoneOffset = -4; // Bolivia por defecto
 
-function showToast(msg, type = 'info') {
-    const toast = document.createElement('div');
-    toast.className = `fixed bottom-4 right-4 px-6 py-3 rounded-lg shadow-lg z-50 ${type === 'error' ? 'bg-red-600' : type === 'success' ? 'bg-green-600' : 'bg-blue-600'}`;
-    toast.innerHTML = msg;
-    document.body.appendChild(toast);
-    setTimeout(() => toast.remove(), 3000);
-}
+    // Cargar partidos al iniciar
+    loadMatches();
 
-function getNowBolivia() {
-    try {
-        const formatter = new Intl.DateTimeFormat('en-US', {
-            timeZone: 'America/La_Paz',
-            year: 'numeric', month: '2-digit', day: '2-digit',
-            hour: '2-digit', minute: '2-digit', second: '2-digit',
-            hour12: false
-        });
-        const parts = formatter.formatToParts(new Date());
-        const y = parseInt(parts.find(p => p.type === 'year').value);
-        const m = parseInt(parts.find(p => p.type === 'month').value);
-        const d = parseInt(parts.find(p => p.type === 'day').value);
-        const h = parseInt(parts.find(p => p.type === 'hour').value);
-        const min = parseInt(parts.find(p => p.type === 'minute').value);
-        const s = parseInt(parts.find(p => p.type === 'second').value);
-        return new Date(Date.UTC(y, m - 1, d, h + 4, min, s));
-    } catch (e) {
+    // ============================================
+    // ZONA HORARIA
+    // ============================================
+    function getTimezoneLabel() {
+        const labels = {
+            '-4': 'Bolivia (GMT-4)', '-5': 'EST (GMT-5)', '-6': 'CST (GMT-6)',
+            '-7': 'MST (GMT-7)', '-8': 'PST (GMT-8)', '0': 'UTC (GMT+0)',
+            '+1': 'CET (GMT+1)', '+2': 'EET (GMT+2)'
+        };
+        return labels[currentTimezoneOffset.toString()] || `GMT${currentTimezoneOffset >= 0 ? '+' : ''}${currentTimezoneOffset}`;
+    }
+
+    function changeTimezone() {
+        const select = document.getElementById('timezone-select');
+        currentTimezoneOffset = parseInt(select.value);
+        document.getElementById('timezone-indicator').textContent = 'Zona: ' + getTimezoneLabel();
+        document.getElementById('input-timezone-label').textContent = 'hora ' + getTimezoneLabel();
+        showToast('Zona horaria cambiada a ' + getTimezoneLabel(), 'success');
+        renderMatches();
+    }
+
+    function updateCurrentTime() {
         const now = new Date();
-        return new Date(now.getTime() + now.getTimezoneOffset() * 60000 + 4 * 60 * 60000);
+        const utc = now.getTime() + (now.getTimezoneOffset() * 60000);
+        const localTime = new Date(utc + (currentTimezoneOffset * 3600000));
+        const timeStr = localTime.toLocaleTimeString('es-BO', { hour: '2-digit', minute: '2-digit' });
+        document.getElementById('current-time-display').textContent = timeStr;
     }
-}
+    setInterval(updateCurrentTime, 1000);
+    updateCurrentTime();
 
-function getFeeForDate(dateStr) {
-    const date = new Date(dateStr);
-    const boliviaDate = new Date(date.toLocaleString('en-US', { timeZone: 'America/La_Paz' }));
-    const year = boliviaDate.getFullYear();
-    const month = String(boliviaDate.getMonth() + 1).padStart(2, '0');
-    const day = String(boliviaDate.getDate()).padStart(2, '0');
-    const dateKey = `${year}-${month}-${day}`;
-    const fee = paymentFees.find(f => f.match_date === dateKey);
-    if (fee && fee.is_free) return { amount: 0, isFree: true, notes: fee.notes };
-    if (fee) return { amount: fee.amount, isFree: false, notes: fee.notes };
-    return { amount: 5.00, isFree: false, notes: 'Valor por defecto' };
-}
-
-function formatDateNice(dateStr) {
-    const months = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
-    const [year, month, day] = dateStr.split('-');
-    return `${parseInt(day)} de ${months[parseInt(month)-1]} ${year}`;
-}
-
-async function loadMatches() { const { data } = await sb.from('matches').select('*').order('match_date'); matches = data || []; }
-async function loadPlayers() { const { data } = await sb.from('players').select('*'); players = data || []; }
-async function loadBets() { const { data } = await sb.from('bets').select('*'); bets = data || []; }
-async function loadPayments() { const { data } = await sb.from('payments').select('*'); payments = data || []; }
-async function loadPaymentFees() { const { data } = await sb.from('payment_fees').select('*'); paymentFees = data || []; }
-
-async function init() {
-    await Promise.all([loadMatches(), loadPlayers(), loadBets(), loadPayments(), loadPaymentFees()]);
-    setTodayPayment();
-    subscribeToChanges();
-}
-
-function subscribeToChanges() {
-    sb.channel('quiniela-admin-payments')
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'payments' }, async () => { await loadPayments(); renderAdminPayments(); })
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'players' }, async () => { await loadPlayers(); renderAdminPayments(); })
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'payment_fees' }, async () => { await loadPaymentFees(); renderAdminPayments(); })
-        .subscribe();
-}
-
-function setTodayPayment() {
-    const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/La_Paz' });
-    $('payment-date').value = today;
-    renderAdminPayments();
-}
-
-function setTomorrowPayment() {
-    const tomorrow = new Date(getNowBolivia().getTime() + 24 * 60 * 60 * 1000);
-    const year = tomorrow.getFullYear();
-    const month = String(tomorrow.getMonth() + 1).padStart(2, '0');
-    const day = String(tomorrow.getDate()).padStart(2, '0');
-    $('payment-date').value = `${year}-${month}-${day}`;
-    renderAdminPayments();
-}
-
-async function renderAdminPayments() {
-    const container = $('admin-payments-grid');
-    const summary = $('payment-summary');
-    const banner = $('fee-status-banner');
-    if (!container) return;
-
-    try {
-        const selectedDate = $('payment-date').value;
-        if (!selectedDate) {
-            container.innerHTML = '<p class="text-gray-500 text-sm col-span-full text-center py-8">Selecciona una fecha</p>';
-            return;
-        }
-
-        const fee = getFeeForDate(selectedDate);
-        const datePayments = payments.filter(p => p.match_date === selectedDate);
-        const verifiedCount = datePayments.filter(p => p.status === 'paid' && p.verified_at).length;
-        const pendingCount = datePayments.filter(p => p.status === 'paid' && !p.verified_at).length;
-        const notPaidCount = players.length - datePayments.filter(p => p.status === 'paid').length;
-
-        // Banner de alícuota
-        if (fee.isFree) {
-            banner.innerHTML = `<div class="p-4 bg-green-500/10 border border-green-500/20 rounded-lg text-center">
-                <p class="text-green-400 font-bold text-lg">&#127381; FECHA LIBRE</p>
-                <p class="text-green-300 text-sm">No se requiere pago. Todos los pronósticos sumarán puntos automáticamente.</p>
-            </div>`;
-        } else {
-            banner.innerHTML = `<div class="p-4 bg-yellow-500/10 border border-yellow-500/20 rounded-lg text-center">
-                <p class="text-yellow-400 font-bold text-lg">${fee.amount} Bs por jugador</p>
-                <p class="text-yellow-300 text-sm">Los jugadores deben tener pago verificado para que sus pronósticos sumen puntos.</p>
-            </div>`;
-        }
-
-        // Resumen
-        summary.innerHTML = `
-            <span class="text-xs bg-green-500/20 text-green-400 px-3 py-1 rounded-full font-semibold">&#9989; ${verifiedCount} Verificados</span>
-            <span class="text-xs bg-yellow-500/20 text-yellow-400 px-3 py-1 rounded-full font-semibold">&#9200; ${pendingCount} Pendientes</span>
-            <span class="text-xs bg-gray-700 text-gray-400 px-3 py-1 rounded-full font-semibold">&#128179; ${notPaidCount} Sin pago</span>
-            <span class="text-xs bg-blue-500/20 text-blue-400 px-3 py-1 rounded-full font-semibold">${players.length} Total jugadores</span>
-        `;
-
-        if (fee.isFree) {
-            container.innerHTML = `<div class="col-span-full text-center py-8 text-green-400">
-                <div class="text-4xl mb-2">&#127381;</div>
-                <p class="font-semibold">Esta fecha es LIBRE</p>
-                <p class="text-sm text-gray-400">No es necesario gestionar pagos</p>
-            </div>`;
-            return;
-        }
-
-        if (!players.length) {
-            container.innerHTML = '<p class="text-gray-500 text-sm col-span-full text-center py-8">No hay jugadores registrados</p>';
-            return;
-        }
-
-        container.innerHTML = players.map(p => {
-            const payment = datePayments.find(pay => pay.player_id === p.id);
-            const isVerified = payment?.status === 'paid' && payment?.verified_at;
-            const isPending = payment?.status === 'paid' && !payment?.verified_at;
-            const verifiedTime = payment?.verified_at ? new Date(payment.verified_at).toLocaleString('es-BO', { hour: '2-digit', minute: '2-digit' }) : '';
-
-            return `<button onclick="verifyPlayerPayment('${p.id}', '${selectedDate}')" 
-                class="player-card p-4 rounded-xl text-left w-full ${isVerified ? 'verified-badge' : isPending ? 'pending-badge' : 'no-payment-badge'}">
-                <div class="flex items-center justify-between mb-2">
-                    <div class="font-bold text-sm truncate">${p.name}</div>
-                    <div class="text-lg">${isVerified ? '&#9989;' : isPending ? '&#9200;' : '&#128179;'}</div>
-                </div>
-                <div class="text-xs ${isVerified ? 'text-green-300' : isPending ? 'text-yellow-300' : 'text-gray-400'}">
-                    ${isVerified ? 'Verificado' + (verifiedTime ? ' a las ' + verifiedTime : '') : isPending ? 'Pendiente de verificación' : 'Sin pago registrado'}
-                </div>
-                <div class="text-[10px] mt-2 opacity-70">
-                    ${isVerified ? 'Click para invalidar' : 'Click para verificar'}
-                </div>
-            </button>`;
-        }).join('');
-
-    } catch (error) { 
-        container.innerHTML = `<p class="text-red-400 text-sm col-span-full text-center py-8">Error: ${error.message}</p>`; 
+    // ============================================
+    // CONVERSIÓN DE FECHAS
+    // ============================================
+    // De UTC (BD) a hora local seleccionada
+    function toLocalTime(isoString) {
+        if (!isoString) return null;
+        const date = new Date(isoString);
+        const utc = date.getTime() + (date.getTimezoneOffset() * 60000);
+        return new Date(utc + (currentTimezoneOffset * 3600000));
     }
-}
 
-async function verifyPlayerPayment(playerId, date) {
-    try {
-        const { data: existing, error: fetchError } = await sb.from('payments')
-            .select('*')
-            .eq('player_id', playerId)
-            .eq('match_date', date)
-            .maybeSingle();
+    // De hora local seleccionada a UTC (para guardar en BD)
+    function fromLocalTime(dateString) {
+        if (!dateString) return null;
+        const date = new Date(dateString);
+        const utc = date.getTime() - (currentTimezoneOffset * 3600000);
+        return new Date(utc).toISOString();
+    }
 
-        if (fetchError) throw fetchError;
+    // Formatear para input datetime-local (en hora local)
+    function formatDateTimeLocal(isoString) {
+        if (!isoString) return '';
+        const local = toLocalTime(isoString);
+        const y = local.getFullYear();
+        const m = String(local.getMonth() + 1).padStart(2, '0');
+        const d = String(local.getDate()).padStart(2, '0');
+        const h = String(local.getHours()).padStart(2, '0');
+        const min = String(local.getMinutes()).padStart(2, '0');
+        return `${y}-${m}-${d}T${h}:${min}`;
+    }
 
-        const player = players.find(p => p.id === playerId);
-        if (!player) { showToast('Jugador no encontrado', 'error'); return; }
+    // Formatear para mostrar al usuario
+    function formatDisplay(isoString) {
+        if (!isoString) return 'Fecha no definida';
+        const local = toLocalTime(isoString);
+        return local.toLocaleString('es-BO', {
+            weekday: 'short', day: 'numeric', month: 'short',
+            hour: '2-digit', minute: '2-digit', hour12: true
+        }) + ' (' + getTimezoneLabel().split(' ')[0] + ')';
+    }
 
-        if (existing && existing.status === 'paid' && existing.verified_at) {
-            if (!confirm(`&#9888; ${player.name} tiene pago VERIFICADO para ${formatDateNice(date)}.\n\n&#191;Invalidar este pago?\n\n&#9888; ESTO HAR&#193; QUE SUS PRON&#211;STICOS NO SUMEN PUNTOS.`)) {
-                return;
-            }
-            const { error } = await sb.from('payments')
-                .update({ status: 'pending', verified_by: null, verified_at: null })
-                .eq('id', existing.id);
+    // ============================================
+    // CARGAR DATOS
+    // ============================================
+    async function loadMatches() {
+        try {
+            const { data, error } = await sb.from('matches').select('*').order('match_date', { ascending: true });
             if (error) throw error;
-            showToast(`Pago de ${player.name} invalidado`, 'info');
+            matches = data || [];
+            populateRoundFilter();
+            renderMatches();
+        } catch (err) {
+            showToast('Error cargando partidos: ' + err.message, 'error');
+        }
+    }
 
-        } else if (existing && existing.status === 'paid' && !existing.verified_at) {
-            const { error } = await sb.from('payments')
-                .update({ verified_by: 'admin', verified_at: new Date().toISOString() })
-                .eq('id', existing.id);
+    function populateRoundFilter() {
+        const select = document.getElementById('round-filter');
+        const rounds = [...new Set(matches.map(m => m.round).filter(r => r))];
+        select.innerHTML = '<option value="">Todas las rondas</option>' + 
+            rounds.map(r => `<option value="${r}">${r}</option>`).join('');
+    }
+
+    // ============================================
+    // RENDERIZAR PARTIDOS
+    // ============================================
+    function renderMatches() {
+        const container = document.getElementById('matches-list');
+        const search = document.getElementById('search-input')?.value.toLowerCase() || '';
+        const statusFilter = document.getElementById('status-filter')?.value || '';
+        const roundFilter = document.getElementById('round-filter')?.value || '';
+
+        let filtered = matches.filter(m => {
+            const home = (m.home_team || '').toLowerCase();
+            const away = (m.away_team || '').toLowerCase();
+            const round = (m.round || '').toLowerCase();
+            const matchesSearch = !search || home.includes(search) || away.includes(search) || round.includes(search);
+            const matchesStatus = !statusFilter || m.status === statusFilter;
+            const matchesRound = !roundFilter || m.round === roundFilter;
+            return matchesSearch && matchesStatus && matchesRound;
+        });
+
+        document.getElementById('match-count').textContent = `Mostrando ${filtered.length} de ${matches.length} partidos`;
+
+        if (!filtered.length) {
+            container.innerHTML = '<div class="text-center py-12 text-gray-500">No hay partidos que coincidan con los filtros</div>';
+            return;
+        }
+
+        container.innerHTML = filtered.map(match => renderMatchRow(match)).join('');
+    }
+
+    function renderMatchRow(match) {
+        const finished = match.status === 'finished';
+        const isGhost = isGhostMatch(match);
+        const homeFlag = getFlagHTML(match.home_team);
+        const awayFlag = getFlagHTML(match.away_team);
+
+        return `<div class="glass p-4 animate-slide-in ${isGhost ? 'border-l-4 border-purple-500' : ''}" data-home="${(match.home_team || '').toLowerCase()}" data-away="${(match.away_team || '').toLowerCase()}" data-round="${match.round || ''}" data-status="${match.status || 'scheduled'}">
+            <div class="flex flex-col lg:flex-row gap-4">
+                <!-- Info del partido -->
+                <div class="flex-1">
+                    <div class="flex items-center gap-2 mb-2 flex-wrap">
+                        <span class="text-xs text-gray-500">${match.round || 'Fase de Grupos'}</span>
+                        ${finished ? '<span class="badge badge-success">✅ Finalizado</span>' : '<span class="badge badge-warning">📅 Programado</span>'}
+                        ${isGhost ? '<span class="badge badge-ghost">👻 Fantasma</span>' : ''}
+                    </div>
+
+                    <div class="flex items-center gap-3 flex-wrap mb-3">
+                        <div class="flex items-center gap-2 flex-1 min-w-[200px]">
+                            <span class="text-2xl">${homeFlag}</span>
+                            <input type="text" id="edit-home-${match.id}" value="${match.home_team || ''}" class="admin-input flex-1">
+                        </div>
+                        <span class="text-gray-500 font-bold">VS</span>
+                        <div class="flex items-center gap-2 flex-1 min-w-[200px]">
+                            <span class="text-2xl">${awayFlag}</span>
+                            <input type="text" id="edit-away-${match.id}" value="${match.away_team || ''}" class="admin-input flex-1">
+                        </div>
+                    </div>
+
+                    <!-- Fecha/Hora editable -->
+                    <div class="flex items-center gap-3 flex-wrap">
+                        <div class="flex items-center gap-2 bg-white/5 rounded-lg px-3 py-2">
+                            <i class="fas fa-calendar text-gray-500 text-xs"></i>
+                            <input type="datetime-local" id="edit-date-${match.id}" value="${formatDateTimeLocal(match.match_date)}" 
+                                class="bg-transparent border-none text-xs text-white focus:outline-none font-mono"
+                                onchange="updateMatchDate('${match.id}')">
+                        </div>
+                        <div class="text-xs text-gray-400">
+                            <i class="fas fa-clock mr-1"></i>${formatDisplay(match.match_date)}
+                        </div>
+                        <select id="edit-status-${match.id}" onchange="updateMatchStatus('${match.id}')" class="admin-input text-xs">
+                            <option value="scheduled" ${match.status !== 'finished' ? 'selected' : ''}>📅 Programado</option>
+                            <option value="finished" ${match.status === 'finished' ? 'selected' : ''}>✅ Finalizado</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Resultado -->
+                <div class="flex items-center gap-2">
+                    <input type="number" id="res-home-${match.id}" value="${match.home_score != null ? match.home_score : ''}" class="w-14 text-center admin-input text-lg font-bold" placeholder="L">
+                    <span class="text-gray-500 font-bold">-</span>
+                    <input type="number" id="res-away-${match.id}" value="${match.away_score != null ? match.away_score : ''}" class="w-14 text-center admin-input text-lg font-bold" placeholder="V">
+                </div>
+
+                <!-- Acciones -->
+                <div class="flex items-center gap-2">
+                    <button onclick="saveResult('${match.id}')" class="btn-admin ${finished ? 'btn-save' : 'btn-edit'}">${finished ? 'Actualizar' : 'Guardar'}</button>
+                    <button onclick="updateTeams('${match.id}')" class="btn-admin btn-edit" title="Actualizar equipos y fecha">📝</button>
+                    <button onclick="deleteMatch('${match.id}')" class="btn-admin bg-red-600/20 hover:bg-red-600/30 text-red-400" title="Eliminar">🗑️</button>
+                </div>
+            </div>
+        </div>`;
+    }
+
+    function isGhostMatch(match) {
+        if (!match) return true;
+        const home = (match.home_team || '').toString().trim();
+        const away = (match.away_team || '').toString().trim();
+        if (!home || !away) return true;
+        const ghostPatterns = /^(Ganador|Perdedor|RU|W|L|Runner-up|Winner|2nd|3rd)[\s]*[A-Z0-9]+$/i;
+        if (ghostPatterns.test(home) || ghostPatterns.test(away)) return true;
+        return false;
+    }
+
+    // ============================================
+    // BANDERAS (igual que index.html)
+    // ============================================
+    const countryCodes = {
+        'Argentina':'ar','Brasil':'br','Brazil':'br','Alemania':'de','Germany':'de',
+        'Espana':'es','Spain':'es','Francia':'fr','France':'fr','Inglaterra':'gb-eng',
+        'England':'gb-eng','Portugal':'pt','Italia':'it','Italy':'it','Paises Bajos':'nl',
+        'Netherlands':'nl','Belgica':'be','Belgium':'be','Uruguay':'uy','Croacia':'hr',
+        'Croatia':'hr','Mexico':'mx','Estados Unidos':'us','United States':'us','USA':'us',
+        'Canada':'ca','Japon':'jp','Japan':'jp','Corea del Sur':'kr','Korea Republic':'kr',
+        'South Korea':'kr','Australia':'au','Senegal':'sn','Marruecos':'ma','Morocco':'ma',
+        'Suiza':'ch','Switzerland':'ch','Polonia':'pl','Poland':'pl','Dinamarca':'dk',
+        'Denmark':'dk','Colombia':'co','Chile':'cl','Ecuador':'ec','Peru':'pe',
+        'Paraguay':'py','Bolivia':'bo','Venezuela':'ve','Qatar':'qa','Arabia Saudita':'sa',
+        'Saudi Arabia':'sa','Iran':'ir','Tunez':'tn','Tunisia':'tn','Gales':'gb-wls',
+        'Wales':'gb-wls','Costa Rica':'cr','Serbia':'rs','Grecia':'gr','Greece':'gr',
+        'Suecia':'se','Sweden':'se','Noruega':'no','Norway':'no','Ucrania':'ua',
+        'Ukraine':'ua','Turquia':'tr','Turkiye':'tr','Turkey':'tr','Austria':'at',
+        'Republica Checa':'cz','Czechia':'cz','Czech Republic':'cz','Hungria':'hu',
+        'Hungary':'hu','Rumania':'ro','Romania':'ro','Eslovaquia':'sk','Slovakia':'sk',
+        'Eslovenia':'si','Slovenia':'si','Finlandia':'fi','Finland':'fi','Irlanda':'ie',
+        'Ireland':'ie','Escocia':'gb-sct','Scotland':'gb-sct','Nigeria':'ng','Ghana':'gh',
+        'Camerun':'cm','Cameroon':'cm','Costa de Marfil':'ci','Ivory Coast':'ci',
+        "Cote d'Ivoire":'ci','Egipto':'eg','Egypt':'eg','Argelia':'dz','Algeria':'dz',
+        'Sudafrica':'za','South Africa':'za','Nueva Zelanda':'nz','New Zealand':'nz',
+        'Panama':'pa','Honduras':'hn','Jamaica':'jm','Trinidad y Tobago':'tt',
+        'Trinidad and Tobago':'tt','Haiti':'ht','Guatemala':'gt','El Salvador':'sv',
+        'Nicaragua':'ni','Cuba':'cu','Republica Dominicana':'do','Dominican Republic':'do',
+        'Puerto Rico':'pr','Islandia':'is','Iceland':'is','Bosnia':'ba',
+        'Bosnia and Herzegovina':'ba','Macedonia':'mk','North Macedonia':'mk',
+        'Albania':'al','Montenegro':'me','Kosovo':'xk','Moldavia':'md','Moldova':'md',
+        'Bielorrusia':'by','Belarus':'by','Lituania':'lt','Lithuania':'lt',
+        'Letonia':'lv','Latvia':'lv','Estonia':'ee','Georgia':'ge','Armenia':'am',
+        'Azerbaiyan':'az','Azerbaijan':'az','Kazajistan':'kz','Kazakhstan':'kz',
+        'Uzbekistan':'uz','Turkmenistan':'tm','Kirguistan':'kg','Kyrgyzstan':'kg',
+        'Tayikistan':'tj','Tajikistan':'tj','Afganistan':'af','Afghanistan':'af',
+        'Pakistan':'pk','India':'in','Bangladesh':'bd','Sri Lanka':'lk','Nepal':'np',
+        'Butan':'bt','Bhutan':'bt','Maldivas':'mv','Maldives':'mv','Tailandia':'th',
+        'Thailand':'th','Vietnam':'vn','Camboya':'kh','Cambodia':'kh','Laos':'la',
+        'Myanmar':'mm','Malasia':'my','Malaysia':'my','Singapur':'sg','Singapore':'sg',
+        'Indonesia':'id','Filipinas':'ph','Philippines':'ph','Brunei':'bn',
+        'Timor Oriental':'tl','East Timor':'tl','Papua Nueva Guinea':'pg',
+        'Papua New Guinea':'pg','Fiyi':'fj','Fiji':'fj','Samoa':'ws','Tonga':'to',
+        'Vanuatu':'vu','Islas Salomon':'sb','Solomon Islands':'sb','Kiribati':'ki',
+        'Tuvalu':'tv','Nauru':'nr','Palau':'pw','Islas Marshall':'mh',
+        'Marshall Islands':'mh','Micronesia':'fm','Guam':'gu','Samoa Americana':'as',
+        'American Samoa':'as','Islas Cook':'ck','Cook Islands':'ck','Niue':'nu',
+        'Tokelau':'tk','Wallis y Futuna':'wf','Polinesia Francesa':'pf',
+        'French Polynesia':'pf','Nueva Caledonia':'nc','New Caledonia':'nc',
+        'Islas Pitcairn':'pn','Pitcairn Islands':'pn','Islas Norfolk':'nf',
+        'Norfolk Island':'nf','Islas Christmas':'cx','Christmas Island':'cx',
+        'Islas Cocos':'cc','Cocos Islands':'cc','Antartida':'aq','Antarctica':'aq',
+        'Groenlandia':'gl','Greenland':'gl','Sudan':'sd','Madagascar':'mg',
+        'Mauricio':'mu','Mauritius':'mu','Seychelles':'sc','Comoras':'km','Comoros':'km',
+        'Santo Tome y Principe':'st','Sao Tome and Principe':'st',
+        'Guinea Ecuatorial':'gq','Equatorial Guinea':'gq','Gabon':'ga','Congo':'cg',
+        'Congo RDC':'cd','DR Congo':'cd','Democratic Republic of the Congo':'cd',
+        'Ruanda':'rw','Rwanda':'rw','Burundi':'bi','Uganda':'ug','Kenia':'ke',
+        'Kenya':'ke','Tanzania':'tz','Zambia':'zm','Zimbabue':'zw','Zimbabwe':'zw',
+        'Botsuana':'bw','Botswana':'bw','Namibia':'na','Angola':'ao','Mozambique':'mz',
+        'Malawi':'mw','Lesoto':'ls','Lesotho':'ls','Eswatini':'sz','Mauritania':'mr',
+        'Mali':'ml','Burkina Faso':'bf','Niger':'ne','Chad':'td',
+        'Republica Centroafricana':'cf','Central African Republic':'cf','Guinea':'gn',
+        'Guinea-Bissau':'gw','Sierra Leona':'sl','Sierra Leone':'sl','Liberia':'lr',
+        'Togo':'tg','Benin':'bj','Curacao':'cw','Jordan':'jo','Jordania':'jo',
+        'Iraq':'iq','Irak':'iq','Cape Verde':'cv','Cabo Verde':'cv',
+        'Surinam':'sr','Suriname':'sr','Guyana':'gy','Guayana Francesa':'gf',
+        'French Guiana':'gf','Belice':'bz','Belize':'bz','Barbados':'bb',
+        'Santa Lucia':'lc','Saint Lucia':'lc','San Vicente y Granadinas':'vc',
+        'Saint Vincent and the Grenadines':'vc','Granada':'gd','Grenada':'gd',
+        'San Cristobal y Nieves':'kn','Saint Kitts and Nevis':'kn',
+        'Antigua y Barbuda':'ag','Antigua and Barbuda':'ag','Dominica':'dm',
+        'Montserrat':'ms','Anguila':'ai','Anguilla':'ai',
+        'Islas Virgenes Britanicas':'vg','British Virgin Islands':'vg',
+        'Islas Virgenes Americanas':'vi','United States Virgin Islands':'vi',
+        'Islas Caiman':'ky','Cayman Islands':'ky',
+        'Islas Turcas y Caicos':'tc','Turks and Caicos Islands':'tc',
+        'Bahamas':'bs','Bermudas':'bm','Bermuda':'bm',
+        'Svalbard':'sj','Islas Georgias del Sur':'gs','South Georgia':'gs',
+        'Islas Sandwich del Sur':'sh','Saint Helena':'sh',
+        'Islas Malvinas':'fk','Falkland Islands':'fk','Gibraltar':'gi',
+        'Islas Feroe':'fo','Faroe Islands':'fo','Islas Aland':'ax','Aland Islands':'ax',
+        'Jersey':'je','Guernsey':'gg','Isla de Man':'im','Isle of Man':'im',
+        'San Marino':'sm','Vaticano':'va','Monaco':'mc','Andorra':'ad',
+        'Liechtenstein':'li','Malta':'mt','Chipre':'cy','Cyprus':'cy',
+        'Luxemburgo':'lu','Luxembourg':'lu'
+    };
+
+    const getFlagHTML = (team) => {
+        const code = countryCodes[team] || 'xx';
+        const fallback = team.substring(0, 2).toUpperCase();
+        return `<div class="flag-box" style="width:44px;height:30px;border-radius:6px;overflow:hidden;position:relative;background:linear-gradient(135deg,#1e3a5f,#0f172a);">
+            <img src="https://flagcdn.com/w80/${code}.png" alt="${team}" 
+                style="width:100%;height:100%;object-fit:cover;"
+                onerror="this.style.display='none';this.nextElementSibling.style.display='flex';" 
+                loading="lazy">
+            <span style="display:none;position:absolute;inset:0;align-items:center;justify-content:center;font-size:10px;font-weight:bold;color:#94a3b8;">${fallback}</span>
+        </div>`;
+    };
+
+    // ============================================
+    // ACCIONES
+    // ============================================
+    async function updateMatchDate(matchId) {
+        const input = document.getElementById(`edit-date-${matchId}`);
+        if (!input?.value) return;
+        try {
+            const utcDate = fromLocalTime(input.value);
+            const { error } = await sb.from('matches').update({ match_date: utcDate }).eq('id', matchId);
             if (error) throw error;
-            showToast(`&#9989; Pago de ${player.name} verificado`, 'success');
+            showToast('📅 Fecha actualizada: ' + formatDisplay(utcDate), 'success');
+            await loadMatches();
+        } catch (err) {
+            showToast('Error: ' + err.message, 'error');
+        }
+    }
 
-        } else if (existing) {
-            // Existe registro pero con otro status → actualizar a paid+verified
-            const { error } = await sb.from('payments')
-                .update({
-                    status: 'paid',
-                    amount: 5.00,
-                    verified_by: 'admin',
-                    verified_at: new Date().toISOString()
-                })
-                .eq('id', existing.id);
+    async function updateMatchStatus(matchId) {
+        const select = document.getElementById(`edit-status-${matchId}`);
+        if (!select) return;
+        try {
+            const { error } = await sb.from('matches').update({ status: select.value }).eq('id', matchId);
             if (error) throw error;
-            showToast(`&#9989; Pago de ${player.name} actualizado y verificado`, 'success');
+            showToast('Estado actualizado', 'success');
+            await loadMatches();
+        } catch (err) {
+            showToast('Error: ' + err.message, 'error');
+        }
+    }
 
-        } else {
-            // No existe registro → insertar nuevo
-            const { error } = await sb.from('payments').insert({
-                player_id: playerId,
-                match_date: date,
-                status: 'paid',
-                amount: 5.00,
-                verified_by: 'admin',
-                verified_at: new Date().toISOString()
+    async function saveResult(matchId) {
+        const home = parseInt(document.getElementById(`res-home-${matchId}`).value);
+        const away = parseInt(document.getElementById(`res-away-${matchId}`).value);
+        if (isNaN(home) || isNaN(away)) {
+            showToast('Completa ambos resultados', 'error');
+            return;
+        }
+        try {
+            const { error } = await sb.from('matches')
+                .update({ home_score: home, away_score: away, status: 'finished' })
+                .eq('id', matchId);
+            if (error) throw error;
+            showToast('✅ Resultado guardado', 'success');
+            await loadMatches();
+        } catch (err) {
+            showToast('Error: ' + err.message, 'error');
+        }
+    }
+
+    async function updateTeams(matchId) {
+        const home = document.getElementById(`edit-home-${matchId}`).value.trim();
+        const away = document.getElementById(`edit-away-${matchId}`).value.trim();
+        const dateInput = document.getElementById(`edit-date-${matchId}`);
+        if (!home || !away) {
+            showToast('Los nombres no pueden estar vacíos', 'error');
+            return;
+        }
+        const updates = { home_team: home, away_team: away };
+        if (dateInput?.value) {
+            updates.match_date = fromLocalTime(dateInput.value);
+        }
+        try {
+            const { error } = await sb.from('matches').update(updates).eq('id', matchId);
+            if (error) throw error;
+            showToast('📝 Partido actualizado', 'success');
+            await loadMatches();
+        } catch (err) {
+            showToast('Error: ' + err.message, 'error');
+        }
+    }
+
+    async function deleteMatch(matchId) {
+        const match = matches.find(m => m.id === matchId);
+        if (!match) return;
+        if (!confirm(`¿Eliminar ${match.home_team} vs ${match.away_team}?\n⚠️ Se borrarán también las apuestas.`)) return;
+        try {
+            await sb.from('bets').delete().eq('match_id', matchId);
+            const { error } = await sb.from('matches').delete().eq('id', matchId);
+            if (error) throw error;
+            showToast('🗑️ Partido eliminado', 'success');
+            await loadMatches();
+        } catch (err) {
+            showToast('Error: ' + err.message, 'error');
+        }
+    }
+
+    async function addMatch() {
+        const home = document.getElementById('new-home').value.trim();
+        const away = document.getElementById('new-away').value.trim();
+        const date = document.getElementById('new-date').value;
+        const round = document.getElementById('new-round').value.trim() || 'Fase de Grupos';
+        if (!home || !away || !date) {
+            showToast('Completa todos los campos', 'error');
+            return;
+        }
+        try {
+            const { error } = await sb.from('matches').insert({
+                home_team: home, away_team: away,
+                match_date: fromLocalTime(date),
+                status: 'scheduled', round: round
             });
             if (error) throw error;
-            showToast(`&#9989; Pago de ${player.name} registrado y verificado`, 'success');
+            document.getElementById('new-home').value = '';
+            document.getElementById('new-away').value = '';
+            document.getElementById('new-date').value = '';
+            document.getElementById('new-round').value = '';
+            showToast('Partido agregado', 'success');
+            await loadMatches();
+        } catch (err) {
+            showToast('Error: ' + err.message, 'error');
         }
-
-        await loadPayments();
-        renderAdminPayments();
-    } catch (error) {
-        console.error('Error en verifyPlayerPayment:', error);
-        showToast('Error: ' + error.message, 'error');
     }
-}
 
-document.addEventListener('DOMContentLoaded', init);
-</script>
+    function filterMatches() {
+        renderMatches();
+    }
 
+    function clearFilters() {
+        document.getElementById('search-input').value = '';
+        document.getElementById('status-filter').value = '';
+        document.getElementById('round-filter').value = '';
+        renderMatches();
+    }
+
+    // ============================================
+    // TOAST
+    // ============================================
+    function showToast(msg, type = 'info') {
+        const container = document.getElementById('toast-container');
+        const toast = document.createElement('div');
+        toast.className = `px-4 py-3 rounded-xl shadow-lg mb-2 animate-slide-in text-sm font-medium ${
+            type === 'error' ? 'bg-red-600' : type === 'success' ? 'bg-green-600' : 'bg-blue-600'
+        } text-white`;
+        toast.textContent = msg;
+        container.appendChild(toast);
+        setTimeout(() => { toast.style.opacity = '0'; setTimeout(() => toast.remove(), 300); }, 3000);
+    }
+    </script>
 </body>
 </html>
