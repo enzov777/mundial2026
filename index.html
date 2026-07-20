@@ -66,7 +66,7 @@
 
 <script>
 const SUPABASE_URL = 'https://dwcnwxrcwuicwxbtqpxs.supabase.co';
-const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImR3Y253eHJjd3VpY3d4YnRxcHhzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODIxNDk4NDcsImV4cCI6MjA5NzcyNTg0N30.Xwa-18sv9YsodNG1AJeItmf3NdwiHanCE9m9Mka4dSE';
+const SUPABASE_KEY = 'sb_publishable_M93hXy25JXgP76Plysgr9w_nvwBZ-cT';
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
 // ============================================
@@ -443,7 +443,8 @@ function getPaymentStatus(playerId, matchDateStr) {
                 <thead><tr class="text-gray-400 border-b border-white/10">
                     <th class="text-left py-3 px-2">#</th><th class="text-left py-3 px-2">Jugador</th>
                     <th class="text-center py-3 px-2">Apuestas</th><th class="text-center py-3 px-2">Exactos</th>
-                    <th class="text-center py-3 px-2">Puntos</th><th class="text-center py-3 px-2">Estado</th>
+                    <th class="text-center py-3 px-2">Puntos Quiniela</th><th class="text-center py-3 px-2">Puntos Extra</th>
+                    <th class="text-center py-3 px-2">Total Puntos</th><th class="text-center py-3 px-2">Estado</th>
                 </tr></thead>
                 <tbody id="leaderboard-body"></tbody>
             </table>
@@ -517,7 +518,7 @@ function getPaymentStatus(playerId, matchDateStr) {
                         <div class="text-[10px] md:text-xs text-red-500/70 uppercase mt-1 tracking-wider">Seg</div>
                     </div>
                 </div>
-                <div id="countdown-label" class="mt-3 text-sm text-yellow-400/80 font-medium">Cierra: dom 5 jul, 16:00 (Hora Bolivia)</div>
+                <div id="countdown-label" class="mt-3 text-sm text-yellow-400/80 font-medium">Cierra: 10 jun 2026, 23:59 (Hora Bolivia) - Antes del 1er partido</div>
             </div>
 
             <!-- Pills de estado -->
@@ -560,6 +561,16 @@ function getPaymentStatus(playerId, matchDateStr) {
                 <button onclick="loadBonusForPlayer()" class="bg-white/10 border border-white/20 text-white font-bold px-6 py-3 rounded-xl hover:bg-white/20 transition">
                     &#128260; Recargar
                 </button>
+            </div>
+        </div>
+
+        <!-- MIS PRONÓSTICOS GUARDADOS -->
+        <div id="my-bonus-predictions" class="mt-8 pt-6 border-t border-white/10">
+            <h3 class="text-lg font-bold text-yellow-400 mb-4 flex items-center gap-2">
+                <span>&#128203;</span> Mis Pron&oacute;sticos Guardados
+            </h3>
+            <div id="my-predictions-list" class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <!-- Se llena dinámicamente -->
             </div>
         </div>
 
@@ -835,7 +846,7 @@ async function saveAllBets() {
 function renderLeaderboard() {
     const stats = players.map(player => {
         const playerBets = bets.filter(b => b.player_id === player.id); 
-        let totalPoints = 0; let exactos = 0; let totalBets = 0; let validBets = 0;
+        let quinielaPoints = 0; let exactos = 0; let totalBets = 0; let validBets = 0;
 
         playerBets.forEach(bet => { 
             const match = matches.find(m => m.id === bet.match_id); 
@@ -846,7 +857,7 @@ function renderLeaderboard() {
                 const pts = hasPayment ? calculatePoints(bet, match) : 0;
 
                 if (hasPayment) { 
-                    totalPoints += pts; 
+                    quinielaPoints += pts; 
                     if (pts === 5) exactos++; 
                     validBets++; 
                 } 
@@ -858,13 +869,36 @@ function renderLeaderboard() {
         const playerBonusPoints = bonusPointsData
             .filter(bp => bp.player_id === player.id)
             .reduce((sum, bp) => sum + (bp.points || 0), 0);
-        totalPoints += playerBonusPoints;
+        const totalPoints = quinielaPoints + playerBonusPoints;
 
-        return { ...player, totalPoints, exactos, totalBets, validBets, bonusPoints: playerBonusPoints };
+        return { ...player, quinielaPoints, totalPoints, bonusPoints: playerBonusPoints, exactos, totalBets, validBets };
     }).sort((a, b) => b.totalPoints - a.totalPoints);
     const tbody = $('leaderboard-body');
-    if (!stats.length) { tbody.innerHTML = '<tr><td colspan="6" class="text-center py-8 text-gray-500">Aun no hay jugadores</td></tr>'; return; }
-    tbody.innerHTML = stats.map((p, i) => { let medal = ''; if (i === 0) medal = '1.'; else if (i === 1) medal = '2.'; else if (i === 2) medal = '3.'; else medal = `<span class="text-gray-500">${i + 1}.</span>`; const isMe = p.id === currentPlayer?.id; const hasAnyPayment = p.validBets > 0; return `<tr class="border-b border-white/5 ${isMe ? 'bg-yellow-500/10' : ''} hover:bg-white/5 transition"><td class="py-3 px-2 font-bold">${medal}</td><td class="py-3 px-2 font-semibold ${isMe ? 'text-yellow-400' : ''} ${!hasAnyPayment ? 'disabled-player' : ''}">${p.name}</td><td class="py-3 px-2 text-center text-gray-400">${p.validBets}/${p.totalBets}</td><td class="py-3 px-2 text-center text-yellow-400 font-bold">${p.exactos}</td><td class="py-3 px-2 text-center font-bold text-lg ${hasAnyPayment ? 'text-white' : 'text-gray-600'}">${p.totalPoints}</td><td class="py-3 px-2 text-center">${hasAnyPayment ? '<span class="text-xs bg-green-500/20 text-green-400 px-2 py-1 rounded-full">&#9989; Verificado</span>' : '<span class="text-xs bg-red-500/20 text-red-400 px-2 py-1 rounded-full">&#128683; Sin pago</span>'}</td></tr>`; }).join('');
+    if (!stats.length) { tbody.innerHTML = '<tr><td colspan="8" class="text-center py-8 text-gray-500">Aun no hay jugadores</td></tr>'; return; }
+    tbody.innerHTML = stats.map((p, i) => { 
+        let medal = ''; 
+        if (i === 0) medal = '1.'; 
+        else if (i === 1) medal = '2.'; 
+        else if (i === 2) medal = '3.'; 
+        else medal = `<span class="text-gray-500">${i + 1}.</span>`; 
+        const isMe = p.id === currentPlayer?.id; 
+        const hasAnyPayment = p.validBets > 0;
+        const hasBonus = p.bonusPoints > 0;
+        return `<tr class="border-b border-white/5 ${isMe ? 'bg-yellow-500/10' : ''} hover:bg-white/5 transition">
+            <td class="py-3 px-2 font-bold">${medal}</td>
+            <td class="py-3 px-2 font-semibold ${isMe ? 'text-yellow-400' : ''} ${!hasAnyPayment ? 'disabled-player' : ''}">${p.name}</td>
+            <td class="py-3 px-2 text-center text-gray-400">${p.validBets}/${p.totalBets}</td>
+            <td class="py-3 px-2 text-center text-yellow-400 font-bold">${p.exactos}</td>
+            <td class="py-3 px-2 text-center font-bold ${hasAnyPayment ? 'text-blue-400' : 'text-gray-600'}">${p.quinielaPoints}</td>
+            <td class="py-3 px-2 text-center">
+                ${hasBonus 
+                    ? `<span class="px-2 py-1 rounded-lg font-bold bg-purple-500/20 text-purple-400">+${p.bonusPoints}</span>` 
+                    : '<span class="text-gray-600">-</span>'}
+            </td>
+            <td class="py-3 px-2 text-center font-bold text-lg ${hasAnyPayment || hasBonus ? 'text-yellow-400' : 'text-gray-600'}">${p.totalPoints}</td>
+            <td class="py-3 px-2 text-center">${hasAnyPayment ? '<span class="text-xs bg-green-500/20 text-green-400 px-2 py-1 rounded-full">&#9989; Verificado</span>' : '<span class="text-xs bg-red-500/20 text-red-400 px-2 py-1 rounded-full">&#128683; Sin pago</span>'}</td>
+        </tr>`; 
+    }).join('');
 }
 
 function renderQR() {
@@ -898,7 +932,7 @@ const BONUS_CATEGORIES = [
 // getNowBolivia() devuelve: hora Bolivia + 4h = equivalente UTC
 // Ej: 13:50 Bolivia -> 17:50 UTC
 // Entonces deadline debe ser 20:00 UTC para que 17:50 < 20:00 (ABIERTO)
-const BONUS_DEADLINE = new Date(Date.UTC(2026, 6, 5, 20, 0, 0)); // Ajustar fecha real del primer 8vo
+const BONUS_DEADLINE = new Date(Date.UTC(2026, 5, 11, 3, 59, 0)); // 10 jun 2026 23:59 Bolivia (03:59 UTC 11 jun) - Inicio Mundial
 
 async function loadBonusData() {
     try {
@@ -1041,6 +1075,7 @@ function renderBonusSection() {
     }).join('');
 
     updateBonusCompleted();
+    renderMyBonusPredictions();
 }
 
 function getPlaceholder(key) {
@@ -1069,6 +1104,7 @@ function updateBonusRowStyle(key) {
         row.classList.remove('border-green-500/30', 'bg-green-500/5');
     }
     updateBonusCompleted();
+    renderMyBonusPredictions();
 }
 
 function updateBonusCompleted() {
@@ -1080,6 +1116,59 @@ function updateBonusCompleted() {
         el.textContent = `${count}/8`;
         el.className = count === 8 ? 'text-green-400 font-bold' : count >= 4 ? 'text-yellow-400 font-bold' : 'text-yellow-400 font-bold';
     }
+}
+
+function renderMyBonusPredictions() {
+    const container = document.getElementById('my-predictions-list');
+    if (!container) return;
+
+    const myPred = bonusPredictions.find(p => p.player_id === currentPlayer?.id);
+
+    if (!myPred) {
+        container.innerHTML = `
+            <div class="col-span-1 md:col-span-2 text-center py-6 bg-white/5 rounded-xl border border-white/10">
+                <div class="text-4xl mb-2">&#128221;</div>
+                <p class="text-gray-400 text-sm">A&uacute;n no has cargado pron&oacute;sticos extra.</p>
+                <p class="text-gray-500 text-xs mt-1">Completa el formulario de arriba y gu&aacute;rdalos.</p>
+            </div>
+        `;
+        return;
+    }
+
+    container.innerHTML = BONUS_CATEGORIES.map(cat => {
+        const val = myPred[cat.key];
+        const hasValue = val && val.trim() !== '';
+        const result = bonusResults.find(r => r.category === cat.key);
+        const hasResult = result && result.winner;
+        const isCorrect = hasResult && val && val.trim().toLowerCase() === result.winner.trim().toLowerCase();
+        const pointsAwarded = bonusPointsData.find(bp => bp.player_id === currentPlayer?.id && bp.category === cat.key);
+
+        let statusBadge = '';
+        if (hasResult) {
+            if (isCorrect) {
+                statusBadge = `<span class="text-xs bg-green-500/20 text-green-400 px-2 py-0.5 rounded-full font-bold">&#9989; +${pointsAwarded ? pointsAwarded.points : cat.points} pts</span>`;
+            } else {
+                statusBadge = `<span class="text-xs bg-red-500/20 text-red-400 px-2 py-0.5 rounded-full font-bold">&#10060; Incorrecto</span>`;
+            }
+        } else {
+            statusBadge = `<span class="text-xs bg-yellow-500/20 text-yellow-400 px-2 py-0.5 rounded-full font-bold">&#9200; Pendiente</span>`;
+        }
+
+        return `
+        <div class="flex items-center gap-3 bg-white/5 rounded-xl p-4 border ${hasValue ? (isCorrect ? 'border-green-500/30 bg-green-500/5' : hasResult ? 'border-red-500/30 bg-red-500/5' : 'border-green-500/30 bg-green-500/5') : 'border-white/10'} transition-all">
+            <div class="text-2xl flex-shrink-0">${cat.icon}</div>
+            <div class="flex-1 min-w-0">
+                <div class="font-semibold text-sm text-white">${cat.name}</div>
+                <div class="text-xs text-gray-500">+${cat.points} pts</div>
+            </div>
+            <div class="text-right">
+                <div class="font-bold text-sm ${hasValue ? (isCorrect ? 'text-green-400' : hasResult ? 'text-red-400' : 'text-yellow-400') : 'text-gray-600'}">
+                    ${hasValue ? val : 'Sin pron&oacute;stico'}
+                </div>
+                <div class="mt-1">${statusBadge}</div>
+            </div>
+        </div>`;
+    }).join('');
 }
 
 async function saveBonusPredictions() {
@@ -1126,6 +1215,7 @@ async function saveBonusPredictions() {
 
     await loadBonusData();
     renderBonusSection();
+    renderMyBonusPredictions();
     showToast(`${filledCount}/8 pron&oacute;sticos extra guardados &#9989;`, 'success');
 }
 
@@ -1133,6 +1223,7 @@ async function loadBonusForPlayer() {
     if (!currentPlayer || currentPlayer.id === 'admin') return;
     await loadBonusData();
     renderBonusSection();
+    renderMyBonusPredictions();
     showToast('Pron&oacute;sticos recargados', 'success');
 }
 
@@ -1289,54 +1380,78 @@ async function saveBonusResults() {
     });
 
     if (results.length === 0) {
-        showToast('Complet&aacute; al menos un resultado', 'warn');
+        showToast('Completá al menos un resultado', 'warn');
         return;
     }
 
-    // Guardar resultados
-    for (const r of results) {
-        const { error } = await sb.from('bonus_results')
-            .upsert(r, { onConflict: 'category' });
-        if (error) {
-            showToast('Error guardando ' + r.category + ': ' + error.message, 'error');
+    // Estrategia DELETE + INSERT en lugar de upsert (evita problemas de RLS con onConflict)
+    const categoriesToUpdate = results.map(r => r.category);
+
+    try {
+        // Borrar resultados existentes para las categorías seleccionadas
+        const { error: deleteError } = await sb
+            .from('bonus_results')
+            .delete()
+            .in('category', categoriesToUpdate);
+
+        if (deleteError) {
+            console.log('Nota al borrar:', deleteError.message);
+        }
+
+        // Insertar los nuevos resultados
+        const { error: insertError } = await sb
+            .from('bonus_results')
+            .insert(results);
+
+        if (insertError) {
+            showToast('Error guardando resultados: ' + insertError.message, 'error');
+            console.error('Insert error:', insertError);
             return;
         }
+
+    } catch (err) {
+        showToast('Error de conexión: ' + err.message, 'error');
+        console.error('saveBonusResults error:', err);
+        return;
     }
 
-    // Llamar función RPC para calcular puntos
+    // Calcular puntos manualmente (RPC puede no existir)
     try {
-        const { error: calcError } = await sb.rpc('calculate_bonus_points');
-        if (calcError) throw calcError;
-    } catch (e) {
-        // Fallback: calcular manualmente si la función RPC no existe
-        console.log('RPC no disponible, calculando manualmente...');
         await calculateBonusPointsManual();
+    } catch (e) {
+        console.log('Error en cálculo manual:', e);
+        showToast('Resultados guardados pero error calculando puntos: ' + e.message, 'error');
+        return;
     }
 
     await loadBonusData();
     renderAdminBonus();
     renderLeaderboard();
-    showToast('Resultados guardados y puntos calculados &#9989;', 'success');
+    showToast('Resultados guardados y puntos calculados ✅', 'success');
 }
 
 async function calculateBonusPointsManual() {
     try {
         // Borrar asignaciones previas
-        await sb.from('bonus_points_awarded').delete().neq('id', 0);
+        const { error: delError } = await sb.from('bonus_points_awarded').delete().neq('id', 0);
+        if (delError) console.log('Nota al borrar puntos previos:', delError.message);
 
-        const pointsMap = { campeon: 50, subcampeon: 40, tercer_lugar: 30, goleador: 30, balon_oro: 25, mas_goles: 20, mejor_arquero: 20, juego_limpio: 15 };
+        const pointsMap = { 
+            campeon: 50, subcampeon: 40, tercer_lugar: 30, 
+            goleador: 30, balon_oro: 25, mas_goles: 20, 
+            mejor_arquero: 20, juego_limpio: 15 
+        };
+
+        const pointsToInsert = [];
 
         for (const pred of bonusPredictions) {
-            let totalExtra = 0;
-
             for (const cat of BONUS_CATEGORIES) {
                 const result = bonusResults.find(r => r.category === cat.key);
                 if (!result || !result.winner) continue;
 
                 const prediction = pred[cat.key];
                 if (prediction && prediction.trim().toLowerCase() === result.winner.trim().toLowerCase()) {
-                    totalExtra += pointsMap[cat.key];
-                    await sb.from('bonus_points_awarded').insert({
+                    pointsToInsert.push({
                         player_id: pred.player_id,
                         category: cat.key,
                         prediction: prediction,
@@ -1345,18 +1460,17 @@ async function calculateBonusPointsManual() {
                     });
                 }
             }
+        }
 
-            // Actualizar total_points del jugador - obtener valor actual primero
-            if (totalExtra > 0) {
-                const player = players.find(p => p.id === pred.player_id);
-                const currentPoints = player ? (player.total_points || 0) : 0;
-                const newTotal = currentPoints + totalExtra;
-
-                await sb.from('players')
-                    .update({ total_points: newTotal })
-                    .eq('id', pred.player_id);
+        // Insertar todos los puntos de una vez
+        if (pointsToInsert.length > 0) {
+            const { error: insertError } = await sb.from('bonus_points_awarded').insert(pointsToInsert);
+            if (insertError) {
+                console.error('Error insertando puntos:', insertError);
+                throw insertError;
             }
         }
+
     } catch (error) {
         console.error('Error en calculateBonusPointsManual:', error);
         showToast('Error calculando puntos bonus: ' + error.message, 'error');
